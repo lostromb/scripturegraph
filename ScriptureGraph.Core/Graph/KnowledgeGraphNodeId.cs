@@ -6,15 +6,17 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Graph
 {
-    internal struct KnowledgeGraphNodeId
+    public struct KnowledgeGraphNodeId
     {
         public KnowledgeGraphNodeType Type;
         public string Name;
+        private int _cachedHashCode;
 
         public KnowledgeGraphNodeId(KnowledgeGraphNodeType type, string name)
         {
             Type = type;
             Name = name;
+            _cachedHashCode = Type.GetHashCode() + Name.GetHashCode();
         }
 
         public override bool Equals(object? obj)
@@ -30,7 +32,7 @@ namespace ScriptureGraph.Core.Graph
 
         public override int GetHashCode()
         {
-            return Type.GetHashCode() + Name.GetHashCode();
+            return _cachedHashCode;
         }
     }
 }

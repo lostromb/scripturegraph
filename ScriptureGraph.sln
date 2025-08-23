@@ -5,6 +5,8 @@ VisualStudioVersion = 17.9.34701.34
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScriptureGraph.Core", "ScriptureGraph.Core\ScriptureGraph.Core.csproj", "{8948B5D3-E513-4537-AB3E-C91FDB6B15DD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScriptureGraph.Console", "ScriptureGraph.Console\ScriptureGraph.Console.csproj", "{D7602DE3-47EE-4663-9CDF-4EA3E6BB0CBD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{8948B5D3-E513-4537-AB3E-C91FDB6B15DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8948B5D3-E513-4537-AB3E-C91FDB6B15DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8948B5D3-E513-4537-AB3E-C91FDB6B15DD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D7602DE3-47EE-4663-9CDF-4EA3E6BB0CBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D7602DE3-47EE-4663-9CDF-4EA3E6BB0CBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D7602DE3-47EE-4663-9CDF-4EA3E6BB0CBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D7602DE3-47EE-4663-9CDF-4EA3E6BB0CBD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

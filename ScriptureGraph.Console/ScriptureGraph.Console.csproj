@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -9,6 +10,11 @@
   <ItemGroup>
     <PackageReference Include="Durandal.AI" Version="22.0.4670" />
     <PackageReference Include="Durandal.AI.Extensions.Compression" Version="22.0.4670" />
+    <PackageReference Include="Durandal.AI.NonPortable" Version="22.0.4670" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ScriptureGraph.Core\ScriptureGraph.Core.csproj" />
   </ItemGroup>
 
 </Project>

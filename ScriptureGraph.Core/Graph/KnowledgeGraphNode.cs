@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Graph
 {
-    internal class KnowledgeGraphNode
+    public class KnowledgeGraphNode
     {
         public KnowledgeGraphNodeId Id;
         public uint TotalMass;

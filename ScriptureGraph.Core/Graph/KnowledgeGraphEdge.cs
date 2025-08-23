@@ -1,14 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace ScriptureGraph.Core.Graph
+﻿namespace ScriptureGraph.Core.Graph
 {
-    internal class KnowledgeGraphEdge
+    public class KnowledgeGraphEdge
     {
-        public KnowledgeGraphNode Target;
+        public KnowledgeGraphEdge(KnowledgeGraphNodeId target)
+        {
+            Target = target;
+        }
+
+        public KnowledgeGraphNodeId Target;
         public uint Mass;
         public float Weight;
     }
