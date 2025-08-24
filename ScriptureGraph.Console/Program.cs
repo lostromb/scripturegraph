@@ -43,14 +43,16 @@ namespace ScriptureGraph.Console
             return;
         }
 
+        private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/(.+?)\\/(.+?)\\/(\\d+)");
+
         private static Task<bool> ParseScripturePageAction(WebCrawler.CrawledPage page, ILogger logger)
         {
-            //List<TrainingFeature> features = new List<TrainingFeature>();
-            //if (page.Url.AbsolutePath.Contains("/scriptures/bofm/"))
-            //{
-            //    // It's a scripture page. Try and parse it
-            //    ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
-            //}
+            List<TrainingFeature> features = new List<TrainingFeature>();
+            if (UrlPathParser.Match(page.Url.AbsolutePath).Success)
+            {
+                // It's a scripture page. Try and parse it
+                ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+            }
 
             return Task.FromResult<bool>(true);
         }

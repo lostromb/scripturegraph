@@ -17,5 +17,10 @@ namespace ScriptureGraph.Core.Training
 
         public KnowledgeGraphNodeId NodeA;
         public KnowledgeGraphNodeId NodeB;
+
+        public override string ToString()
+        {
+            return $"{NodeA} <-> {NodeB}";
+        }
     }
 }

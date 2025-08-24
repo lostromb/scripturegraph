@@ -30,6 +30,11 @@ namespace ScriptureGraph.Core.Graph
             return Type == other.Type && string.Equals(Name, other.Name);
         }
 
+        public override string? ToString()
+        {
+            return $"{Enum.GetName(Type)}-{Name}";
+        }
+
         public override int GetHashCode()
         {
             return _cachedHashCode;

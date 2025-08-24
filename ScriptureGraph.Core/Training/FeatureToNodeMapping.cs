@@ -33,10 +33,10 @@ namespace ScriptureGraph.Core.Training
                 $"{word1}\t{word2}\t{word3}\t{lang.ToBcp47Alpha3String()}");
         }
 
-        public static KnowledgeGraphNodeId ScriptureVerse(string canon, string book, int verse)
+        public static KnowledgeGraphNodeId ScriptureVerse(string canon, string book, int chapter, int verse)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureVerse,
-                $"{canon}\t{book}\t{verse}");
+                $"{canon}\t{book}\t{chapter}\t{verse}");
         }
 
         public static KnowledgeGraphNodeId TopicalGuideKeyword(string keyword)
