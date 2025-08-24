@@ -99,7 +99,7 @@ namespace ScriptureGraph.Core.Training
 
         public async Task Crawl(
             Uri startUrl,
-            Func<CrawledPage, Task<bool>> pageAction,
+            Func<CrawledPage, ILogger, Task<bool>> pageAction,
             ILogger logger,
             ISet<Regex>? allowedUrlPatterns = null)
         {
@@ -158,7 +158,7 @@ namespace ScriptureGraph.Core.Training
 
                     if (crawlSucceeded)
                     {
-                        bool continueCrawling = await pageAction(thisPage);
+                        bool continueCrawling = await pageAction(thisPage, logger);
                         if (!continueCrawling)
                         {
                             logger.Log("Got signal to stop crawling");
