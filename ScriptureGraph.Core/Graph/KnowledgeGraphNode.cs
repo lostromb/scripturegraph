@@ -6,10 +6,9 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Graph
 {
-    public class KnowledgeGraphNode
+    public struct KnowledgeGraphNode
     {
         public KnowledgeGraphNodeId Id;
-        public uint TotalMass;
-        public ushort NumEdges;
+        public GraphEdgeList Edges;
     }
 }

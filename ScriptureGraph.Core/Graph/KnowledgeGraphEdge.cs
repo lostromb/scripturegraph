@@ -1,14 +1,14 @@
 ﻿namespace ScriptureGraph.Core.Graph
 {
-    public class KnowledgeGraphEdge
+    public struct KnowledgeGraphEdge
     {
-        public KnowledgeGraphEdge(KnowledgeGraphNodeId target)
+        public KnowledgeGraphEdge(KnowledgeGraphNodeId target, float mass)
         {
             Target = target;
+            Mass = mass;
         }
 
         public KnowledgeGraphNodeId Target;
-        public uint Mass;
-        public float Weight;
+        public float Mass;
     }
 }

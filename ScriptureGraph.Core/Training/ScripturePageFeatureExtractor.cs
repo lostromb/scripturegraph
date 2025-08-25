@@ -179,7 +179,7 @@ namespace ScriptureGraph.Core.Training
                         {
                             // It's one or more words tagged with a footnote
                             string footnoteNoteRef = taggedWordMatch.Groups[1].Value; // "20d"
-                            string footnotedWords = taggedWordMatch.Groups[2].Value; // "cast out"
+                            string footnotedWords = taggedWordMatch.Groups[2].Value.ToLowerInvariant(); // "cast out"
                             int subWordIndex = 0;
                             StructuredFootnote? footnoteForTheseWords;
                             if (!footnotes.TryGetValue(footnoteNoteRef, out footnoteForTheseWords))
@@ -206,7 +206,7 @@ namespace ScriptureGraph.Core.Training
                         else
                         {
                             // It's just an untagged word
-                            words.Add(new SingleWordWithFootnotes(wordMatch.Value));
+                            words.Add(new SingleWordWithFootnotes(wordMatch.Value.ToLowerInvariant()));
 
                             stringBuffer.Remove(0, wordMatch.Index + wordMatch.Length);
                         }
@@ -245,7 +245,8 @@ namespace ScriptureGraph.Core.Training
             {
                 trainingFeaturesOut.Add(new TrainingFeature(
                     thisVerseNode,
-                    FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH)));
+                    FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
+                    TrainingFeatureType.WordAssociation));
             }
 
             // All words cross referenced with each other
@@ -256,7 +257,8 @@ namespace ScriptureGraph.Core.Training
                 {
                     trainingFeaturesOut.Add(new TrainingFeature(
                         FeatureToNodeMapping.Word(words[startIndex].Word, LanguageCode.ENGLISH),
-                        FeatureToNodeMapping.Word(words[endIndex].Word, LanguageCode.ENGLISH)));
+                        FeatureToNodeMapping.Word(words[endIndex].Word, LanguageCode.ENGLISH),
+                    TrainingFeatureType.WordAssociation));
                 }
             }
 
@@ -276,10 +278,12 @@ namespace ScriptureGraph.Core.Training
                             KnowledgeGraphNodeId refNodeId = FeatureToNodeMapping.TopicalGuideKeyword(scriptureRef.Book);
                             trainingFeaturesOut.Add(new TrainingFeature(
                                 thisVerseNode,
-                                refNodeId));
+                                refNodeId,
+                                TrainingFeatureType.EntityReference));
                             trainingFeaturesOut.Add(new TrainingFeature(
                                 FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
-                                refNodeId));
+                                refNodeId,
+                                TrainingFeatureType.WordDesignation));
                         }
                         else if (string.Equals(scriptureRef.Canon, "bd", StringComparison.Ordinal))
                         {
@@ -299,10 +303,12 @@ namespace ScriptureGraph.Core.Training
                                     scriptureRef.Verse.Value);
                                 trainingFeaturesOut.Add(new TrainingFeature(
                                     thisVerseNode,
-                                    refNodeId));
+                                    refNodeId,
+                                    TrainingFeatureType.EntityReference));
                                 trainingFeaturesOut.Add(new TrainingFeature(
                                     FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
-                                    refNodeId));
+                                    refNodeId,
+                                    TrainingFeatureType.WordDesignation));
                             }
                             else
                             {
