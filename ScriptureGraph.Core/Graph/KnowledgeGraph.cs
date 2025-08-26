@@ -16,12 +16,14 @@ namespace ScriptureGraph.Core.Graph
         private readonly TrainingLockArray _locks;
         private HashTableLinkedListNode[] _bins;
         private volatile int _numItemsInDictionary;
+        private readonly int _edgeCapacity;
 
-        public KnowledgeGraph()
+        public KnowledgeGraph(int edgeCapacity = 256)
         {
             _locks = new TrainingLockArray(NUM_LOCKS);
             _numItemsInDictionary = 0;
             _bins = new HashTableLinkedListNode[NUM_LOCKS];
+            _edgeCapacity = edgeCapacity.AssertPositive(nameof(edgeCapacity));
         }
 
         public int Count => _numItemsInDictionary;
@@ -36,7 +38,7 @@ namespace ScriptureGraph.Core.Graph
             ExpandTableIfNeeded();
             HashTableLinkedListNode[] bins;
             KnowledgeGraphNodeId nodeId = item.Key;
-            AcquireLockToStableHashBin(ref nodeId, out bins);
+            AcquireLockToStableHashBin(nodeId, out bins);
 
             try
             {
@@ -78,7 +80,7 @@ namespace ScriptureGraph.Core.Graph
             }
             finally
             {
-                _locks.ReleaseLock(ref nodeId);
+                _locks.ReleaseLock(nodeId);
             }
         }
 
@@ -88,16 +90,16 @@ namespace ScriptureGraph.Core.Graph
             return new KnowledgeGraphUnsafeEnumerator(this);
         }
 
-        public void Train(ref TrainingFeature feature)
+        public void Train(TrainingFeature feature)
         {
-            Train(ref feature.NodeA, ref feature.NodeB, feature.EdgeWeight);
-            Train(ref feature.NodeB, ref feature.NodeA, feature.EdgeWeight);
+            Train(feature.NodeA, feature.NodeB, feature.EdgeWeight);
+            Train(feature.NodeB, feature.NodeA, feature.EdgeWeight);
         }
 
-        public void Train(ref KnowledgeGraphNodeId nodeA, ref KnowledgeGraphNodeId nodeB, float increment)
+        public void Train(KnowledgeGraphNodeId nodeA, KnowledgeGraphNodeId nodeB, float increment)
         {
             HashTableLinkedListNode[] bins;
-            AcquireLockToStableHashBin(ref nodeA, out bins);
+            AcquireLockToStableHashBin(nodeA, out bins);
             try
             {
                 uint keyHash = (uint)nodeA.GetHashCode();
@@ -107,7 +109,7 @@ namespace ScriptureGraph.Core.Graph
                 if (bins[bin] == null)
                 {
                     // Create a new value
-                    KnowledgeGraphNode newNode = new KnowledgeGraphNode();
+                    KnowledgeGraphNode newNode = new KnowledgeGraphNode(_edgeCapacity);
                     newNode.Edges.Increment(nodeB, increment);
                     bins[bin] = new HashTableLinkedListNode(
                         new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(nodeA, newNode));
@@ -135,7 +137,7 @@ namespace ScriptureGraph.Core.Graph
                     }
 
                     // If value is not already there, append a new entry to the end of the bin
-                    KnowledgeGraphNode newNode = new KnowledgeGraphNode();
+                    KnowledgeGraphNode newNode = new KnowledgeGraphNode(_edgeCapacity);
                     newNode.Edges.Increment(nodeB, increment);
                     endOfBin.Next = new HashTableLinkedListNode(
                         new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(nodeA, newNode));
@@ -144,20 +146,20 @@ namespace ScriptureGraph.Core.Graph
             }
             finally
             {
-                _locks.ReleaseLock(ref nodeA);
+                _locks.ReleaseLock(nodeA);
             }
         }
 
-        public KnowledgeGraphNode Get(ref KnowledgeGraphNodeId key)
+        public KnowledgeGraphNode Get(KnowledgeGraphNodeId key)
         {
-            return GetInternal(ref key);
+            return GetInternal(key);
         }
 
-        private KnowledgeGraphNode GetInternal(ref KnowledgeGraphNodeId key)
+        private KnowledgeGraphNode GetInternal(KnowledgeGraphNodeId key)
         {
             uint keyHash = (uint)key.GetHashCode();
             HashTableLinkedListNode[] bins;
-            AcquireLockToStableHashBin(ref key, out bins);
+            AcquireLockToStableHashBin(key, out bins);
             try
             {
                 uint bin = keyHash % (uint)bins.Length;
@@ -191,22 +193,22 @@ namespace ScriptureGraph.Core.Graph
         }
 
         private void AcquireLockToStableHashBin(
-            ref KnowledgeGraphNodeId node,
+            KnowledgeGraphNodeId node,
             out HashTableLinkedListNode[] hashTable)
         {
             // Copy a local reference of the table in case another thread tries to resize it while we are accessing
             hashTable = _bins;
 
             // Acquire locks
-            _locks.GetLock(ref node);
+            _locks.GetLock(node);
 
             // Detect if the table was resized while we were getting the lock
             while (_bins != hashTable)
             {
                 // If so, reacquire a handle to the table and try getting lock again
-                _locks.ReleaseLock(ref node);
+                _locks.ReleaseLock(node);
                 hashTable = _bins;
-                _locks.GetLock(ref node);
+                _locks.GetLock(node);
             }
         }
 

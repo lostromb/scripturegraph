@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Graph
 {
-    public struct GraphEdgeList
+    public class GraphEdgeList
     {
         private readonly int _maxCapacity;
         private int _currentCapacity;
@@ -92,6 +92,7 @@ namespace ScriptureGraph.Core.Graph
                 KnowledgeGraphEdge[] newList = new KnowledgeGraphEdge[newCapacity];
                 _list.AsSpan(0, _currentLength).CopyTo(newList.AsSpan());
                 _list = newList;
+                _currentCapacity = newCapacity;
             }
         }
 

@@ -10,5 +10,10 @@
 
         public KnowledgeGraphNodeId Target;
         public float Mass;
+
+        public override string? ToString()
+        {
+            return $"{Mass:F3} -> {Target}";
+        }
     }
 }

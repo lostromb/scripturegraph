@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Graph
 {
-    public struct KnowledgeGraphNode
+    public class KnowledgeGraphNode
     {
-        public KnowledgeGraphNode()
+        public KnowledgeGraphNode(int edgeCapacity)
         {
-            Edges = new GraphEdgeList(256);
+            Edges = new GraphEdgeList(edgeCapacity);
         }
 
         public GraphEdgeList Edges;

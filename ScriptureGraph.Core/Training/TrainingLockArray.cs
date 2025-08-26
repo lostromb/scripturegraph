@@ -34,13 +34,13 @@ namespace ScriptureGraph.Core.Training
             }
         }
 
-        public void GetLock(ref KnowledgeGraphNodeId node)
+        public void GetLock(in KnowledgeGraphNodeId node)
         {
             uint bin = ((uint)node.GetHashCode()) % _numLocks;
             Monitor.Enter(_locks[bin]);
         }
 
-        public void ReleaseLock(ref KnowledgeGraphNodeId nodeA)
+        public void ReleaseLock(in KnowledgeGraphNodeId nodeA)
         {
             uint bin = ((uint)nodeA.GetHashCode()) % _numLocks;
             Monitor.Exit(_locks[bin]);

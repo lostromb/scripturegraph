@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Training
 {
-    public struct TrainingFeature
+    public class TrainingFeature
     {
         public TrainingFeature(
             KnowledgeGraphNodeId a,

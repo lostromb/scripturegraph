@@ -35,9 +35,10 @@ namespace ScriptureGraph.Console
             graph = new KnowledgeGraph();
 
             HashSet<Regex> scriptureRegexes = new HashSet<Regex>();
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
+            //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
+            //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
+            //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
+            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
             await crawler.Crawl(
                 //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
                 new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
@@ -59,10 +60,9 @@ namespace ScriptureGraph.Console
                 ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
             }
 
-            TrainingFeature[] featureArray = features.ToArray();
-            for (int c = 0; c < featureArray.Length; c++)
+            foreach (var feature in features)
             {
-                graph.Train(ref featureArray[c]);
+                graph.Train(feature);
             }
 
             return Task.FromResult<bool>(true);
