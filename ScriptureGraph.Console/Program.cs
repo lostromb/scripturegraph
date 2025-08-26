@@ -4,6 +4,7 @@ using Durandal.Common.Logger;
 using Durandal.Common.Net.Http;
 using Durandal.Common.Utils.NativePlatform;
 using Durandal.Extensions.Compression.Brotli;
+using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Training;
 using System.Text.RegularExpressions;
 
@@ -11,6 +12,8 @@ namespace ScriptureGraph.Console
 {
     internal class Program
     {
+        private static KnowledgeGraph graph;
+
         public static async Task Main(string[] args)
         {
             ILogger logger = new ConsoleLogger("Main", LogLevel.All);
@@ -29,13 +32,15 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
+            graph = new KnowledgeGraph();
+
             HashSet<Regex> scriptureRegexes = new HashSet<Regex>();
             scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
             scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
             scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
             await crawler.Crawl(
-                new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
-                //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
+                //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
+                new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
                 ParseScripturePageAction,
                 logger.Clone("WebCrawler"),
                 scriptureRegexes);
@@ -47,12 +52,18 @@ namespace ScriptureGraph.Console
 
         private static Task<bool> ParseScripturePageAction(WebCrawler.CrawledPage page, ILogger logger)
         {
-            //List<TrainingFeature> features = new List<TrainingFeature>();
-            //if (UrlPathParser.Match(page.Url.AbsolutePath).Success)
-            //{
-            //    // It's a scripture page. Try and parse it
-            //    ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
-            //}
+            List<TrainingFeature> features = new List<TrainingFeature>();
+            if (UrlPathParser.Match(page.Url.AbsolutePath).Success)
+            {
+                // It's a scripture page. Try and parse it
+                ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+            }
+
+            TrainingFeature[] featureArray = features.ToArray();
+            for (int c = 0; c < featureArray.Length; c++)
+            {
+                graph.Train(ref featureArray[c]);
+            }
 
             return Task.FromResult<bool>(true);
         }

@@ -19,7 +19,7 @@ namespace ScriptureGraph.Core.Graph
         {
             _maxCapacity = Math.Max(4, maxCapacity);
             _currentCapacity = 4;
-            _currentLength = 4;
+            _currentLength = 0;
             _list = new KnowledgeGraphEdge[_currentCapacity];
             _totalMass = 0;
         }
@@ -30,7 +30,7 @@ namespace ScriptureGraph.Core.Graph
         public void Increment(in KnowledgeGraphNodeId nodeRef, float massIncrease)
         {
             int idx = 0;
-            while (idx < _currentCapacity)
+            while (idx < _currentLength)
             {
                 ref KnowledgeGraphEdge cur = ref _list[idx];
                 if (cur.Target.Equals(nodeRef))
@@ -52,6 +52,8 @@ namespace ScriptureGraph.Core.Graph
                     _totalMass += massIncrease;
                     return;
                 }
+
+                idx++;
             }
 
             // Didn't find it in the list. Need to add an edge.

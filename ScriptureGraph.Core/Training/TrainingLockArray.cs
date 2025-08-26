@@ -5,59 +5,91 @@ namespace ScriptureGraph.Core.Training
 {
     public class TrainingLockArray
     {
-        private int _numLocks;
+        private uint _numLocks;
         private object[] _locks;
 
         public TrainingLockArray(int numLocks)
         {
-            _numLocks = numLocks.AssertPositive(nameof(numLocks));
+            _numLocks = (uint)numLocks.AssertPositive(nameof(numLocks));
             _locks = new object[numLocks];
+            for (int c = 0; c < numLocks; c++)
+            {
+                _locks[c] = new object();
+            }
         }
 
-        public void GetLocks(ref KnowledgeGraphNodeId nodeA, ref KnowledgeGraphNodeId nodeB)
+        public void GetAllLocks()
         {
-            int bin1 = nodeA.GetHashCode() % _numLocks;
-            int bin2 = nodeB.GetHashCode() % _numLocks;
-            if (bin1 == bin2)
+            for (int c = 0; c < _numLocks; c++)
             {
-                // Shared lock for both nodes.
-                Monitor.Enter(_locks[bin1]);
-                return;
+                Monitor.Enter(_locks[c]);
             }
-
-            // Enforce resource ordering to prevent deadlock
-            if (bin1 > bin2)
-            {
-                int swap = bin1;
-                bin1 = bin2;
-                bin2 = swap;
-            }
-
-            Monitor.Enter(_locks[bin1]);
-            Monitor.Enter(_locks[bin2]);
         }
 
-        public void ReleaseLock(ref KnowledgeGraphNodeId nodeA, ref KnowledgeGraphNodeId nodeB)
+        public void ReleaseAllLocks()
         {
-            int bin1 = nodeA.GetHashCode() % _numLocks;
-            int bin2 = nodeB.GetHashCode() % _numLocks;
-            if (bin1 == bin2)
+            for (int c = 0; c < _numLocks; c++)
             {
-                // Shared lock for both nodes.
-                Monitor.Exit(_locks[bin1]);
-                return;
+                Monitor.Exit(_locks[c]);
             }
-
-            // Enforce resource ordering to prevent deadlock
-            if (bin1 > bin2)
-            {
-                int swap = bin1;
-                bin1 = bin2;
-                bin2 = swap;
-            }
-
-            Monitor.Exit(_locks[bin1]);
-            Monitor.Exit(_locks[bin2]);
         }
+
+        public void GetLock(ref KnowledgeGraphNodeId node)
+        {
+            uint bin = ((uint)node.GetHashCode()) % _numLocks;
+            Monitor.Enter(_locks[bin]);
+        }
+
+        public void ReleaseLock(ref KnowledgeGraphNodeId nodeA)
+        {
+            uint bin = ((uint)nodeA.GetHashCode()) % _numLocks;
+            Monitor.Exit(_locks[bin]);
+        }
+
+        //public void GetLocks(ref KnowledgeGraphNodeId nodeA, ref KnowledgeGraphNodeId nodeB)
+        //{
+        //    uint bin1 = ((uint)nodeA.GetHashCode()) % _numLocks;
+        //    uint bin2 = ((uint)nodeB.GetHashCode()) % _numLocks;
+        //    if (bin1 == bin2)
+        //    {
+        //        // Shared lock for both nodes.
+        //        Monitor.Enter(_locks[bin1]);
+        //        return;
+        //    }
+
+        //    // Enforce resource ordering to prevent deadlock
+        //    if (bin1 > bin2)
+        //    {
+        //        uint swap = bin1;
+        //        bin1 = bin2;
+        //        bin2 = swap;
+        //    }
+
+        //    Monitor.Enter(_locks[bin1]);
+        //    Monitor.Enter(_locks[bin2]);
+        //}
+
+        //public void ReleaseLocks(ref KnowledgeGraphNodeId nodeA, ref KnowledgeGraphNodeId nodeB)
+        //{
+        //    uint bin1 = ((uint)nodeA.GetHashCode()) % _numLocks;
+        //    uint bin2 = ((uint)nodeB.GetHashCode()) % _numLocks;
+        //    if (bin1 == bin2)
+        //    {
+        //        // Shared lock for both nodes.
+        //        Monitor.Exit(_locks[bin1]);
+        //        return;
+        //    }
+
+        //    // Enforce resource ordering to prevent deadlock
+        //    if (bin1 > bin2)
+        //    {
+        //        uint swap = bin1;
+        //        bin1 = bin2;
+        //        bin2 = swap;
+        //    }
+
+        //    Monitor.Exit(_locks[bin1]);
+        //    Monitor.Exit(_locks[bin2]);
+        //}
     }
 }

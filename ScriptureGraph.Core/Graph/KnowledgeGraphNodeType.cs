@@ -14,7 +14,7 @@ namespace ScriptureGraph.Core.Graph
         // A platonic ideal entity, designated by language-sgnostic name
         Entity,
 
-        // A single word with a language code attached
+        // A single word with a language code attached (in an invariant form such as lower case)
         Word,
 
         // A series of N words with a language code attached
@@ -24,7 +24,7 @@ namespace ScriptureGraph.Core.Graph
         // Multiple verses will be designated by multiple nodes or features.
         ScriptureVerse,
 
-        // A reference to the topical guide, designated by URL keyword (e.g. scriptures/tg/sobriety)
+        // A reference to the topical guide, designated by URL keyword (e.g. scriptures/tg/sobriety where "sobriety" is the node name)
         TopicalGuideKeyword,
     }
 }

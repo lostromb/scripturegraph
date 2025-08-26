@@ -8,7 +8,11 @@ namespace ScriptureGraph.Core.Graph
 {
     public struct KnowledgeGraphNode
     {
-        public KnowledgeGraphNodeId Id;
+        public KnowledgeGraphNode()
+        {
+            Edges = new GraphEdgeList(256);
+        }
+
         public GraphEdgeList Edges;
     }
 }
