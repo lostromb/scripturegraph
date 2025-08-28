@@ -213,7 +213,7 @@ namespace ScriptureGraph.Core.Training
                     }
 
                     // Dump the wordbreaker and tagger output for debug
-                    logger.Log($"Verse {verse.Verse}: {string.Join(' ', words)}");
+                    //logger.Log($"Verse {verse.Verse}: {string.Join(' ', words)}");
 
                     // now FINALLY we can extract features
                     ExtractFeaturesFromSingleVerse(verse, words, logger, returnVal);

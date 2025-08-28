@@ -57,6 +57,7 @@ namespace ScriptureGraph.Console
             if (UrlPathParser.Match(page.Url.AbsolutePath).Success)
             {
                 // It's a scripture page. Try and parse it
+                logger.Log($"Parsing page {page.Url.AbsolutePath}");
                 ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
             }
 

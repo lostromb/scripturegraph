@@ -2,7 +2,6 @@
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Training;
 using System.Collections;
-using System.Xml.Linq;
 
 #nullable disable
 namespace ScriptureGraph.Core.Graph
@@ -188,7 +187,7 @@ namespace ScriptureGraph.Core.Graph
             }
             finally
             {
-                _locks.ReleaseLock(ref key);
+                _locks.ReleaseLock(key);
             }
         }
 
