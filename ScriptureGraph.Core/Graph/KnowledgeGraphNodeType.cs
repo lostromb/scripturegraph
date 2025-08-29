@@ -8,23 +8,45 @@ namespace ScriptureGraph.Core.Graph
 {
     public enum KnowledgeGraphNodeType : ushort
     {
-        // Default value
+        /// <summary>
+        /// Default value, usually indicates error
+        /// </summary>
         Unknown,
 
-        // A platonic ideal entity, designated by language-sgnostic name
+        /// <summary>
+        /// A platonic ideal entity, designated by language-agnostic name
+        /// </summary>
         Entity,
 
-        // A single word with a language code attached (in an invariant form such as lower case)
+        /// <summary>
+        /// A single word with a language code attached (in an invariant form such as lower case)
+        /// </summary>
         Word,
 
-        // A series of N words with a language code attached
+        /// <summary>
+        /// A series of N words with a language code attached
+        /// </summary>
         NGram,
 
-        // A single designated book + chapter + verse within scripture
-        // Multiple verses will be designated by multiple nodes or features.
+        /// <summary>
+        /// A single designated book + chapter + verse within scripture
+        /// Multiple verses will be designated by multiple nodes or features.
+        /// </summary>
         ScriptureVerse,
 
-        // A reference to the topical guide, designated by URL keyword (e.g. scriptures/tg/sobriety where "sobriety" is the node name)
+        /// <summary>
+        /// A reference to the topical guide, designated by URL keyword (e.g. scriptures/tg/sobriety where "sobriety" is the node name)
+        /// </summary>
         TopicalGuideKeyword,
+
+        /// <summary>
+        /// A chapter of a book of scripture, e.g. "Hebrews 10"
+        /// </summary>
+        ScriptureChapter,
+
+        /// <summary>
+        /// An entire book of scripture, e.g. "Hebrews"
+        /// </summary>
+        ScriptureBook,
     }
 }

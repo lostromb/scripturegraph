@@ -34,7 +34,7 @@ namespace ScriptureGraph.Core.Graph
             }
         }
 
-        private float _minActivation = 0.00001f;
+        private float _minActivation = 0.0001f;
 
         public float MinActivation
         {
@@ -53,6 +53,26 @@ namespace ScriptureGraph.Core.Graph
             }
         }
 
+        private float _scopeOverlapMultiplier = 4.0f;
+
+        public float ScopeOverlapMultiplier
+        {
+            get
+            {
+                return _scopeOverlapMultiplier;
+            }
+            set
+            {
+                if (value < 0)
+                {
+                    throw new ArgumentOutOfRangeException("Scope activation multiplier must be non-negative");
+                }
+
+                _scopeOverlapMultiplier = value;
+            }
+        }
+
+        public int NumSearchScopes => _scopes.Count;
 
         public IEnumerable<int> SearchScopes => _scopes.Keys;
 

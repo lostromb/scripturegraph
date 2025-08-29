@@ -32,6 +32,16 @@ namespace ScriptureGraph.Core.Training
         /// <summary>
         /// Unique references directly between entities (in this case, like a scripture having a footnote linking to another)
         /// </summary>
-        EntityReference
+        EntityReference,
+
+        /// <summary>
+        /// Used for paragraphs / verses that appear next to each other or belong to certain chapters
+        /// </summary>
+        ParagraphAssociation,
+
+        /// <summary>
+        /// Used for high-level relations between books, chapters, and paragraphs within those chapters
+        /// </summary>
+        BookAssociation
     }
 }

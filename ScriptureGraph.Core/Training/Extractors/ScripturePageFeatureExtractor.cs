@@ -230,6 +230,33 @@ namespace ScriptureGraph.Core.Training.Extractors
                     rawTextBuffer.Clear();
                     words.Clear();
                 }
+
+                // Some final chapter-level features
+                // Relationship between this scripture book and the chapters in it
+                returnVal.Add(new TrainingFeature(
+                    FeatureToNodeMapping.ScriptureBook(
+                        canon,
+                        book),
+                    FeatureToNodeMapping.ScriptureChapter(
+                        canon,
+                        book,
+                        chapter),
+                    TrainingFeatureType.BookAssociation));
+
+                // And the previous chapter, if applicable
+                if (chapter > 1)
+                {
+                    returnVal.Add(new TrainingFeature(
+                        FeatureToNodeMapping.ScriptureChapter(
+                            canon,
+                            book,
+                            chapter),
+                        FeatureToNodeMapping.ScriptureChapter(
+                            canon,
+                            book,
+                            chapter - 1),
+                        TrainingFeatureType.BookAssociation));
+                }
             }
             catch (Exception e)
             {
@@ -253,6 +280,28 @@ namespace ScriptureGraph.Core.Training.Extractors
 
             // Common word and ngram level features associated with this verse entity
             EnglishWordFeatureExtractor.ExtractTrainingFeatures(rawText, trainingFeaturesOut, thisVerseNode);
+
+            // Relationship between this verse and the previous one (if present)
+            if (currentVerse.Verse > 1)
+            {
+                trainingFeaturesOut.Add(new TrainingFeature(
+                    thisVerseNode,
+                    FeatureToNodeMapping.ScriptureVerse(
+                        currentVerse.Canon,
+                        currentVerse.Book,
+                        currentVerse.Chapter,
+                        currentVerse.Verse - 1),
+                    TrainingFeatureType.ParagraphAssociation));
+            }
+
+            // Relationship between this verse and the book it's in
+            trainingFeaturesOut.Add(new TrainingFeature(
+                thisVerseNode,
+                FeatureToNodeMapping.ScriptureChapter(
+                    currentVerse.Canon,
+                    currentVerse.Book,
+                    currentVerse.Chapter),
+                TrainingFeatureType.BookAssociation));
 
             // Cross-references between this verse and other verses based on footnotes
             foreach (var word in words)
@@ -281,29 +330,41 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
                         else
                         {
+                            KnowledgeGraphNodeId refNodeId;
                             if (scriptureRef.Chapter.HasValue &&
                                 scriptureRef.Verse.HasValue)
                             {
                                 // Regular scripture ref
-                                KnowledgeGraphNodeId refNodeId = FeatureToNodeMapping.ScriptureVerse(
+                                refNodeId = FeatureToNodeMapping.ScriptureVerse(
                                     scriptureRef.Canon,
                                     scriptureRef.Book,
                                     scriptureRef.Chapter.Value,
                                     scriptureRef.Verse.Value);
-                                trainingFeaturesOut.Add(new TrainingFeature(
-                                    thisVerseNode,
-                                    refNodeId,
-                                    TrainingFeatureType.EntityReference));
-                                trainingFeaturesOut.Add(new TrainingFeature(
-                                    FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
-                                    refNodeId,
-                                    TrainingFeatureType.WordDesignation));
+                            }
+                            else if (scriptureRef.Chapter.HasValue)
+                            {
+                                // Reference to an entire chapter
+                                refNodeId = FeatureToNodeMapping.ScriptureChapter(
+                                    scriptureRef.Canon,
+                                    scriptureRef.Book,
+                                    scriptureRef.Chapter.Value);
                             }
                             else
                             {
-                                // Something else. TODO find a case for this and handle it
-                                logger.Log($"Don't know how to handle reference to {scriptureRef.Canon} {scriptureRef.Book}");
+                                // Reference to an entire book
+                                refNodeId = FeatureToNodeMapping.ScriptureBook(
+                                    scriptureRef.Canon,
+                                    scriptureRef.Book);
                             }
+
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                thisVerseNode,
+                                refNodeId,
+                                TrainingFeatureType.EntityReference));
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
+                                refNodeId,
+                                TrainingFeatureType.WordDesignation));
                         }
                     }
                 }
@@ -379,6 +440,11 @@ namespace ScriptureGraph.Core.Training.Extractors
             public string Book;
             public int? Chapter;
             public int? Verse;
+
+            public override string? ToString()
+            {
+                return $"{Canon} {Book} {Chapter}:{Verse}";
+            }
         }
     }
 }

@@ -6,7 +6,10 @@ using Durandal.Common.Utils;
 using Microsoft.VisualBasic;
 using ScriptureGraph.Core.Training;
 using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics;
+using static System.Formats.Asn1.AsnWriter;
 
 #nullable disable
 namespace ScriptureGraph.Core.Graph
@@ -154,12 +157,12 @@ namespace ScriptureGraph.Core.Graph
             }
         }
 
-        public KnowledgeGraphNode Get(KnowledgeGraphNodeId key)
+        public bool TryGet(KnowledgeGraphNodeId key, out KnowledgeGraphNode node)
         {
-            return GetInternal(key);
+            return TryGetInternal(key, out node);
         }
 
-        private KnowledgeGraphNode GetInternal(KnowledgeGraphNodeId key)
+        private bool TryGetInternal(KnowledgeGraphNodeId key, out KnowledgeGraphNode node)
         {
             uint keyHash = (uint)key.GetHashCode();
             HashTableLinkedListNode[] bins;
@@ -170,7 +173,8 @@ namespace ScriptureGraph.Core.Graph
                 if (bins[bin] == null)
                 {
                     // Bin is empty.
-                    throw new KeyNotFoundException("The key \"" + key.ToString() + "\" was not found in the dictionary");
+                    node = null;
+                    return false;
                 }
                 else
                 {
@@ -181,13 +185,15 @@ namespace ScriptureGraph.Core.Graph
                         if (key.Equals(iter.Kvp.Key))
                         {
                             // Found it!
-                            return iter.Kvp.Value;
+                            node = iter.Kvp.Value;
+                            return true;
                         }
 
                         iter = iter.Next;
                     }
 
-                    throw new KeyNotFoundException("The key \"" + key.ToString() + "\" was not found in the dictionary");
+                    node = null;
+                    return false;
                 }
             }
             finally
@@ -489,95 +495,214 @@ namespace ScriptureGraph.Core.Graph
             return returnVal;
         }
 
-        public List<KeyValuePair<KnowledgeGraphNodeId, float>> Query(KnowledgeGraphQuery query, ILogger logger)
+        private void QuerySingleScope(
+            KnowledgeGraphQuery query,
+            Counter<KnowledgeGraphNodeId> thisStepActivation,
+            Counter<KnowledgeGraphNodeId> nextStepActivation,
+            Counter<KnowledgeGraphNodeId> cumulativeActivation)
         {
-            Counter<KnowledgeGraphNodeId> cumulativeActivation = new Counter<KnowledgeGraphNodeId>();
-            Counter<KnowledgeGraphNodeId> thisStepActivation = new Counter<KnowledgeGraphNodeId>();
-            Counter<KnowledgeGraphNodeId> nextStepActivation = new Counter<KnowledgeGraphNodeId>();
             Counter<KnowledgeGraphNodeId> swap = thisStepActivation;
+            ValueStopwatch scopeStopwatch = ValueStopwatch.StartNew();
 
-            // Treat all scopes as the same for now
-            foreach (int scopeId in query.SearchScopes)
+            // Continue the search until we reach the time limit defined in the query, or activations all become too low
+            while (scopeStopwatch.Elapsed < query.MaxSearchTime)
             {
-                foreach (var initialActivation in query.GetRoots(scopeId))
+                // Single iteration
+                foreach (var currentlyActivatedNode in thisStepActivation)
                 {
-                    thisStepActivation.Increment(initialActivation.Key, initialActivation.Value);
+                    KnowledgeGraphNode thisNode;
+                    if (!TryGetInternal(currentlyActivatedNode.Key, out thisNode))
+                    {
+                        // Node not found in this graph
+                        continue;
+                    }
+
+                    if (currentlyActivatedNode.Value < query.MinActivation)
+                    {
+                        // This node activation is not strong enough
+                        // OPT: we could break the loop entirely if the input set was sorted descending
+                        continue;
+                    }
+
+                    GraphEdgeList.EdgeRefEnumerator enumerator = thisNode.Edges.GetEnumerator();
+                    float normalizedActivation = currentlyActivatedNode.Value / (float)thisNode.Edges.NumEdges;
+                    while (enumerator.MoveNext())
+                    {
+                        ref KnowledgeGraphEdge edge = ref enumerator.CurrentByRef();
+                        float activation = NeuronActivation(normalizedActivation, edge.Mass, thisNode.Edges.TotalMass, thisNode.Edges.NumEdges);
+                        nextStepActivation.Increment(edge.Target, activation);
+                        //logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata,
+                        //    "{0} {1:F3} activates {1} {2:F3}",
+                        //    currentlyActivatedNode.Key.ToString(),
+                        //    currentlyActivatedNode.Value,
+                        //    edge.Target.ToString(),
+                        //    activation);
+
+                        if (activation < query.MinActivation)
+                        {
+                            // This edge's activation is not high enough, stop iterating more edges because they can't get better
+                            break;
+                        }
+                    }
                 }
 
-                // Continue the search until we reach the time limit defined in the query, or activations all become too low
-                ValueStopwatch scopeStopwatch = ValueStopwatch.StartNew();
-                while (scopeStopwatch.Elapsed < query.MaxSearchTime)
+                if (nextStepActivation.NumItems == 0)
                 {
-                    // Single iteration
-                    foreach (var currentlyActivatedNode in thisStepActivation)
+                    // Nothing crossed the activation threshold. We're done.
+                    break;
+                }
+
+                // Dump logger output
+                //logger.Log("Iteration " + (totalIterations + 1));
+                //List<KeyValuePair<KnowledgeGraphNodeId, float>> temp = new List<KeyValuePair<KnowledgeGraphNodeId, float>>(nextStepActivation);
+                //temp.Sort((a, b) => b.Value.CompareTo(a.Value));
+                //int displayLines = 10;
+                //foreach (var line in temp)
+                //{
+                //    if (displayLines-- <= 0)
+                //    {
+                //        break;
+                //    }
+
+                //    logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", line.Value, line.Key.ToString());
+                //}
+
+                foreach (var activation in nextStepActivation)
+                {
+                    cumulativeActivation.Increment(activation.Key, activation.Value);
+                }
+
+                swap = thisStepActivation;
+                thisStepActivation = nextStepActivation;
+                nextStepActivation = swap;
+                nextStepActivation.Clear();
+            }
+        }
+
+        public List<KeyValuePair<KnowledgeGraphNodeId, float>> Query(KnowledgeGraphQuery query, ILogger logger)
+        {
+            Counter<KnowledgeGraphNodeId> finalCumulativeResult = new Counter<KnowledgeGraphNodeId>();
+            HashSet<BitVector32> scopesInitialized = new HashSet<BitVector32>();
+            HashSet<BitVector32> scopesProcessed = new HashSet<BitVector32>();
+            Dictionary<BitVector32, Counter<KnowledgeGraphNodeId>> initialActivationsPerScope = new Dictionary<BitVector32, Counter<KnowledgeGraphNodeId>>();
+
+            // temporary counters per-scope
+            Counter<KnowledgeGraphNodeId> thisStepActivation = new Counter<KnowledgeGraphNodeId>();
+            Counter<KnowledgeGraphNodeId> nextStepActivation = new Counter<KnowledgeGraphNodeId>();
+
+            // Built accumulators for all scopes
+            int scopeIdxNormalized = 0x1;
+            foreach (var scope in query.SearchScopes)
+            {
+                BitVector32 thisScopeArray = new BitVector32(scopeIdxNormalized);
+                scopeIdxNormalized = scopeIdxNormalized << 1;
+                Counter<KnowledgeGraphNodeId> thisScopeActivation = new Counter<KnowledgeGraphNodeId>();
+
+                foreach (var initialActivation in query.GetRoots(scope))
+                {
+                    thisScopeActivation.Increment(initialActivation.Key, initialActivation.Value);
+                }
+
+                initialActivationsPerScope.Add(thisScopeArray, thisScopeActivation);
+                scopesInitialized.Add(thisScopeArray);
+                logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope {0:x}", thisScopeArray.Data);
+            }
+
+            // Loop for as long as we have unique activations per scope
+            while (initialActivationsPerScope.Count > 0)
+            {
+                foreach (var scopeActivations in initialActivationsPerScope)
+                {
+                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Processing scope {0:x}", scopeActivations.Key.Data);
+                    // Copy activations from scope to initializer
+                    thisStepActivation.Clear();
+                    nextStepActivation.Clear();
+                    thisStepActivation.Increment(scopeActivations.Value);
+
+                    QuerySingleScope(query, thisStepActivation, nextStepActivation, scopeActivations.Value);
+
+                    // Copy from single scope to cumulative
+                    finalCumulativeResult.Increment(scopeActivations.Value);
+                    scopesProcessed.Add(scopeActivations.Key);
+                }
+
+                // Check for overlaps between all permutations of scopes, and turn those into new initial sets
+                // Keep iterating for as long as we continue to find
+                bool mergeHappened;
+                do
+                {
+                    mergeHappened = false;
+                    Dictionary<BitVector32, Counter<KnowledgeGraphNodeId>> newInitialActivations = new Dictionary<BitVector32, Counter<KnowledgeGraphNodeId>>();
+
+                    foreach (var scopeActivationsSrc in initialActivationsPerScope)
                     {
-                        KnowledgeGraphNode thisNode = Get(currentlyActivatedNode.Key);
-                        if (currentlyActivatedNode.Value < query.MinActivation)
+                        foreach (var scopeActivationsDest in initialActivationsPerScope)
                         {
-                            // This node activation is not strong enough
-                            // OPT: we could break the loop entirely if the input set was sorted descending
-                            continue;
-                        }
-
-                        GraphEdgeList.EdgeRefEnumerator enumerator = thisNode.Edges.GetEnumerator();
-                        float normalizedActivation = currentlyActivatedNode.Value / (float)thisNode.Edges.NumEdges;
-                        while (enumerator.MoveNext())
-                        {
-                            ref KnowledgeGraphEdge edge = ref enumerator.CurrentByRef();
-                            float activation = NeuronActivation(normalizedActivation, edge.Mass, thisNode.Edges.TotalMass, thisNode.Edges.NumEdges);
-                            nextStepActivation.Increment(edge.Target, activation);
-                            //logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata,
-                            //    "{0} {1:F3} activates {1} {2:F3}",
-                            //    currentlyActivatedNode.Key.ToString(),
-                            //    currentlyActivatedNode.Value,
-                            //    edge.Target.ToString(),
-                            //    activation);
-
-                            if (activation < query.MinActivation)
+                            BitVector32 unionedArray = new BitVector32(scopeActivationsSrc.Key.Data | scopeActivationsDest.Key.Data);
+                            if (scopesInitialized.Contains(unionedArray))
                             {
-                                // This edge's activation is not high enough, stop iterating more edges because they can't get better
-                                break;
+                                continue;
+                            }
+
+                            scopesInitialized.Add(unionedArray);
+
+                            logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope {0:x}", unionedArray.Data);
+
+                            // Set intersection
+                            HashSet<KnowledgeGraphNodeId> unionSet = scopeActivationsSrc.Value.ValueSet();
+                            unionSet.IntersectWith(scopeActivationsDest.Value.ValueSet()); // OPT can just enumerate the values list
+
+                            if (unionSet.Count > 0)
+                            {
+                                logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Merging scopes {0:x} and {1:x}", scopeActivationsSrc.Key.Data, scopeActivationsDest.Key.Data);
+                                mergeHappened = true;
+                                Counter<KnowledgeGraphNodeId> unionedCounter = new Counter<KnowledgeGraphNodeId>();
+                                foreach (KnowledgeGraphNodeId overlappedNode in unionSet)
+                                {
+                                    float weight = query.ScopeOverlapMultiplier * 
+                                        (scopeActivationsSrc.Value.GetCount(overlappedNode) + scopeActivationsDest.Value.GetCount(overlappedNode));
+                                    unionedCounter.Increment(overlappedNode, weight);
+                                    //logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Boosting {0} with {1:F3}", overlappedNode.ToString(), weight);
+                                }
+
+                                // Handle cases where intermediate sets were created (i.e. we merged more than 2 sets into a single one
+                                // over the course of several iterations)
+                                // In this case, copy over the activations for the non-overlapped nodes that haven't
+                                // been processed yet, and mark the "intermediate" half-merged sets as being processed.
+                                if (!scopesProcessed.Contains(scopeActivationsSrc.Key))
+                                {
+                                    scopesProcessed.Add(scopeActivationsSrc.Key);
+                                    unionedCounter.Increment(scopeActivationsSrc.Value);
+                                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope {0:x} as processed", scopeActivationsSrc.Key.Data);
+                                }
+
+                                if (!scopesProcessed.Contains(scopeActivationsDest.Key))
+                                {
+                                    scopesProcessed.Add(scopeActivationsDest.Key);
+                                    unionedCounter.Increment(scopeActivationsDest.Value);
+                                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope {0:x} as processed", scopeActivationsDest.Key.Data);
+                                }
+
+                                newInitialActivations.Add(unionedArray, unionedCounter);
                             }
                         }
                     }
 
-                    if (nextStepActivation.NumItems == 0)
+                    // Scopes that are initialized but not yet processed proceed to the next round
+                    foreach (var activation in initialActivationsPerScope)
                     {
-                        // Nothing crossed the activation threshold. We're done.
-                        break;
+                        if (!scopesProcessed.Contains(activation.Key))
+                        {
+                            newInitialActivations.Add(activation.Key, activation.Value);
+                        }
                     }
 
-                    // Dump logger output
-                    //logger.Log("Iteration " + (totalIterations + 1));
-                    //List<KeyValuePair<KnowledgeGraphNodeId, float>> temp = new List<KeyValuePair<KnowledgeGraphNodeId, float>>(nextStepActivation);
-                    //temp.Sort((a, b) => b.Value.CompareTo(a.Value));
-                    //int displayLines = 10;
-                    //foreach (var line in temp)
-                    //{
-                    //    if (displayLines-- <= 0)
-                    //    {
-                    //        break;
-                    //    }
-
-                    //    logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", line.Value, line.Key.ToString());
-                    //}
-
-                    foreach (var activation in nextStepActivation)
-                    {
-                        cumulativeActivation.Increment(activation.Key, activation.Value);
-                    }
-
-                    swap = thisStepActivation;
-                    thisStepActivation = nextStepActivation;
-                    nextStepActivation = swap;
-                    nextStepActivation.Clear();
-                }
-
-                thisStepActivation.Clear();
-                nextStepActivation.Clear();
+                    initialActivationsPerScope.Clear();
+                    initialActivationsPerScope = newInitialActivations;
+                } while (mergeHappened);
             }
 
-            List<KeyValuePair<KnowledgeGraphNodeId, float>> returnVal = new List<KeyValuePair<KnowledgeGraphNodeId, float>>(cumulativeActivation);
+            List<KeyValuePair<KnowledgeGraphNodeId, float>> returnVal = new List<KeyValuePair<KnowledgeGraphNodeId, float>>(finalCumulativeResult);
             returnVal.Sort((a, b) => b.Value.CompareTo(a.Value));
             return returnVal;
         }
@@ -585,6 +710,28 @@ namespace ScriptureGraph.Core.Graph
         private static float NeuronActivation(float currentActivation, float edgeWeight, float edgeTotalMass, int numEdges)
         {
             return currentActivation * FastMath.Sigmoid(((edgeWeight * numEdges / edgeTotalMass) - 1.0f) * 0.5f);
+        }
+    }
+
+    internal static class CounterExtensions
+    {
+        internal static void Increment<T>(this Counter<T> dest, Counter<T> src)
+        {
+            foreach (var kvp in src)
+            {
+                dest.Increment(kvp.Key, kvp.Value);
+            }
+        }
+
+        internal static HashSet<T> ValueSet<T>(this Counter<T> counter)
+        {
+            HashSet<T> returnVal = new HashSet<T>(counter.NumItems);
+            foreach (var value in counter)
+            {
+                returnVal.Add(value.Key);
+            }
+
+            return returnVal;
         }
     }
 }
