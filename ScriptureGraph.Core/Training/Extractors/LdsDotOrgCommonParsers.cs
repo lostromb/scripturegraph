@@ -40,6 +40,15 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private static readonly Regex PageBreakRemover = new Regex("<span class=\"page-break\".+?</span>");
 
+        // Matches "entry" paragraphs on topical guide, index, and guide to scriptures
+        public static readonly Regex IndexEntryParser = new Regex("<p class=\"entry\".+?>([\\w\\W]+?)<\\/p>");
+        // Matches "title" paragraphs (usually "See also xxxx" headings) on topical guide, index, and guide to scriptures
+        public static readonly Regex IndexTitleParser = new Regex("<p class=\"title\".+?>([\\w\\W]+?)<\\/p>");
+        // Used to remove scripture reference URLs from text, or just remove their anchor text
+        public static readonly Regex ScriptureRefReplacer = new Regex("(<a class=\\\"scripture-ref\\\".+?>)([\\w\\W]+?)<\\/a>");
+        // Used to remove all HTML tags from text
+        public static readonly Regex HtmlTagRemover = new Regex("<\\/?[a-z]+(?: [\\w\\W]+?)?>");
+
         internal static Dictionary<int, StructuredVerse> ParseVerses(string canon, string book, int chapter, string scriptureHtmlPage)
         {
             Dictionary<int, StructuredVerse> verses = new Dictionary<int, StructuredVerse>();

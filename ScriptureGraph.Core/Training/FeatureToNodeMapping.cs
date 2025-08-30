@@ -65,5 +65,10 @@ namespace ScriptureGraph.Core.Training
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.GuideToScripturesTopic, topic);
         }
+
+        public static KnowledgeGraphNodeId TripleIndexTopic(string topic)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.GuideToScripturesTopic, topic);
+        }
     }
 }

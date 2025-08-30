@@ -58,5 +58,10 @@ namespace ScriptureGraph.Core.Graph
         /// A reference to the Guide to the Scriptures, designated by URL keyword (e.g. scriptures/gs/abraham where "abraham" is the node name)
         /// </summary>
         GuideToScripturesTopic,
+
+        /// <summary>
+        /// A reference to the Index to Triple Combination, designated by URL keyword (e.g. scriptures/triple-index/elias where "elias" is the node name)
+        /// </summary>
+        TripleIndexTopic,
     }
 }

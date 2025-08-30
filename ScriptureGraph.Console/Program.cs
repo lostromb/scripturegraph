@@ -63,7 +63,7 @@ namespace ScriptureGraph.Console
             //    FeatureToNodeMapping.NGram("logan", "stromberg", LanguageCode.ENGLISH),
             //    TrainingFeatureType.NgramAssociation));
 
-            string modelFileName = @"D:\Code\scripturegraph\runtime\bom.graph";
+            string modelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
 
             //if (File.Exists(modelFileName))
             //{
@@ -83,20 +83,20 @@ namespace ScriptureGraph.Console
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
                 await crawler.Crawl(
-                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
+                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
-                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/gs/cain?lang=eng"),
+                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bd/abaddon?lang=eng"),
                     ParseScripturePageAction,
                     logger.Clone("WebCrawler"),
                     scriptureRegexes);
 
-                using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
-                {
-                    graph.Save(testGraphOut);
-                }
+                //using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
+                //{
+                //    graph.Save(testGraphOut);
+                //}
             }
 
-            //int dispLines;
+            int dispLines;
             //logger.Log("Edge dump");
             //dispLines = 100;
             //var edgeEnumerator = graph.Get(FeatureToNodeMapping.NGram("exceedingly", "great", "joy", LanguageCode.ENGLISH)).Edges.GetEnumerator();
@@ -111,12 +111,12 @@ namespace ScriptureGraph.Console
             //    logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", edge.Mass, edge.Target.ToString());
             //}
 
-            //logger.Log("Querying");
-            //KnowledgeGraphQuery query = new KnowledgeGraphQuery();
-            //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("plan of redemption"))
-            //{
-            //    query.AddRootNode(feature, 0);
-            //}
+            logger.Log("Querying");
+            KnowledgeGraphQuery query = new KnowledgeGraphQuery();
+            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("plan of redemption"))
+            {
+                query.AddRootNode(feature, 0);
+            }
 
             //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("quench"))
             //{
@@ -125,25 +125,25 @@ namespace ScriptureGraph.Console
 
             //query.AddRootNode(FeatureToNodeMapping.ScriptureBook("bofm", "jacob"), 2);
 
-            //Stopwatch timer = Stopwatch.StartNew();
-            //var results = graph.Query(query, logger.Clone("Query"));
-            //timer.Stop();
-            //logger.Log(string.Format("Query finished in {0} ms", timer.ElapsedMillisecondsPrecise()));
+            Stopwatch timer = Stopwatch.StartNew();
+            var results = graph.Query(query, logger.Clone("Query"));
+            timer.Stop();
+            logger.Log(string.Format("Query finished in {0} ms", timer.ElapsedMillisecondsPrecise()));
 
-            //dispLines = 40;
-            //foreach (var result in results)
-            //{
-            //    if (dispLines-- <= 0)
-            //    {
-            //        break;
-            //    }
+            dispLines = 40;
+            foreach (var result in results)
+            {
+                if (dispLines-- <= 0)
+                {
+                    break;
+                }
 
-            //    logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value, result.Key.ToString());
-            //}
+                logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value, result.Key.ToString());
+            }
         }
 
         private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
-        private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs)\\/.+?(?:\\?|$)");
+        private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
 
         private static Task<bool> ParseScripturePageAction(WebCrawler.CrawledPage page, ILogger logger)
         {
@@ -173,6 +173,11 @@ namespace ScriptureGraph.Console
                     {
                         logger.Log($"Parsing GS page {page.Url.AbsolutePath}");
                         GuideToScripturesFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    }
+                    else if (string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
+                    {
+                        logger.Log($"Parsing index page {page.Url.AbsolutePath}");
+                        TripleIndexFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
                     }
                 }
                 else

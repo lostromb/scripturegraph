@@ -1,6 +1,7 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training.Extractors
@@ -8,12 +9,6 @@ namespace ScriptureGraph.Core.Training.Extractors
     public class TopicalGuideFeatureExtractor
     {
         private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/tg\\/(.+?)(?:\\?|$)");
-
-        private static readonly Regex TGEntryParser = new Regex("<p class=\"entry\".+?>([\\w\\W]+?)<\\/p>");
-
-        private static readonly Regex ScriptureRefRemover = new Regex("<a class=\\\"scripture-ref\\\".+?>([\\w\\W]+?)<\\/a>");
-
-        private static readonly Regex HtmlTagRemover = new Regex("<\\/?[a-z]+(?: [\\w\\W]+?)?>");
 
         public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
         {
@@ -26,15 +21,30 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return;
                 }
 
+                htmlPage = WebUtility.HtmlDecode(htmlPage);
                 string topic = urlParse.Groups[1].Value;
                 KnowledgeGraphNodeId topicalGuideNode = FeatureToNodeMapping.TopicalGuideKeyword(topic);
 
                 List<ScriptureReference> references = new List<ScriptureReference>();
-                foreach (Match entryMatch in TGEntryParser.Matches(htmlPage))
+                Match titleMatch = LdsDotOrgCommonParsers.IndexTitleParser.Match(htmlPage);
+                if (titleMatch.Success)
+                {
+                    // There's a "see also" heading, just parse references and ignore text
+                    LdsDotOrgCommonParsers.ParseAllScriptureReferences(titleMatch.Groups[1].Value, references, logger);
+                    foreach (ScriptureReference scriptureRef in references)
+                    {
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            topicalGuideNode,
+                            LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef),
+                            TrainingFeatureType.EntityReference));
+                    }
+                }
+
+                foreach (Match entryMatch in LdsDotOrgCommonParsers.IndexEntryParser.Matches(htmlPage))
                 {
                     string rawText = entryMatch.Groups[1].Value;
-                    string wordBreakerText = StringUtils.RegexRemove(ScriptureRefRemover, rawText);
-                    wordBreakerText = StringUtils.RegexRemove(HtmlTagRemover, wordBreakerText);
+                    string wordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.ScriptureRefReplacer, rawText);
+                    wordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, wordBreakerText);
                     List<KnowledgeGraphNodeId> ngrams = EnglishWordFeatureExtractor.ExtractNGrams(wordBreakerText).ToList();
 
                     foreach (KnowledgeGraphNodeId ngram in ngrams)

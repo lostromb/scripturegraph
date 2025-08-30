@@ -6,9 +6,9 @@ using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
-    public class GuideToScripturesFeatureExtractor
+    public class TripleIndexFeatureExtractor
     {
-        private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/gs\\/(.+?)(?:\\?|$)");
+        private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/triple-index\\/(.+?)(?:\\?|$)");
 
         public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
         {
@@ -23,7 +23,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
                 string topic = urlParse.Groups[1].Value;
-                KnowledgeGraphNodeId topicalGuideNode = FeatureToNodeMapping.GuideToScripturesTopic(topic);
+                KnowledgeGraphNodeId tripleIndexNode = FeatureToNodeMapping.GuideToScripturesTopic(topic);
 
                 List<ScriptureReference> references = new List<ScriptureReference>();
                 Match titleMatch = LdsDotOrgCommonParsers.IndexTitleParser.Match(htmlPage);
@@ -34,12 +34,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                     foreach (ScriptureReference scriptureRef in references)
                     {
                         trainingFeaturesOut.Add(new TrainingFeature(
-                            topicalGuideNode,
+                            tripleIndexNode,
                             LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef),
                             TrainingFeatureType.EntityReference));
                     }
                 }
-                
+
                 foreach (Match entryMatch in LdsDotOrgCommonParsers.IndexEntryParser.Matches(htmlPage))
                 {
                     string rawText = entryMatch.Groups[1].Value;
@@ -51,7 +51,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         trainingFeaturesOut.Add(new TrainingFeature(
                             ngram,
-                            topicalGuideNode,
+                            tripleIndexNode,
                             ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
                     }
 
@@ -62,7 +62,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
 
                         trainingFeaturesOut.Add(new TrainingFeature(
-                            topicalGuideNode,
+                            tripleIndexNode,
                             refNodeId,
                             TrainingFeatureType.EntityReference));
 

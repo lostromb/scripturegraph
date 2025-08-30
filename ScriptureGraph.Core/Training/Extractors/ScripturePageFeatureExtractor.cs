@@ -1,6 +1,7 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.NLP.Language;
 using ScriptureGraph.Core.Graph;
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training.Extractors
@@ -20,6 +21,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return;
                 }
 
+                htmlPage = WebUtility.HtmlDecode(htmlPage);
                 string canon = urlParse.Groups[1].Value;
                 string book = urlParse.Groups[2].Value;
                 int chapter = int.Parse(urlParse.Groups[3].Value);

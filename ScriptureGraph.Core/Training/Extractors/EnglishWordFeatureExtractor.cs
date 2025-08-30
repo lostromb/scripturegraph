@@ -1,14 +1,6 @@
-﻿using Durandal.Common.Audio.WebRtc;
-using Durandal.Common.Logger;
-using Durandal.Common.NLP.Language;
-using Durandal.Common.Parsers;
+﻿using Durandal.Common.NLP.Language;
 using ScriptureGraph.Core.Graph;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
@@ -19,19 +11,19 @@ namespace ScriptureGraph.Core.Training.Extractors
         // Matches hyphenated words but ignores leading and trailing hyphens
         public static readonly Regex WordMatcher = new Regex("(?:[\\w\\u00c0-\\u00ff\\u0100-\\u017f][\\-\\w\\u00c0-\\u00ff\\u0100-\\u017f]+[\\w\\u00c0-\\u00ff\\u0100-\\u017f]|[\\w\\u00c0-\\u00ff\\u0100-\\u017f]+)(?:'\\w+)?");
 
+        private static readonly Regex SentenceMatcher = new Regex("[\\w\\W]+?(?:$|[\\.\\?\\!][\\s\\.\\?\\'\\\"\\)\\]\\!\\”$]+)");
+
         private const int MAX_WORD_ASSOCIATION_ORDER = 7;
 
-        private static List<string> WordBreak(string input)
+        public static IEnumerable<string> BreakWords(string input)
         {
-            List<string> brokenWords = new List<string>();
-
             int startIndex = 0;
             while (startIndex < input.Length)
             {
                 Match wordMatch = WordMatcher.Match(input, startIndex);
                 if (wordMatch.Success)
                 {
-                    brokenWords.Add(wordMatch.Value.ToLowerInvariant());
+                    yield return wordMatch.Value;
                     startIndex = wordMatch.Index + wordMatch.Length;
                 }
                 else
@@ -39,23 +31,58 @@ namespace ScriptureGraph.Core.Training.Extractors
                     startIndex = input.Length;
                 }
             }
+        }
 
-            return brokenWords;
+        public static IEnumerable<string> BreakWordsLowerCase(string input)
+        {
+            foreach (string word in BreakWords(input))
+            {
+                yield return word.ToLowerInvariant();
+            }
+        }
+
+        public static IEnumerable<string> BreakSentence(string input)
+        {
+            int startIndex = 0;
+            while (startIndex < input.Length)
+            {
+                Match sentenceMatch = SentenceMatcher.Match(input, startIndex);
+                if (sentenceMatch.Success)
+                {
+                    yield return sentenceMatch.Value;
+                    startIndex = sentenceMatch.Index + sentenceMatch.Length;
+                }
+                else
+                {
+                    startIndex = input.Length;
+                }
+            }
+        }
+
+        public static IEnumerable<string> BreakSentenceLowerCase(string input)
+        {
+            foreach (string sentence in BreakSentence(input))
+            {
+                yield return sentence.ToLowerInvariant();
+            }
         }
 
         public static IEnumerable<KnowledgeGraphNodeId> ExtractNGrams(string input)
         {
-            List<string> words = WordBreak(input);
-            for (int startIndex = 0; startIndex < words.Count; startIndex++)
+            foreach (string sentence in BreakSentenceLowerCase(input))
             {
-                yield return FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH);
-                if (startIndex < words.Count - 1)
+                string[] words = BreakWords(sentence).ToArray();
+                for (int startIndex = 0; startIndex < words.Length; startIndex++)
                 {
-                    yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
-
-                    if (startIndex < words.Count - 2)
+                    yield return FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH);
+                    if (startIndex < words.Length - 1)
                     {
-                        yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
+                        yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
+
+                        if (startIndex < words.Length - 2)
+                        {
+                            yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
+                        }
                     }
                 }
             }
@@ -63,79 +90,82 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         public static void ExtractTrainingFeatures(string input, List<TrainingFeature> trainingFeaturesOut, KnowledgeGraphNodeId? rootEntity = null)
         {
-            List<string> words = WordBreak(input);
-            for (int startIndex = 0; startIndex < words.Count; startIndex++)
+            foreach (string sentence in BreakSentenceLowerCase(input))
             {
-                // Single words associated with the root entity
-                if (rootEntity.HasValue)
+                string[] words = BreakWords(sentence).ToArray();
+                for (int startIndex = 0; startIndex < words.Length; startIndex++)
                 {
-                    trainingFeaturesOut.Add(new TrainingFeature(
-                        rootEntity.Value,
-                        FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
-                        TrainingFeatureType.WordAssociation));
-                }
-
-                if (startIndex < words.Count - 1)
-                {
-                    // All words cross referenced with each other
-                    for (int endIndex = startIndex + 1; endIndex <= startIndex + MAX_WORD_ASSOCIATION_ORDER && endIndex < words.Count; endIndex++)
-                    {
-                        trainingFeaturesOut.Add(new TrainingFeature(
-                            FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
-                            FeatureToNodeMapping.Word(words[endIndex], LanguageCode.ENGLISH),
-                            TrainingFeatureType.WordAssociation));
-                    }
-
-                    // Bigrams
-                    // bigram -> root entity
-                    KnowledgeGraphNodeId bigram = FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
+                    // Single words associated with the root entity
                     if (rootEntity.HasValue)
                     {
                         trainingFeaturesOut.Add(new TrainingFeature(
-                        rootEntity.Value,
-                        bigram,
-                        TrainingFeatureType.NgramAssociation));
+                            rootEntity.Value,
+                            FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
+                            TrainingFeatureType.WordAssociation));
                     }
 
-                    // bigram -> words that are in it
-                    trainingFeaturesOut.Add(new TrainingFeature(
-                        FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
-                        bigram,
-                        TrainingFeatureType.WordAssociation));
-
-                    trainingFeaturesOut.Add(new TrainingFeature(
-                        FeatureToNodeMapping.Word(words[startIndex + 1], LanguageCode.ENGLISH),
-                        bigram,
-                        TrainingFeatureType.WordAssociation));
-
-                    // Trigrams
-                    if (startIndex < words.Count - 2)
+                    if (startIndex < words.Length - 1)
                     {
-                        // trigram -> root entity
-                        KnowledgeGraphNodeId trigram = FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
+                        // All words cross referenced with each other
+                        for (int endIndex = startIndex + 1; endIndex <= startIndex + MAX_WORD_ASSOCIATION_ORDER && endIndex < words.Length; endIndex++)
+                        {
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
+                                FeatureToNodeMapping.Word(words[endIndex], LanguageCode.ENGLISH),
+                                TrainingFeatureType.WordAssociation));
+                        }
+
+                        // Bigrams
+                        // bigram -> root entity
+                        KnowledgeGraphNodeId bigram = FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
                         if (rootEntity.HasValue)
                         {
                             trainingFeaturesOut.Add(new TrainingFeature(
                             rootEntity.Value,
-                            trigram,
+                            bigram,
                             TrainingFeatureType.NgramAssociation));
                         }
 
-                        // trigram -> words that are in it
+                        // bigram -> words that are in it
                         trainingFeaturesOut.Add(new TrainingFeature(
                             FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
-                            trigram,
+                            bigram,
                             TrainingFeatureType.WordAssociation));
 
                         trainingFeaturesOut.Add(new TrainingFeature(
                             FeatureToNodeMapping.Word(words[startIndex + 1], LanguageCode.ENGLISH),
-                            trigram,
+                            bigram,
                             TrainingFeatureType.WordAssociation));
 
-                        trainingFeaturesOut.Add(new TrainingFeature(
-                            FeatureToNodeMapping.Word(words[startIndex + 2], LanguageCode.ENGLISH),
-                            trigram,
-                            TrainingFeatureType.WordAssociation));
+                        // Trigrams
+                        if (startIndex < words.Length - 2)
+                        {
+                            // trigram -> root entity
+                            KnowledgeGraphNodeId trigram = FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
+                            if (rootEntity.HasValue)
+                            {
+                                trainingFeaturesOut.Add(new TrainingFeature(
+                                rootEntity.Value,
+                                trigram,
+                                TrainingFeatureType.NgramAssociation));
+                            }
+
+                            // trigram -> words that are in it
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
+                                trigram,
+                                TrainingFeatureType.WordAssociation));
+
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                FeatureToNodeMapping.Word(words[startIndex + 1], LanguageCode.ENGLISH),
+                                trigram,
+                                TrainingFeatureType.WordAssociation));
+
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                FeatureToNodeMapping.Word(words[startIndex + 2], LanguageCode.ENGLISH),
+                                trigram,
+                                TrainingFeatureType.WordAssociation));
+                        }
                     }
                 }
             }

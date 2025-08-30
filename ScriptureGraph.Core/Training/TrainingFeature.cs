@@ -38,9 +38,6 @@ namespace ScriptureGraph.Core.Training
                     return 0.8f;
                 case TrainingFeatureType.WordDesignation:
                     return 3.0f;
-                case TrainingFeatureType.EntityReference:
-                case TrainingFeatureType.ParagraphAssociation:
-                case TrainingFeatureType.BookAssociation:
                 default:
                     return 1.0f;
             }
