@@ -1,7 +1,12 @@
-﻿using Durandal.Common.MathExt;
+﻿using Durandal.Common.Audio.Codecs.ILBC;
+using Durandal.Common.Logger;
+using Durandal.Common.MathExt;
+using Durandal.Common.Time;
 using Durandal.Common.Utils;
+using Microsoft.VisualBasic;
 using ScriptureGraph.Core.Training;
 using System.Collections;
+using System.Diagnostics;
 
 #nullable disable
 namespace ScriptureGraph.Core.Graph
@@ -402,6 +407,184 @@ namespace ScriptureGraph.Core.Graph
 
             public KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode> Kvp;
             public HashTableLinkedListNode Next;
+        }
+
+        public void Save(Stream outStream)
+        {
+            using (BinaryWriter writer = new BinaryWriter(outStream))
+            {
+                writer.Write(_edgeCapacity);
+                writer.Write(NUM_LOCKS);
+                writer.Write(_numItemsInDictionary);
+
+                var enumerator = GetUnsafeEnumerator();
+                while (enumerator.MoveNext())
+                {
+                    WriteNodeId(enumerator.Current.Key, writer);
+                    WriteEdges(enumerator.Current.Value.Edges, writer);
+                }
+            }
+        }
+
+        private static void WriteNodeId(KnowledgeGraphNodeId nodeId, BinaryWriter writer)
+        {
+            writer.Write((ushort)nodeId.Type);
+            writer.Write(nodeId.Name);
+        }
+
+        private static void WriteEdges(GraphEdgeList edges, BinaryWriter writer)
+        {
+            //writer.Write(edges.TotalMass);
+            writer.Write(edges.NumEdges);
+            writer.Write(edges.MaxCapacity);
+            var enumerator = edges.GetEnumerator();
+            while (enumerator.MoveNext())
+            {
+                ref KnowledgeGraphEdge edge = ref enumerator.CurrentByRef();
+                writer.Write(edge.Mass);
+                WriteNodeId(edge.Target, writer);
+            }
+        }
+
+        public static KnowledgeGraph Load(Stream loadStream)
+        {
+            using (BinaryReader reader = new BinaryReader(loadStream))
+            {
+                int edgeCapacity = reader.ReadInt32();
+                int numLocks = reader.ReadInt32();
+                int numItemsInDictionary = reader.ReadInt32();
+                KnowledgeGraph returnVal = new KnowledgeGraph(edgeCapacity);
+                for (int nodeIdx = 0; nodeIdx < numItemsInDictionary; nodeIdx++)
+                {
+                    KnowledgeGraphNodeId thisNodeId = ReadNodeId(reader);
+                    GraphEdgeList thisNodeEdges = ReadEdgeList(reader);
+                    KnowledgeGraphNode node = new KnowledgeGraphNode(thisNodeEdges);
+                    returnVal.Add(thisNodeId, node);
+                }
+
+                return returnVal;
+            }
+        }
+
+        private static KnowledgeGraphNodeId ReadNodeId(BinaryReader reader)
+        {
+            KnowledgeGraphNodeType type = (KnowledgeGraphNodeType)reader.ReadUInt16();
+            string name = reader.ReadString();
+            return new KnowledgeGraphNodeId(type, name);
+        }
+
+        private static GraphEdgeList ReadEdgeList(BinaryReader reader)
+        {
+            //float totalMass = reader.ReadSingle();
+            int numEdges = reader.ReadInt32();
+            int maxCapacity = reader.ReadInt32();
+            GraphEdgeList returnVal = new GraphEdgeList(maxCapacity, numEdges);
+            for (int edgeIdx = 0; edgeIdx < numEdges; edgeIdx++)
+            {
+                float edgeMass = reader.ReadSingle();
+                KnowledgeGraphNodeId edgeTarget = ReadNodeId(reader);
+                returnVal.AddForDeserialization(edgeTarget, edgeMass);
+            }
+
+            return returnVal;
+        }
+
+        public List<KeyValuePair<KnowledgeGraphNodeId, float>> Query(KnowledgeGraphQuery query, ILogger logger)
+        {
+            Counter<KnowledgeGraphNodeId> cumulativeActivation = new Counter<KnowledgeGraphNodeId>();
+            Counter<KnowledgeGraphNodeId> thisStepActivation = new Counter<KnowledgeGraphNodeId>();
+            Counter<KnowledgeGraphNodeId> nextStepActivation = new Counter<KnowledgeGraphNodeId>();
+            Counter<KnowledgeGraphNodeId> swap = thisStepActivation;
+
+            // Treat all scopes as the same for now
+            foreach (int scopeId in query.SearchScopes)
+            {
+                foreach (var initialActivation in query.GetRoots(scopeId))
+                {
+                    thisStepActivation.Increment(initialActivation.Key, initialActivation.Value);
+                }
+
+                // Continue the search until we reach the time limit defined in the query, or activations all become too low
+                ValueStopwatch scopeStopwatch = ValueStopwatch.StartNew();
+                while (scopeStopwatch.Elapsed < query.MaxSearchTime)
+                {
+                    // Single iteration
+                    foreach (var currentlyActivatedNode in thisStepActivation)
+                    {
+                        KnowledgeGraphNode thisNode = Get(currentlyActivatedNode.Key);
+                        if (currentlyActivatedNode.Value < query.MinActivation)
+                        {
+                            // This node activation is not strong enough
+                            // OPT: we could break the loop entirely if the input set was sorted descending
+                            continue;
+                        }
+
+                        GraphEdgeList.EdgeRefEnumerator enumerator = thisNode.Edges.GetEnumerator();
+                        float normalizedActivation = currentlyActivatedNode.Value / (float)thisNode.Edges.NumEdges;
+                        while (enumerator.MoveNext())
+                        {
+                            ref KnowledgeGraphEdge edge = ref enumerator.CurrentByRef();
+                            float activation = NeuronActivation(normalizedActivation, edge.Mass, thisNode.Edges.TotalMass, thisNode.Edges.NumEdges);
+                            nextStepActivation.Increment(edge.Target, activation);
+                            //logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata,
+                            //    "{0} {1:F3} activates {1} {2:F3}",
+                            //    currentlyActivatedNode.Key.ToString(),
+                            //    currentlyActivatedNode.Value,
+                            //    edge.Target.ToString(),
+                            //    activation);
+
+                            if (activation < query.MinActivation)
+                            {
+                                // This edge's activation is not high enough, stop iterating more edges because they can't get better
+                                break;
+                            }
+                        }
+                    }
+
+                    if (nextStepActivation.NumItems == 0)
+                    {
+                        // Nothing crossed the activation threshold. We're done.
+                        break;
+                    }
+
+                    // Dump logger output
+                    //logger.Log("Iteration " + (totalIterations + 1));
+                    //List<KeyValuePair<KnowledgeGraphNodeId, float>> temp = new List<KeyValuePair<KnowledgeGraphNodeId, float>>(nextStepActivation);
+                    //temp.Sort((a, b) => b.Value.CompareTo(a.Value));
+                    //int displayLines = 10;
+                    //foreach (var line in temp)
+                    //{
+                    //    if (displayLines-- <= 0)
+                    //    {
+                    //        break;
+                    //    }
+
+                    //    logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", line.Value, line.Key.ToString());
+                    //}
+
+                    foreach (var activation in nextStepActivation)
+                    {
+                        cumulativeActivation.Increment(activation.Key, activation.Value);
+                    }
+
+                    swap = thisStepActivation;
+                    thisStepActivation = nextStepActivation;
+                    nextStepActivation = swap;
+                    nextStepActivation.Clear();
+                }
+
+                thisStepActivation.Clear();
+                nextStepActivation.Clear();
+            }
+
+            List<KeyValuePair<KnowledgeGraphNodeId, float>> returnVal = new List<KeyValuePair<KnowledgeGraphNodeId, float>>(cumulativeActivation);
+            returnVal.Sort((a, b) => b.Value.CompareTo(a.Value));
+            return returnVal;
+        }
+
+        private static float NeuronActivation(float currentActivation, float edgeWeight, float edgeTotalMass, int numEdges)
+        {
+            return currentActivation * FastMath.Sigmoid(((edgeWeight * numEdges / edgeTotalMass) - 1.0f) * 0.5f);
         }
     }
 }

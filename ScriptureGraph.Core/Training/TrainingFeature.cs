@@ -33,9 +33,13 @@ namespace ScriptureGraph.Core.Training
             switch (featureType)
             {
                 case TrainingFeatureType.WordAssociation:
-                    return 0.2f;
+                    return 0.1f;
+                case TrainingFeatureType.NgramAssociation:
+                    return 0.8f;
                 case TrainingFeatureType.EntityReference:
                     return 1.0f;
+                case TrainingFeatureType.WordDesignation:
+                    return 3.0f;
                 default:
                     return 1.0f;
             }

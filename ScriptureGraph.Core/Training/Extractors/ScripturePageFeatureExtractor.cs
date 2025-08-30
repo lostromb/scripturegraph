@@ -1,8 +1,10 @@
-﻿using Durandal.Common.Logger;
+﻿using Durandal.Common.Audio.WebRtc;
+using Durandal.Common.Logger;
 using Durandal.Common.NLP.Language;
 using Durandal.Common.Parsers;
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Training;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +12,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace ScriptureGraph.Core.Training
+namespace ScriptureGraph.Core.Training.Extractors
 {
     public class ScripturePageFeatureExtractor
     {
@@ -22,11 +24,7 @@ namespace ScriptureGraph.Core.Training
         private static readonly Regex InlineFootnoteParser = new Regex("<a class=\"study-note-ref\".+?#note(.+?)\".+?<\\/sup>(.+?)<\\/a>");
         private static readonly Regex PageBreakRemover = new Regex("<span class=\"page-break\".+?</span>");
 
-        // Matches latin characters plus extended latin for accented chars
-        // Matches contractions at the end of sentences
-        // Matches hyphenated words but ignores leading and trailing hyphens
-        private static readonly Regex WordMatcher = new Regex("(?:[\\w\\u00c0-\\u00ff\\u0100-\\u017f][\\-\\w\\u00c0-\\u00ff\\u0100-\\u017f]+[\\w\\u00c0-\\u00ff\\u0100-\\u017f]|[\\w\\u00c0-\\u00ff\\u0100-\\u017f]+)(?:'\\w+)?");
-
+        
         public static void ExtractFeatures(string scriptureHtmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> returnVal)
         {
             try
@@ -65,6 +63,7 @@ namespace ScriptureGraph.Core.Training
                     verses.Add(verseNum, new StructuredVerse(canon, book, chapter, verseNum, verseTextWithAnnotation));
                 }
 
+                StringBuilder rawTextBuffer = new StringBuilder();
                 foreach (Match footnoteMatch in NoteParser.Matches(scriptureHtmlPage))
                 {
                     //logger.Log(footnoteMatch.Value);
@@ -161,54 +160,65 @@ namespace ScriptureGraph.Core.Training
 
                 // Now restructure each verse into a series of words with correlated footnotes
                 List<SingleWordWithFootnotes> words = new List<SingleWordWithFootnotes>();
-                StringBuilder stringBuffer = new StringBuilder();
                 foreach (StructuredVerse verse in verses.Values.OrderBy(s => s.Verse))
                 {
-                    stringBuffer.Append(verse.Text);
-                    while (true)
+                    int startIndex = 0;
+                    while (startIndex < verse.Text.Length)
                     {
-                        string currentText = stringBuffer.ToString();
-                        Match wordMatch = WordMatcher.Match(currentText);
-                        if (!wordMatch.Success)
+                        Match wordMatch = EnglishWordFeatureExtractor.WordMatcher.Match(verse.Text, startIndex);
+                        if (wordMatch.Success)
                         {
-                            break;
-                        }
-
-                        Match taggedWordMatch = InlineFootnoteParser.Match(currentText);
-                        if (taggedWordMatch.Success && taggedWordMatch.Index < wordMatch.Index)
-                        {
-                            // It's one or more words tagged with a footnote
-                            string footnoteNoteRef = taggedWordMatch.Groups[1].Value; // "20d"
-                            string footnotedWords = taggedWordMatch.Groups[2].Value.ToLowerInvariant(); // "cast out"
-                            int subWordIndex = 0;
-                            StructuredFootnote? footnoteForTheseWords;
-                            if (!footnotes.TryGetValue(footnoteNoteRef, out footnoteForTheseWords))
+                            Match taggedWordMatch = InlineFootnoteParser.Match(verse.Text, startIndex);
+                            if (taggedWordMatch.Success && taggedWordMatch.Index < wordMatch.Index)
                             {
-                                logger.Log($"Could not resolve footnote ref {footnoteNoteRef} in verse {verse.Verse}", LogLevel.Err);
+                                // It's one or more words tagged with a footnote
+                                string footnoteNoteRef = taggedWordMatch.Groups[1].Value; // "20d"
+                                string footnotedWords = taggedWordMatch.Groups[2].Value; // "cast out"
+                                int subWordIndex = 0;
+                                StructuredFootnote? footnoteForTheseWords;
+                                if (!footnotes.TryGetValue(footnoteNoteRef, out footnoteForTheseWords))
+                                {
+                                    logger.Log($"Could not resolve footnote ref {footnoteNoteRef} in verse {verse.Verse}", LogLevel.Err);
+                                }
+                                else
+                                {
+                                    while (true)
+                                    {
+                                        Match subWordMatch = EnglishWordFeatureExtractor.WordMatcher.Match(footnotedWords, subWordIndex);
+                                        if (!subWordMatch.Success)
+                                        {
+                                            break;
+                                        }
+
+                                        subWordIndex = subWordMatch.Index + subWordMatch.Length;
+                                        words.Add(new SingleWordWithFootnotes(subWordMatch.Value, footnoteForTheseWords));
+                                    }
+                                }
+
+                                startIndex = taggedWordMatch.Index + taggedWordMatch.Length;
+                                if (rawTextBuffer.Length > 0)
+                                {
+                                    rawTextBuffer.Append(' ');
+                                }
+
+                                rawTextBuffer.Append(footnotedWords);
                             }
                             else
                             {
-                                while (true)
+                                // It's just an untagged word
+                                words.Add(new SingleWordWithFootnotes(wordMatch.Value));
+                                startIndex = wordMatch.Index + wordMatch.Length;
+                                if (rawTextBuffer.Length > 0)
                                 {
-                                    Match subWordMatch = WordMatcher.Match(footnotedWords, subWordIndex);
-                                    if (!subWordMatch.Success)
-                                    {
-                                        break;
-                                    }
-
-                                    subWordIndex = subWordMatch.Index + subWordMatch.Length;
-                                    words.Add(new SingleWordWithFootnotes(subWordMatch.Value, footnoteForTheseWords));
+                                    rawTextBuffer.Append(' ');
                                 }
-                            }
 
-                            stringBuffer.Remove(0, taggedWordMatch.Index + taggedWordMatch.Length);
+                                rawTextBuffer.Append(wordMatch.Value);
+                            }
                         }
                         else
                         {
-                            // It's just an untagged word
-                            words.Add(new SingleWordWithFootnotes(wordMatch.Value.ToLowerInvariant()));
-
-                            stringBuffer.Remove(0, wordMatch.Index + wordMatch.Length);
+                            startIndex = verse.Text.Length;
                         }
                     }
 
@@ -216,8 +226,8 @@ namespace ScriptureGraph.Core.Training
                     //logger.Log($"Verse {verse.Verse}: {string.Join(' ', words)}");
 
                     // now FINALLY we can extract features
-                    ExtractFeaturesFromSingleVerse(verse, words, logger, returnVal);
-
+                    ExtractFeaturesFromSingleVerse(verse, rawTextBuffer.ToString(), words, logger, returnVal);
+                    rawTextBuffer.Clear();
                     words.Clear();
                 }
             }
@@ -229,6 +239,7 @@ namespace ScriptureGraph.Core.Training
 
         private static void ExtractFeaturesFromSingleVerse(
             StructuredVerse currentVerse,
+            string rawText,
             List<SingleWordWithFootnotes> words,
             ILogger logger,
             List<TrainingFeature> trainingFeaturesOut)
@@ -237,33 +248,11 @@ namespace ScriptureGraph.Core.Training
             KnowledgeGraphNodeId thisVerseNode = FeatureToNodeMapping.ScriptureVerse(
                 currentVerse.Canon,
                 currentVerse.Book,
-                currentVerse.Verse,
-                currentVerse.Chapter);
+                currentVerse.Chapter,
+                currentVerse.Verse);
 
-            // Verse reference -> all the words that are in it
-            foreach (var word in words)
-            {
-                trainingFeaturesOut.Add(new TrainingFeature(
-                    thisVerseNode,
-                    FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
-                    TrainingFeatureType.WordAssociation));
-            }
-
-            // All words cross referenced with each other
-            const int MAX_WORD_ASSOCIATION_ORDER = 5;
-            for (int startIndex = 0; startIndex < words.Count - MAX_WORD_ASSOCIATION_ORDER; startIndex++)
-            {
-                for (int endIndex = startIndex + 1; endIndex <= startIndex + MAX_WORD_ASSOCIATION_ORDER && endIndex < words.Count; endIndex++)
-                {
-                    trainingFeaturesOut.Add(new TrainingFeature(
-                        FeatureToNodeMapping.Word(words[startIndex].Word, LanguageCode.ENGLISH),
-                        FeatureToNodeMapping.Word(words[endIndex].Word, LanguageCode.ENGLISH),
-                    TrainingFeatureType.WordAssociation));
-                }
-            }
-
-            // Bi- and Trigrams from words in this verse
-            // TODO
+            // Common word and ngram level features associated with this verse entity
+            EnglishWordFeatureExtractor.ExtractTrainingFeatures(rawText, trainingFeaturesOut, thisVerseNode);
 
             // Cross-references between this verse and other verses based on footnotes
             foreach (var word in words)

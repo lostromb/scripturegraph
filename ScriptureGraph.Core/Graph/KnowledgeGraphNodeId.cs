@@ -27,7 +27,7 @@ namespace ScriptureGraph.Core.Graph
             }
 
             KnowledgeGraphNodeId other = (KnowledgeGraphNodeId)obj;
-            return Type == other.Type && string.Equals(Name, other.Name);
+            return Type == other.Type && string.Equals(Name, other.Name, StringComparison.Ordinal);
         }
 
         public override string? ToString()

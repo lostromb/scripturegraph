@@ -8,12 +8,20 @@ namespace ScriptureGraph.Core.Training
 {
     public enum TrainingFeatureType
     {
+        /// <summary>
+        /// Default value, usually means an error
+        /// </summary>
         Unknown,
 
         /// <summary>
         /// Generally low weight. Relations of words and ngrams to entities and to each other.
         /// </summary>
         WordAssociation,
+
+        /// <summary>
+        /// Used for entity <-> ngram relations. Typically higher weight as ngrams are much more distinctive than individual words
+        /// </summary>
+        NgramAssociation,
 
         /// <summary>
         /// Used for words specifically that directly designate an entity. Think like the name of an entity as opposed

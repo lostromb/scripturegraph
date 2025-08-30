@@ -13,6 +13,11 @@ namespace ScriptureGraph.Core.Graph
             Edges = new GraphEdgeList(edgeCapacity);
         }
 
+        internal KnowledgeGraphNode(GraphEdgeList edges)
+        {
+            Edges = edges;
+        }
+
         public GraphEdgeList Edges;
     }
 }

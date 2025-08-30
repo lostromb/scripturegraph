@@ -1,7 +1,10 @@
-﻿using System;
+﻿using Durandal.Common.MathExt;
+using Durandal.Common.Utils;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -24,8 +27,24 @@ namespace ScriptureGraph.Core.Graph
             _totalMass = 0;
         }
 
+        /// <summary>
+        /// Use this constructor only when deserializing
+        /// </summary>
+        /// <param name="maxCapacity"></param>
+        /// <param name="numEdges"></param>
+        internal GraphEdgeList(int maxCapacity, int numEdges)
+        {
+            _maxCapacity = maxCapacity;
+            _currentCapacity = (int)BitOperations.RoundUpToPowerOf2((uint)numEdges);
+            _currentLength = 0;
+            _list = new KnowledgeGraphEdge[_currentCapacity];
+            _totalMass = 0;
+        }
+
         public int NumEdges => _currentLength;
         public float TotalMass => _totalMass;
+        public int MaxCapacity => _maxCapacity;
+        internal int CurrentCapacity => _currentCapacity;
 
         public void Increment(in KnowledgeGraphNodeId nodeRef, float massIncrease)
         {
@@ -65,7 +84,31 @@ namespace ScriptureGraph.Core.Graph
 
             // Then make a new edge
             _list[_currentLength++] = new KnowledgeGraphEdge(nodeRef, massIncrease);
+
+            // And bubble sort it up if needed
+            idx = _currentLength - 1;
+            while (idx > 0 && _list[idx].Mass > _list[idx - 1].Mass)
+            {
+                // Bubble sort it
+                KnowledgeGraphEdge swap = _list[idx - 1];
+                _list[idx - 1] = _list[idx];
+                _list[idx] = swap;
+                idx--;
+            }
+
             _totalMass += massIncrease;
+        }
+
+        /// <summary>
+        /// Should only be called when deserializing a model
+        /// </summary>
+        /// <param name="nodeRef"></param>
+        /// <param name="initialMass"></param>
+        internal void AddForDeserialization(in KnowledgeGraphNodeId nodeRef, float initialMass)
+        {
+            // Make a new edge
+            _list[_currentLength++] = new KnowledgeGraphEdge(nodeRef, initialMass);
+            _totalMass += initialMass;
         }
 
         private void IncreaseCapacity()
@@ -130,9 +173,14 @@ namespace ScriptureGraph.Core.Graph
                 return ++_current < _parent._currentLength;
             }
 
-            public ref KnowledgeGraphEdge Current()
+            public ref KnowledgeGraphEdge CurrentByRef()
             {
                 return ref _parent.ElementAt(_current);
+            }
+
+            public KnowledgeGraphEdge Current()
+            {
+                return _parent.ElementAt(_current);
             }
         }
     }

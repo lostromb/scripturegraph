@@ -1,11 +1,16 @@
 ﻿using Durandal.Common.File;
 using Durandal.Common.IO;
 using Durandal.Common.Logger;
+using Durandal.Common.MathExt;
 using Durandal.Common.Net.Http;
+using Durandal.Common.NLP.Language;
+using Durandal.Common.Time;
 using Durandal.Common.Utils.NativePlatform;
 using Durandal.Extensions.Compression.Brotli;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Training;
+using ScriptureGraph.Core.Training.Extractors;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Console
@@ -18,7 +23,7 @@ namespace ScriptureGraph.Console
         {
             ILogger logger = new ConsoleLogger("Main", LogLevel.All);
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
-            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\runtime\cache");
+            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
             WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
 
@@ -34,17 +39,88 @@ namespace ScriptureGraph.Console
 
             graph = new KnowledgeGraph();
 
-            HashSet<Regex> scriptureRegexes = new HashSet<Regex>();
-            //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
-            //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
-            //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
-            await crawler.Crawl(
-                //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
-                new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
-                ParseScripturePageAction,
-                logger.Clone("WebCrawler"),
-                scriptureRegexes);
+            //for (float weight = -5; weight < 5; weight += 0.2f)
+            //{
+            //    System.Console.WriteLine(weight + " : " + FastMath.Sigmoid(weight));
+            //}
+
+            //graph.Train(new TrainingFeature(
+            //    FeatureToNodeMapping.Entity("Logan Stromberg"),
+            //    FeatureToNodeMapping.Word("logan", LanguageCode.ENGLISH),
+            //    TrainingFeatureType.WordAssociation));
+
+            //graph.Train(new TrainingFeature(
+            //    FeatureToNodeMapping.Entity("Logan Stromberg"),
+            //    FeatureToNodeMapping.Word("stromberg", LanguageCode.ENGLISH),
+            //    TrainingFeatureType.WordAssociation));
+
+            //graph.Train(new TrainingFeature(
+            //    FeatureToNodeMapping.Entity("Logan Stromberg"),
+            //    FeatureToNodeMapping.NGram("logan", "stromberg", LanguageCode.ENGLISH),
+            //    TrainingFeatureType.NgramAssociation));
+
+            logger.Log("Loading model");
+            using (FileStream testGraphIn = new FileStream(@"D:\Code\scripturegraph\runtime\bom.graph", FileMode.Open, FileAccess.Read))
+            {
+                graph = KnowledgeGraph.Load(testGraphIn);
+            }
+
+            //HashSet<Regex> scriptureRegexes = new HashSet<Regex>();
+            ////scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
+            ////scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
+            ////scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
+            //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/.+?/\\d+\\?lang=eng$"));
+            ////scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
+            ////scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
+            //await crawler.Crawl(
+            //    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
+            //    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
+            //    ParseScripturePageAction,
+            //    logger.Clone("WebCrawler"),
+            //    scriptureRegexes);
+
+            //using (FileStream testGraphOut = new FileStream(@"D:\Code\scripturegraph\runtime\bom.graph", FileMode.Create, FileAccess.Write))
+            //{
+            //    graph.Save(testGraphOut);
+            //}
+
+            int dispLines;
+            //logger.Log("Edge dump");
+            //dispLines = 100;
+            //var edgeEnumerator = graph.Get(FeatureToNodeMapping.NGram("exceedingly", "great", "joy", LanguageCode.ENGLISH)).Edges.GetEnumerator();
+            //while (edgeEnumerator.MoveNext())
+            //{
+            //    if (dispLines-- <= 0)
+            //    {
+            //        break;
+            //    }
+
+            //    KnowledgeGraphEdge edge = edgeEnumerator.Current();
+            //    logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", edge.Mass, edge.Target.ToString());
+            //}
+
+            logger.Log("Querying");
+            KnowledgeGraphQuery query = new KnowledgeGraphQuery();
+            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("light of christ"))
+            {
+                query.AddRootNode(feature, 0);
+            }
+
+            Stopwatch timer = Stopwatch.StartNew();
+            var results = graph.Query(query, logger.Clone("Query"));
+            timer.Stop();
+            logger.Log(string.Format("Query finished in {0} ms", timer.ElapsedMillisecondsPrecise()));
+
+            dispLines = 100;
+            foreach (var result in results)
+            {
+                if (dispLines-- <= 0)
+                {
+                    break;
+                }
+
+                logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value, result.Key.ToString());
+            }
 
             return;
         }
@@ -53,7 +129,7 @@ namespace ScriptureGraph.Console
 
         private static Task<bool> ParseScripturePageAction(WebCrawler.CrawledPage page, ILogger logger)
         {
-            List<TrainingFeature> features = new List<TrainingFeature>();
+            List<TrainingFeature> features = new List<TrainingFeature>(50000);
             if (UrlPathParser.Match(page.Url.AbsolutePath).Success)
             {
                 // It's a scripture page. Try and parse it

@@ -18,25 +18,25 @@ namespace ScriptureGraph.Core.Training
         public static KnowledgeGraphNodeId Word(string word, LanguageCode lang)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Word,
-                $"{word}\t{lang.ToBcp47Alpha3String()}");
+                $"{word}|{lang.ToBcp47Alpha3String()}");
         }
 
         public static KnowledgeGraphNodeId NGram(string word1, string word2, LanguageCode lang)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.NGram,
-                $"{word1}\t{word2}\t{lang.ToBcp47Alpha3String()}");
+                $"{word1}|{word2}|{lang.ToBcp47Alpha3String()}");
         }
 
         public static KnowledgeGraphNodeId NGram(string word1, string word2, string word3, LanguageCode lang)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.NGram,
-                $"{word1}\t{word2}\t{word3}\t{lang.ToBcp47Alpha3String()}");
+                $"{word1}|{word2}|{word3}|{lang.ToBcp47Alpha3String()}");
         }
 
         public static KnowledgeGraphNodeId ScriptureVerse(string canon, string book, int chapter, int verse)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureVerse,
-                $"{canon}\t{book}\t{chapter}\t{verse}");
+                $"{canon}|{book}|{chapter}|{verse}");
         }
 
         public static KnowledgeGraphNodeId TopicalGuideKeyword(string keyword)
