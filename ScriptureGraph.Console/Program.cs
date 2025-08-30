@@ -1,14 +1,10 @@
 ﻿using Durandal.Common.File;
 using Durandal.Common.Instrumentation;
-using Durandal.Common.IO;
 using Durandal.Common.Logger;
-using Durandal.Common.MathExt;
 using Durandal.Common.Net.Http;
-using Durandal.Common.NLP.Language;
 using Durandal.Common.Tasks;
 using Durandal.Common.Time;
 using Durandal.Common.Utils.NativePlatform;
-using Durandal.Extensions.Compression.Brotli;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
@@ -74,21 +70,25 @@ namespace ScriptureGraph.Console
 
             string modelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
 
-            //if (File.Exists(modelFileName))
-            //{
-            //    logger.Log("Loading model");
-            //    using (FileStream testGraphIn = new FileStream(modelFileName, FileMode.Open, FileAccess.Read))
-            //    {
-            //        graph = KnowledgeGraph.Load(testGraphIn);
-            //    }
-            //}
-            //else
+            if (File.Exists(modelFileName))
+            {
+                logger.Log("Loading model");
+                using (FileStream testGraphIn = new FileStream(modelFileName, FileMode.Open, FileAccess.Read))
+                {
+                    graph = KnowledgeGraph.Load(testGraphIn);
+                }
+            }
+            else
             {
                 HashSet<Regex> scriptureRegexes = new HashSet<Regex>();
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
-                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/ot/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/pgp/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/dc-covenant/.+?/\\d+\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
                 await crawler.Crawl(
@@ -129,10 +129,10 @@ namespace ScriptureGraph.Console
 
             logger.Log("Querying");
             KnowledgeGraphQuery query = new KnowledgeGraphQuery();
-            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("plan of redemption"))
-            {
-                query.AddRootNode(feature, 0);
-            }
+            //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("plan of redemption"))
+            //{
+            //    query.AddRootNode(feature, 0);
+            //}
 
             //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("quench"))
             //{
@@ -140,6 +140,7 @@ namespace ScriptureGraph.Console
             //}
 
             //query.AddRootNode(FeatureToNodeMapping.ScriptureBook("bofm", "jacob"), 2);
+            //query.AddRootNode(FeatureToNodeMapping.ScriptureBook("ot", "isa"), 2);
 
             Stopwatch timer = Stopwatch.StartNew();
             var results = graph.Query(query, logger.Clone("Query"));
