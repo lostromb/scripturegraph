@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScriptureGraph.Core", "Scri
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScriptureGraph.Console", "ScriptureGraph.Console\ScriptureGraph.Console.csproj", "{D7602DE3-47EE-4663-9CDF-4EA3E6BB0CBD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScriptureGraph.App", "ScriptureGraph.App\ScriptureGraph.App.csproj", "{623D17E8-A262-40D0-A0E1-B280CC042B99}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{D7602DE3-47EE-4663-9CDF-4EA3E6BB0CBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D7602DE3-47EE-4663-9CDF-4EA3E6BB0CBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D7602DE3-47EE-4663-9CDF-4EA3E6BB0CBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{623D17E8-A262-40D0-A0E1-B280CC042B99}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{623D17E8-A262-40D0-A0E1-B280CC042B99}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{623D17E8-A262-40D0-A0E1-B280CC042B99}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{623D17E8-A262-40D0-A0E1-B280CC042B99}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

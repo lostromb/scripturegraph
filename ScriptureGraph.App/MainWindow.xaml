@@ -1,0 +1,71 @@
+﻿<Window x:Class="ScriptureGraph.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ScriptureGraph.App"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="600" Width="800">
+    <Window.Resources>
+        <FontFamily x:Key="VerseFontFamily">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
+    </Window.Resources>
+    <DockPanel Name="ViewRoot" Background="#FFC23A3A" >
+        <DockPanel Name="SearchArea" DockPanel.Dock="Top" Background="#FF48972B">
+            <StackPanel Orientation="Horizontal" Height="50">
+                <Button Content="Whatups"></Button>
+            </StackPanel>
+        </DockPanel>
+        <StackPanel Orientation="Horizontal" CanHorizontallyScroll="true" Name="BrowseArea" DockPanel.Dock="Bottom" Background="#FF485EB2" >
+            <StackPanel Name="ReadingPane1" Orientation="Vertical" Width="300" Background="#FF266468" >
+                <StackPanel Orientation="Vertical">
+                    <TextBlock
+                        TextAlignment="Center"
+                        Text="Isaiah"
+                        FontSize="22">
+                    </TextBlock>
+                    <TextBlock
+                        TextAlignment="Center"
+                        Text="Chapter 42"
+                        FontSize="16">
+                    </TextBlock>
+                </StackPanel>
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Width="20" Text=""/>
+                    <TextBlock
+                        FontFamily="{DynamicResource VerseFontFamily}"
+                        DockPanel.Dock="Right"
+                        TextAlignment="Justify"
+                        TextWrapping="Wrap"
+                        Margin="0,2,20,2"
+                        Text="Isaiah speaks about the Messiah—The Lord will bring His law and His justice, be a light to the Gentiles, and free the prisoners—Praise the Lord." FontStyle="Italic" />
+                </DockPanel>
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Width="20" Text="1"/>
+                    <TextBlock
+                        FontFamily="{DynamicResource VerseFontFamily}"
+                        DockPanel.Dock="Right"
+                        TextAlignment="Justify"
+                        TextWrapping="Wrap"
+                        Margin="0,2,20,2"
+                        Text="Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles." />
+                </DockPanel>
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Width="20" Text="2"/>
+                    <TextBlock
+                        FontFamily="{DynamicResource VerseFontFamily}"
+                        DockPanel.Dock="Right"
+                        TextAlignment="Justify"
+                        TextWrapping="Wrap"
+                        Margin="0,2,20,2"
+                        Text="He shall not cry, nor lift up, nor cause his voice to be heard in the street." />
+                </DockPanel>
+            </StackPanel>
+            <StackPanel Name="ReadingPane2" Orientation="Vertical" Width="300" Background="#FF662468" >
+
+            </StackPanel>
+            <StackPanel Name="ReadingPane3" Orientation="Vertical" Width="300" Background="#FF606824" >
+
+            </StackPanel>
+        </StackPanel>
+    </DockPanel>
+</Window>
