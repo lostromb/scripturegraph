@@ -1,9 +1,11 @@
 ﻿using Durandal.Common.File;
+using Durandal.Common.Instrumentation;
 using Durandal.Common.IO;
 using Durandal.Common.Logger;
 using Durandal.Common.MathExt;
 using Durandal.Common.Net.Http;
 using Durandal.Common.NLP.Language;
+using Durandal.Common.Tasks;
 using Durandal.Common.Time;
 using Durandal.Common.Utils.NativePlatform;
 using Durandal.Extensions.Compression.Brotli;
@@ -18,6 +20,7 @@ namespace ScriptureGraph.Console
     internal class Program
     {
         private static KnowledgeGraph graph;
+        private static FixedCapacityThreadPool trainingThreadPool;
 
         public static async Task Main(string[] args)
         {
@@ -42,6 +45,12 @@ namespace ScriptureGraph.Console
             //}
 
             graph = new KnowledgeGraph();
+            trainingThreadPool = new FixedCapacityThreadPool(
+                new TaskThreadPool(),
+                NullLogger.Singleton,
+                NullMetricCollector.Singleton,
+                DimensionSet.Empty,
+                "TrainingThreads");
 
             //for (float weight = -5; weight < 5; weight += 0.2f)
             //{
@@ -83,17 +92,24 @@ namespace ScriptureGraph.Console
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
                 await crawler.Crawl(
-                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
+                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
-                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bd/abaddon?lang=eng"),
+                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bd/abaddon?lang=eng"),
                     ParseScripturePageAction,
                     logger.Clone("WebCrawler"),
                     scriptureRegexes);
 
-                //using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
-                //{
-                //    graph.Save(testGraphOut);
-                //}
+                do
+                {
+                    // fixme this is jank
+                    await Task.Delay(10000);
+                    await trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
+                } while (trainingThreadPool.RunningWorkItems > 0);
+
+                using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
+                {
+                    graph.Save(testGraphOut);
+                }
             }
 
             int dispLines;
@@ -145,7 +161,7 @@ namespace ScriptureGraph.Console
         private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
         private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
 
-        private static Task<bool> ParseScripturePageAction(WebCrawler.CrawledPage page, ILogger logger)
+        private static void TrainGraph(WebCrawler.CrawledPage page, ILogger logger)
         {
             List<TrainingFeature> features = new List<TrainingFeature>(50000);
             Match match = ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath);
@@ -190,7 +206,12 @@ namespace ScriptureGraph.Console
             {
                 graph.Train(feature);
             }
+        }
 
+        private static Task<bool> ParseScripturePageAction(WebCrawler.CrawledPage page, ILogger logger)
+        {
+            //TrainGraph(page, logger);
+            trainingThreadPool.EnqueueUserWorkItem(() => TrainGraph(page, logger));
             return Task.FromResult<bool>(true);
         }
     }
