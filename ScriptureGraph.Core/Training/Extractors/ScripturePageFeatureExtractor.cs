@@ -17,14 +17,7 @@ namespace ScriptureGraph.Core.Training.Extractors
     public class ScripturePageFeatureExtractor
     {
         private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/(.+?)\\/(.+?)\\/(\\d+)");
-        private static readonly Regex IntroParser = new Regex("<p class=\\\"intro\\\".+?>(.+?)<\\/p>");
-        private static readonly Regex VerseParser = new Regex("<p class=\\\"verse\\\".+?verse-number\\\">(\\d+) <\\/span>(.+?)<\\/p>");
-        private static readonly Regex NoteParser = new Regex("<p[^>]+?id=\"note(.+?)(?:_p\\d+)?\">([\\w\\W]+?)<\\/p>");
-        private static readonly Regex ScriptureRefParser = new Regex("class=\\\"scripture-ref\\\"\\s+href=\\\"\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=eng(?:&amp;id=(.+?)(?:#.+?))?\\\"");
-        private static readonly Regex InlineFootnoteParser = new Regex("<a class=\"study-note-ref\".+?#note(.+?)\".+?<\\/sup>(.+?)<\\/a>");
-        private static readonly Regex PageBreakRemover = new Regex("<span class=\"page-break\".+?</span>");
 
-        
         public static void ExtractFeatures(string scriptureHtmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> returnVal)
         {
             try
@@ -36,231 +29,60 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return;
                 }
 
-                Dictionary<int, StructuredVerse> verses = new Dictionary<int, StructuredVerse>();
-                Dictionary<string, StructuredFootnote> footnotes = new Dictionary<string, StructuredFootnote>();
                 string canon = urlParse.Groups[1].Value;
                 string book = urlParse.Groups[2].Value;
                 int chapter = int.Parse(urlParse.Groups[3].Value);
 
-                // Parse the intro as verse 0 if present
-                Match introMatch = IntroParser.Match(scriptureHtmlPage);
-                if (introMatch.Success)
-                {
-                    string introTextWithAnnotation = introMatch.Groups[1].Value;
-                    verses.Add(0, new StructuredVerse(canon, book, chapter, 0, introTextWithAnnotation));
-                }
-
-                // Parse each individual verse and note into structured form
-                foreach (Match verseMatch in VerseParser.Matches(scriptureHtmlPage))
-                {
-                    int verseNum = int.Parse(verseMatch.Groups[1].Value);
-                    string verseTextWithAnnotation = verseMatch.Groups[2].Value;
-                    //logger.Log(verseTextWithAnnotation);
-
-                    // Take the time to remove page breaks and other unused HTML tags here
-                    verseTextWithAnnotation = StringUtils.RegexRemove(PageBreakRemover, verseTextWithAnnotation);
-
-                    verses.Add(verseNum, new StructuredVerse(canon, book, chapter, verseNum, verseTextWithAnnotation));
-                }
-
-                StringBuilder rawTextBuffer = new StringBuilder();
-                foreach (Match footnoteMatch in NoteParser.Matches(scriptureHtmlPage))
-                {
-                    //logger.Log(footnoteMatch.Value);
-                    string noteId = footnoteMatch.Groups[1].Value;
-                    string footnoteTextWithAnnotation = footnoteMatch.Groups[2].Value;
-                    StructuredFootnote footnote = new StructuredFootnote(noteId, footnoteTextWithAnnotation);
-
-                    //logger.Log(noteId);
-
-                    foreach (Match footnotScriptureRef in ScriptureRefParser.Matches(footnoteTextWithAnnotation))
-                    {
-                        string refCanon = footnotScriptureRef.Groups[1].Value;
-                        string refBook = footnotScriptureRef.Groups[2].Value;
-                        if (!footnotScriptureRef.Groups[3].Success)
-                        {
-                            // It's a reference without chapter or verse info (usually TG or BD)
-                            //logger.Log($"Adding reference without chapter to {refCanon} {refBook}");
-                            footnote.ScriptureReferences.Add(new ScriptureReference(refCanon, refBook));
-                        }
-                        else
-                        {
-                            int refChapter = int.Parse(footnotScriptureRef.Groups[3].Value);
-                            if (footnotScriptureRef.Groups[4].Success)
-                            {
-                                string refVerseEncoded = footnotScriptureRef.Groups[4].Value.Replace("p", "");
-                                // Parse the encoded verses.
-                                // Examples:
-                                // p5 (verse 5)
-                                // p1-p4 (verses 1-4)
-                                // p3,p6 (verses 3 and 6)
-                                // p21-p23,p27 (verses 21-23 and 27)
-                                //logger.Log($"Decoding verse ref {refVerseEncoded}");
-                                string[] segments = refVerseEncoded.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                                foreach (string verseRange in segments)
-                                {
-                                    int hyphenIndex = verseRange.IndexOf('-');
-                                    if (hyphenIndex > 0)
-                                    {
-                                        // We've removed 'p' already, so it's presumably something like "1-5"
-                                        // Some references can be to chapter headers - this is common in D&C where
-                                        // it's giving historical context present only in the headers.
-                                        // Example: /scriptures/bofm/4-ne/1?lang=eng&id=title1-intro1
-                                        int rangeStart, rangeEnd;
-                                        if (int.TryParse(verseRange.AsSpan(0, hyphenIndex), out rangeStart) &&
-                                            int.TryParse(verseRange.AsSpan(hyphenIndex + 1), out rangeEnd))
-                                        {
-                                            //logger.Log($"Adding reference to verse range {refCanon} {refBook} {refChapter}:{rangeStart}-{rangeEnd}");
-                                            for (; rangeStart <= rangeEnd; rangeStart++)
-                                            {
-                                                footnote.ScriptureReferences.Add(
-                                                    new ScriptureReference(refCanon, refBook, refChapter, rangeStart));
-                                            }
-                                        }
-                                        else
-                                        {
-                                            // In this system we only really track the intro paragraph
-                                            // (if it was written by the original text's author) and count it
-                                            // as verse 0. So we just assume any non-numerical verse reference
-                                            // is pointing to this header and label it as verse 0
-                                            footnote.ScriptureReferences.Add(
-                                                new ScriptureReference(refCanon, refBook, refChapter, 0));
-                                        }
-                                    }
-                                    else
-                                    {
-                                        int singleVerse;
-                                        if (int.TryParse(verseRange, out singleVerse))
-                                        {
-                                            //logger.Log($"Adding reference with single verse {refCanon} {refBook} {refChapter}:{singleVerse}");
-                                            footnote.ScriptureReferences.Add(
-                                                new ScriptureReference(refCanon, refBook, refChapter, singleVerse));
-                                        }
-                                        else
-                                        {
-                                            // Very rare cases like 1 Ne 8:19 will have footnotes refering to other footnotes
-                                            // We're just gonna ignore those
-                                            logger.Log($"Invalid cross-reference location to {verseRange}, ignoring...", LogLevel.Wrn);
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                // Not sure if this is possible but whatever
-                                //logger.Log($"Adding reference with chapter but no verse to {refCanon} {refBook} {refChapter}");
-                                footnote.ScriptureReferences.Add(
-                                    new ScriptureReference(refCanon, refBook, refChapter, null)); 
-                            }
-                        }
-                    }
-
-                    footnotes.Add(noteId, footnote);
-                }
+                Dictionary<int, StructuredVerse> verses = LdsDotOrgCommonParsers.ParseVerses(canon, book, chapter, scriptureHtmlPage);
+                Dictionary<string, StructuredFootnote> footnotes = LdsDotOrgCommonParsers.ParseFootnotesFromPage(scriptureHtmlPage, logger);
 
                 // Now restructure each verse into a series of words with correlated footnotes
-                List<SingleWordWithFootnotes> words = new List<SingleWordWithFootnotes>();
                 foreach (StructuredVerse verse in verses.Values.OrderBy(s => s.Verse))
                 {
-                    int startIndex = 0;
-                    while (startIndex < verse.Text.Length)
-                    {
-                        Match wordMatch = EnglishWordFeatureExtractor.WordMatcher.Match(verse.Text, startIndex);
-                        if (wordMatch.Success)
-                        {
-                            Match taggedWordMatch = InlineFootnoteParser.Match(verse.Text, startIndex);
-                            if (taggedWordMatch.Success && taggedWordMatch.Index < wordMatch.Index)
-                            {
-                                // It's one or more words tagged with a footnote
-                                string footnoteNoteRef = taggedWordMatch.Groups[1].Value; // "20d"
-                                string footnotedWords = taggedWordMatch.Groups[2].Value; // "cast out"
-                                int subWordIndex = 0;
-                                StructuredFootnote? footnoteForTheseWords;
-                                if (!footnotes.TryGetValue(footnoteNoteRef, out footnoteForTheseWords))
-                                {
-                                    logger.Log($"Could not resolve footnote ref {footnoteNoteRef} in verse {verse.Verse}", LogLevel.Err);
-                                }
-                                else
-                                {
-                                    while (true)
-                                    {
-                                        Match subWordMatch = EnglishWordFeatureExtractor.WordMatcher.Match(footnotedWords, subWordIndex);
-                                        if (!subWordMatch.Success)
-                                        {
-                                            break;
-                                        }
-
-                                        subWordIndex = subWordMatch.Index + subWordMatch.Length;
-                                        words.Add(new SingleWordWithFootnotes(subWordMatch.Value, footnoteForTheseWords));
-                                    }
-                                }
-
-                                startIndex = taggedWordMatch.Index + taggedWordMatch.Length;
-                                if (rawTextBuffer.Length > 0)
-                                {
-                                    rawTextBuffer.Append(' ');
-                                }
-
-                                rawTextBuffer.Append(footnotedWords);
-                            }
-                            else
-                            {
-                                // It's just an untagged word
-                                words.Add(new SingleWordWithFootnotes(wordMatch.Value));
-                                startIndex = wordMatch.Index + wordMatch.Length;
-                                if (rawTextBuffer.Length > 0)
-                                {
-                                    rawTextBuffer.Append(' ');
-                                }
-
-                                rawTextBuffer.Append(wordMatch.Value);
-                            }
-                        }
-                        else
-                        {
-                            startIndex = verse.Text.Length;
-                        }
-                    }
-
-                    // Dump the wordbreaker and tagger output for debug
-                    //logger.Log($"Verse {verse.Verse}: {string.Join(' ', words)}");
-
-                    // now FINALLY we can extract features
-                    ExtractFeaturesFromSingleVerse(verse, rawTextBuffer.ToString(), words, logger, returnVal);
-                    rawTextBuffer.Clear();
-                    words.Clear();
+                    string plainText;
+                    List<SingleWordWithFootnotes> words = LdsDotOrgCommonParsers.ParseParagraphWithStudyNoteRef(verse.Text, logger, footnotes, out plainText);
+                    ExtractFeaturesFromSingleVerse(verse, plainText, words, logger, returnVal);
                 }
 
-                // Some final chapter-level features
-                // Relationship between this scripture book and the chapters in it
-                returnVal.Add(new TrainingFeature(
-                    FeatureToNodeMapping.ScriptureBook(
-                        canon,
-                        book),
-                    FeatureToNodeMapping.ScriptureChapter(
-                        canon,
-                        book,
-                        chapter),
-                    TrainingFeatureType.BookAssociation));
-
-                // And the previous chapter, if applicable
-                if (chapter > 1)
-                {
-                    returnVal.Add(new TrainingFeature(
-                        FeatureToNodeMapping.ScriptureChapter(
-                            canon,
-                            book,
-                            chapter),
-                        FeatureToNodeMapping.ScriptureChapter(
-                            canon,
-                            book,
-                            chapter - 1),
-                        TrainingFeatureType.BookAssociation));
-                }
+                ExtractChapterLevelFeatures(canon, book, chapter, logger, returnVal);
             }
             catch (Exception e)
             {
                 logger.Log(e);
+            }
+        }
+
+        private static void ExtractChapterLevelFeatures(
+            string canon,
+            string book,
+            int chapter,
+            ILogger logger,
+            List<TrainingFeature> trainingFeaturesOut)
+        {
+            // Relationship between this scripture book and the chapters in it
+            trainingFeaturesOut.Add(new TrainingFeature(
+                FeatureToNodeMapping.ScriptureBook(
+                    canon,
+                    book),
+                FeatureToNodeMapping.ScriptureChapter(
+                    canon,
+                    book,
+                    chapter),
+                TrainingFeatureType.BookAssociation));
+
+            // And the previous chapter, if applicable
+            if (chapter > 1)
+            {
+                trainingFeaturesOut.Add(new TrainingFeature(
+                    FeatureToNodeMapping.ScriptureChapter(
+                        canon,
+                        book,
+                        chapter),
+                    FeatureToNodeMapping.ScriptureChapter(
+                        canon,
+                        book,
+                        chapter - 1),
+                    TrainingFeatureType.BookAssociation));
             }
         }
 
@@ -368,82 +190,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
                     }
                 }
-            }
-        }
-
-        private class SingleWordWithFootnotes
-        {
-            public SingleWordWithFootnotes(string word, StructuredFootnote? footnote = null)
-            {
-                Word = word;
-                Footnote = footnote;
-            }
-
-            public string Word;
-            public StructuredFootnote? Footnote;
-
-            public override string? ToString()
-            {
-                if (Footnote != null)
-                {
-                    return $"{Word}[{Footnote.NoteId}]";
-                }
-                else
-                {
-                    return Word;
-                }
-            }
-        }
-
-        private class StructuredVerse
-        {
-            public StructuredVerse(string canon, string book, int chapter, int verse, string text)
-            {
-                Canon = canon;
-                Book = book;
-                Chapter = chapter;
-                Verse = verse;
-                Text = text;
-            }
-
-            public string Canon;
-            public string Book;
-            public int Chapter;
-            public int Verse;
-            public string Text;
-        }
-
-        private class StructuredFootnote
-        {
-            public StructuredFootnote(string noteId, string text)
-            {
-                NoteId = noteId;
-                Text = text;
-            }
-
-            public string NoteId;
-            public string Text;
-            public List<ScriptureReference> ScriptureReferences { get; } = new List<ScriptureReference>();
-        }
-
-        private class ScriptureReference
-        {
-            public ScriptureReference(string canon, string book, int? chapter = null, int? verse = null)
-            {
-                Canon = canon;
-                Book = book;
-                Chapter = chapter;
-                Verse = verse;
-            }
-
-            public string Canon;
-            public string Book;
-            public int? Chapter;
-            public int? Verse;
-
-            public override string? ToString()
-            {
-                return $"{Canon} {Book} {Chapter}:{Verse}";
             }
         }
     }
