@@ -10,68 +10,82 @@
     <Window.Resources>
         <FontFamily x:Key="VerseFontFamily">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
         <System:Double x:Key="VerseFontSize">16</System:Double>
-        <Thickness x:Key="VerseParagraphMargin">0,2,20,2</Thickness>
+        <Thickness x:Key="VerseParagraphMargin">10,0,10,0</Thickness>
     </Window.Resources>
     <DockPanel Name="ViewRoot" Background="#FFC23A3A" >
         <DockPanel Name="SearchArea" DockPanel.Dock="Top" Background="#FF48972B">
             <StackPanel Orientation="Horizontal" Height="50">
-                <Button Content="Whatups"></Button>
+                <Button Content="Whatups" Click="Button_Click"></Button>
             </StackPanel>
         </DockPanel>
-        <StackPanel Orientation="Horizontal" CanHorizontallyScroll="true" Name="BrowseArea" DockPanel.Dock="Bottom" Background="#FF485EB2" >
-            <StackPanel Name="ReadingPane1" Orientation="Vertical" Width="300" Background="#FF266468" >
-                <StackPanel Orientation="Vertical">
-                    <TextBlock
-                        TextAlignment="Center"
-                        Text="Isaiah"
-                        FontSize="22">
-                    </TextBlock>
-                    <TextBlock
-                        TextAlignment="Center"
-                        Text="Chapter 42"
-                        FontSize="16">
-                    </TextBlock>
+        <ScrollViewer
+            HorizontalScrollBarVisibility="Auto"
+            VerticalScrollBarVisibility="Disabled">
+            <StackPanel Orientation="Horizontal" Name="BrowseArea" DockPanel.Dock="Bottom" >
+                <FlowDocumentScrollViewer
+                    Name="ReadingPane1"
+                    Width="400">
+                    <FlowDocument
+                        Background="#FFE2E2E2">
+                        <Section>
+                            <Paragraph FontSize="18" TextAlignment="Center">
+                                Isaiah
+                            </Paragraph>
+                            <Paragraph FontSize="16" TextAlignment="Center">
+                                Chapter 42
+                            </Paragraph>
+                        </Section>
+                        <Section
+                            TextAlignment="Justify"
+                            FontFamily="{DynamicResource VerseFontFamily}"
+                            FontSize="{DynamicResource VerseFontSize}"
+                            Margin="{DynamicResource VerseParagraphMargin}">
+                            <Paragraph Tag="ot-isa-42-0" >
+                                <Italic>Isaiah speaks about the Messiah—The Lord will bring His law and His justice, be a light to the Gentiles, and free the prisoners—Praise the Lord.</Italic>
+                            </Paragraph>
+                            <Paragraph Tag="ot-isa-42-1" >
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph Tag="ot-isa-42-2" >
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph Tag="ot-isa-42-3" >
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph>
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph>
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph>
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph>
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph>
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph>
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph>
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                            <Paragraph>
+                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
+                            </Paragraph>
+                        </Section>
+                    </FlowDocument>
+                </FlowDocumentScrollViewer>
+                <StackPanel Name="ReadingPane2" Orientation="Vertical" Width="400" Background="#FF197926" >
+
                 </StackPanel>
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Left" Width="20" Text=""/>
-                    <TextBlock
-                        FontSize="{DynamicResource VerseFontSize}"
-                        FontFamily="{DynamicResource VerseFontFamily}"
-                        DockPanel.Dock="Right"
-                        TextAlignment="Justify"
-                        TextWrapping="Wrap"
-                        Margin="{DynamicResource VerseParagraphMargin}"
-                        Text="Isaiah speaks about the Messiah—The Lord will bring His law and His justice, be a light to the Gentiles, and free the prisoners—Praise the Lord." FontStyle="Italic" />
-                </DockPanel>
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Left" Width="20" Text="1"/>
-                    <TextBlock
-                        FontSize="{DynamicResource VerseFontSize}"
-                        FontFamily="{DynamicResource VerseFontFamily}"
-                        DockPanel.Dock="Right"
-                        TextAlignment="Justify"
-                        TextWrapping="Wrap"
-                        Margin="{DynamicResource VerseParagraphMargin}"
-                        Text="Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles." />
-                </DockPanel>
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Left" Width="20" Text="2"/>
-                    <TextBlock
-                        FontSize="{DynamicResource VerseFontSize}"
-                        FontFamily="{DynamicResource VerseFontFamily}"
-                        DockPanel.Dock="Right"
-                        TextAlignment="Justify"
-                        TextWrapping="Wrap"
-                        Margin="{DynamicResource VerseParagraphMargin}"
-                        Text="He shall not cry, nor lift up, nor cause his voice to be heard in the street." />
-                </DockPanel>
-            </StackPanel>
-            <StackPanel Name="ReadingPane2" Orientation="Vertical" Width="300" Background="#FF662468" >
+                <StackPanel Name="ReadingPane3" Orientation="Vertical" Width="400" Background="#FF606824" >
 
+                </StackPanel>
             </StackPanel>
-            <StackPanel Name="ReadingPane3" Orientation="Vertical" Width="300" Background="#FF606824" >
-
-            </StackPanel>
-        </StackPanel>
+        </ScrollViewer>
     </DockPanel>
 </Window>

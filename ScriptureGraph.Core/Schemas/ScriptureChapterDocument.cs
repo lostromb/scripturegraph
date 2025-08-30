@@ -20,6 +20,13 @@ namespace ScriptureGraph.Core.Schemas
         [JsonPropertyName("chapter")]
         public required int Chapter { get; set; }
 
+        /// <summary>
+        /// This refers to in-text headers e.g. "THE RECORD OF ALMA", not the study summary headers.
+        /// Referred to in notation as verse 0 of the chapter, if present.
+        /// </summary>
+        [JsonPropertyName("header")]
+        public GospelParagraph? ChapterHeader { get; set; }
+
         [JsonPropertyName("prev")]
         [JsonConverter(typeof(KnowledgeIdNullableSerializer))]
         public KnowledgeGraphNodeId? Prev { get; set; }

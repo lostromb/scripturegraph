@@ -6,9 +6,11 @@ using Durandal.Common.Tasks;
 using Durandal.Common.Time;
 using Durandal.Common.Utils.NativePlatform;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System.Diagnostics;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Console
@@ -17,6 +19,7 @@ namespace ScriptureGraph.Console
     {
         private static KnowledgeGraph graph;
         private static FixedCapacityThreadPool trainingThreadPool;
+        private static IFileSystem documentCacheFileSystem;
 
         public static async Task Main(string[] args)
         {
@@ -27,6 +30,7 @@ namespace ScriptureGraph.Console
 #endif
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
+            documentCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\documents");
             WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
 
@@ -84,18 +88,18 @@ namespace ScriptureGraph.Console
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/ot/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/pgp/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/dc-covenant/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/ot/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/pgp/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/dc-covenant/.+?/\\d+\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
-                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
                 await crawler.Crawl(
-                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
-                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
+                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
+                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bd/abaddon?lang=eng"),
-                    ParseScripturePageAction,
+                    ParseDocument,
                     logger.Clone("WebCrawler"),
                     scriptureRegexes);
 
@@ -209,9 +213,51 @@ namespace ScriptureGraph.Console
             }
         }
 
-        private static Task<bool> ParseScripturePageAction(WebCrawler.CrawledPage page, ILogger logger)
+        private static Task<bool> ParseDocument(WebCrawler.CrawledPage page, ILogger logger)
         {
-            //TrainGraph(page, logger);
+            VirtualPath fileDestination = VirtualPath.Root;
+            GospelDocument? parsedDoc = null;
+            Match match = ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath);
+            if (match.Success)
+            {
+                logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
+                ScriptureChapterDocument? structuredDoc = ScripturePageFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                parsedDoc = structuredDoc;
+                if (structuredDoc == null)
+                {
+                    logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                }
+                else
+                {
+                    fileDestination = new VirtualPath($"{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.json");
+                }
+            }
+            else
+            {
+                logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+            }
+
+            if (parsedDoc != null)
+            {
+                documentCacheFileSystem.CreateDirectory(fileDestination.Container);
+
+                using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                {
+                    GospelDocument.SerializePolymorphic(fileOut, parsedDoc);
+                }
+            }
+
+            return Task.FromResult<bool>(true);
+        }
+
+        private static Task<bool> ExtractPageFeatures(WebCrawler.CrawledPage page, ILogger logger)
+        {
+            TrainGraph(page, logger);
+            return Task.FromResult<bool>(true);
+        }
+
+        private static Task<bool> ExtractPageFeaturesThreaded(WebCrawler.CrawledPage page, ILogger logger)
+        {
             trainingThreadPool.EnqueueUserWorkItem(() => TrainGraph(page, logger));
             return Task.FromResult<bool>(true);
         }

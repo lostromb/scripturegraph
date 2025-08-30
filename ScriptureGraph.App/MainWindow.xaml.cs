@@ -21,9 +21,15 @@ namespace ScriptureGraph.App
             InitializeComponent();
         }
 
-        private void ConvertDocumentToReadingPane(StackPanel target)
+        private void ConvertDocumentToFlowDocument(StackPanel target)
         {
 
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            TextSelection s = ReadingPane1.Selection;
+            s.GetHashCode();
         }
     }
 }

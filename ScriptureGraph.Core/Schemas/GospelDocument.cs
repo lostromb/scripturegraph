@@ -1,13 +1,14 @@
-﻿using Durandal.Common.NLP.Language;
-using System.Text.Json.Serialization;
+﻿using Durandal.Common.File;
+using Durandal.Common.NLP.Language;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas.Serializers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using ScriptureGraph.Core.Schemas.Serializers;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Schemas
 {
@@ -62,6 +63,29 @@ namespace ScriptureGraph.Core.Schemas
             }
 
             return parsedDoc;
+        }
+
+        public static void SerializePolymorphic(Stream stream, GospelDocument document)
+        {
+            using (Utf8JsonWriter jsonWriter = new Utf8JsonWriter(stream))
+            {
+                if (document is ScriptureChapterDocument chapter)
+                {
+                    JsonSerializer.Serialize(jsonWriter, chapter);
+                }
+                else if (document is ConferenceTalkDocument conf)
+                {
+                    JsonSerializer.Serialize(jsonWriter, conf);
+                }
+                else if (document is BibleDictionaryDocument bd)
+                {
+                    JsonSerializer.Serialize(jsonWriter, bd);
+                }
+                else
+                {
+                    throw new InvalidCastException("Unknown gospel document subtype");
+                }
+            }
         }
     }
 }
