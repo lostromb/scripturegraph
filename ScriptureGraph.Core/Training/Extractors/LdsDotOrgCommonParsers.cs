@@ -1,11 +1,6 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.Utils;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
@@ -85,43 +80,49 @@ namespace ScriptureGraph.Core.Training.Extractors
                 StructuredFootnote footnote = new StructuredFootnote(noteId, footnoteTextWithAnnotation);
 
                 //logger.Log(noteId);
-
-                foreach (Match footnotScriptureRef in ScriptureRefParser.Matches(footnoteTextWithAnnotation))
-                {
-                    string refCanon = footnotScriptureRef.Groups[1].Value;
-                    string refBook = footnotScriptureRef.Groups[2].Value;
-                    if (!footnotScriptureRef.Groups[3].Success)
-                    {
-                        // It's a reference without chapter or verse info (usually TG or BD)
-                        //logger.Log($"Adding reference without chapter to {refCanon} {refBook}");
-                        footnote.ScriptureReferences.Add(new ScriptureReference(refCanon, refBook));
-                    }
-                    else
-                    {
-                        int refChapter = int.Parse(footnotScriptureRef.Groups[3].Value);
-                        if (footnotScriptureRef.Groups[4].Success)
-                        {
-                            ParseVerseParagraphRangeString(footnotScriptureRef.Groups[4].Value, logger ,
-                                (verseNum) =>
-                                {
-                                    footnote.ScriptureReferences.Add(
-                                        new ScriptureReference(refCanon, refBook, refChapter, verseNum));
-                                });
-                        }
-                        else
-                        {
-                            // Not sure if this is possible but whatever
-                            //logger.Log($"Adding reference with chapter but no verse to {refCanon} {refBook} {refChapter}");
-                            footnote.ScriptureReferences.Add(
-                                new ScriptureReference(refCanon, refBook, refChapter, null));
-                        }
-                    }
-                }
-
+                ParseAllScriptureReferences(footnoteTextWithAnnotation, footnote.ScriptureReferences, logger);
                 footnotes.Add(noteId, footnote);
             }
 
             return footnotes;
+        }
+
+        internal static void ParseAllScriptureReferences(
+            string scriptureHtmlPage,
+            List<ScriptureReference> destination,
+            ILogger logger)
+        {
+            foreach (Match footnotScriptureRef in ScriptureRefParser.Matches(scriptureHtmlPage))
+            {
+                string refCanon = footnotScriptureRef.Groups[1].Value;
+                string refBook = footnotScriptureRef.Groups[2].Value;
+                if (!footnotScriptureRef.Groups[3].Success)
+                {
+                    // It's a reference without chapter or verse info (usually TG or BD)
+                    //logger.Log($"Adding reference without chapter to {refCanon} {refBook}");
+                    destination.Add(new ScriptureReference(refCanon, refBook));
+                }
+                else
+                {
+                    int refChapter = int.Parse(footnotScriptureRef.Groups[3].Value);
+                    if (footnotScriptureRef.Groups[4].Success)
+                    {
+                        ParseVerseParagraphRangeString(footnotScriptureRef.Groups[4].Value, logger,
+                            (verseNum) =>
+                            {
+                                destination.Add(
+                                    new ScriptureReference(refCanon, refBook, refChapter, verseNum));
+                            });
+                    }
+                    else
+                    {
+                        // Not sure if this is possible but whatever
+                        //logger.Log($"Adding reference with chapter but no verse to {refCanon} {refBook} {refChapter}");
+                        destination.Add(
+                            new ScriptureReference(refCanon, refBook, refChapter, null));
+                    }
+                }
+            }
         }
 
         internal static void ParseVerseParagraphRangeString(string refVerseEncoded, ILogger logger, Action<int> handler)

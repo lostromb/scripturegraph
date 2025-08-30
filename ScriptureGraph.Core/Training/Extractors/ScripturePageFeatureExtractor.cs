@@ -1,16 +1,7 @@
-﻿using Durandal.Common.Audio.WebRtc;
-using Durandal.Common.Logger;
+﻿using Durandal.Common.Logger;
 using Durandal.Common.NLP.Language;
-using Durandal.Common.Parsers;
-using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
-using ScriptureGraph.Core.Training;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
@@ -18,7 +9,7 @@ namespace ScriptureGraph.Core.Training.Extractors
     {
         private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/(.+?)\\/(.+?)\\/(\\d+)");
 
-        public static void ExtractFeatures(string scriptureHtmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> returnVal)
+        public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> returnVal)
         {
             try
             {
@@ -33,8 +24,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                 string book = urlParse.Groups[2].Value;
                 int chapter = int.Parse(urlParse.Groups[3].Value);
 
-                Dictionary<int, StructuredVerse> verses = LdsDotOrgCommonParsers.ParseVerses(canon, book, chapter, scriptureHtmlPage);
-                Dictionary<string, StructuredFootnote> footnotes = LdsDotOrgCommonParsers.ParseFootnotesFromPage(scriptureHtmlPage, logger);
+                Dictionary<int, StructuredVerse> verses = LdsDotOrgCommonParsers.ParseVerses(canon, book, chapter, htmlPage);
+                Dictionary<string, StructuredFootnote> footnotes = LdsDotOrgCommonParsers.ParseFootnotesFromPage(htmlPage, logger);
 
                 // Now restructure each verse into a series of words with correlated footnotes
                 foreach (StructuredVerse verse in verses.Values.OrderBy(s => s.Verse))
@@ -148,7 +139,28 @@ namespace ScriptureGraph.Core.Training.Extractors
                         else if (string.Equals(scriptureRef.Canon, "bd", StringComparison.Ordinal))
                         {
                             // Bible dictionary topic
-                            // TODO handle
+                            KnowledgeGraphNodeId refNodeId = FeatureToNodeMapping.BibleDictionaryTopic(scriptureRef.Book);
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                thisVerseNode,
+                                refNodeId,
+                                TrainingFeatureType.EntityReference));
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
+                                refNodeId,
+                                TrainingFeatureType.WordDesignation));
+                        }
+                        else if (string.Equals(scriptureRef.Canon, "gs", StringComparison.Ordinal))
+                        {
+                            // Bible dictionary topic
+                            KnowledgeGraphNodeId refNodeId = FeatureToNodeMapping.GuideToScripturesTopic(scriptureRef.Book);
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                thisVerseNode,
+                                refNodeId,
+                                TrainingFeatureType.EntityReference));
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
+                                refNodeId,
+                                TrainingFeatureType.WordDesignation));
                         }
                         else
                         {

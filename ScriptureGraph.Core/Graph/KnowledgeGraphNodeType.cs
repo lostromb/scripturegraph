@@ -48,5 +48,15 @@ namespace ScriptureGraph.Core.Graph
         /// An entire book of scripture, e.g. "Hebrews"
         /// </summary>
         ScriptureBook,
+
+        /// <summary>
+        /// A reference to the bible dictionary, designated by URL keyword (e.g. scriptures/bg/sobriety where "sobriety" is the node name)
+        /// </summary>
+        BibleDictionaryTopic,
+
+        /// <summary>
+        /// A reference to the Guide to the Scriptures, designated by URL keyword (e.g. scriptures/gs/abraham where "abraham" is the node name)
+        /// </summary>
+        GuideToScripturesTopic,
     }
 }

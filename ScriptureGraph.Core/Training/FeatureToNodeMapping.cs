@@ -55,5 +55,15 @@ namespace ScriptureGraph.Core.Training
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.TopicalGuideKeyword, keyword);
         }
+
+        public static KnowledgeGraphNodeId BibleDictionaryTopic(string topic)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionaryTopic, topic);
+        }
+
+        public static KnowledgeGraphNodeId GuideToScripturesTopic(string topic)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.GuideToScripturesTopic, topic);
+        }
     }
 }
