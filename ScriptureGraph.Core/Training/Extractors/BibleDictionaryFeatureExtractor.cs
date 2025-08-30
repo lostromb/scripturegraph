@@ -5,11 +5,11 @@ using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
-    public class TopicalGuideFeatureExtractor
+    public class BibleDictionaryFeatureExtractor
     {
-        private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/tg\\/(.+?)(?:\\?|$)");
+        private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/bd\\/(.+?)(?:\\?|$)");
 
-        private static readonly Regex TGEntryParser = new Regex("<p class=\"entry\".+?>([\\w\\W]+?)<\\/p>");
+        private static readonly Regex ParagraphParser = new Regex("<p[^>]+?id=\\\"p\\d+\\\".*?>([\\w\\W]+?)<\\/p>");
 
         private static readonly Regex ScriptureRefRemover = new Regex("<a class=\\\"scripture-ref\\\".+?>([\\w\\W]+?)<\\/a>");
 
@@ -27,21 +27,24 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 string topic = urlParse.Groups[1].Value;
-                KnowledgeGraphNodeId topicalGuideNode = FeatureToNodeMapping.TopicalGuideKeyword(topic);
+                KnowledgeGraphNodeId dictionaryNode = FeatureToNodeMapping.BibleDictionaryTopic(topic);
 
                 List<ScriptureReference> references = new List<ScriptureReference>();
-                foreach (Match entryMatch in TGEntryParser.Matches(htmlPage))
+                foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
                 {
                     string rawText = entryMatch.Groups[1].Value;
                     string wordBreakerText = StringUtils.RegexRemove(ScriptureRefRemover, rawText);
                     wordBreakerText = StringUtils.RegexRemove(HtmlTagRemover, wordBreakerText);
+                    
+                    // for parsing the document later
+                    string sanitizedText = StringUtils.RegexRemove(HtmlTagRemover, rawText);
                     List<KnowledgeGraphNodeId> ngrams = EnglishWordFeatureExtractor.ExtractNGrams(wordBreakerText).ToList();
 
                     foreach (KnowledgeGraphNodeId ngram in ngrams)
                     {
                         trainingFeaturesOut.Add(new TrainingFeature(
                             ngram,
-                            topicalGuideNode,
+                            dictionaryNode,
                             ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
                     }
 
@@ -52,17 +55,18 @@ namespace ScriptureGraph.Core.Training.Extractors
                         KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
 
                         trainingFeaturesOut.Add(new TrainingFeature(
-                            topicalGuideNode,
+                            dictionaryNode,
                             refNodeId,
                             TrainingFeatureType.EntityReference));
 
-                        foreach (KnowledgeGraphNodeId ngram in ngrams)
-                        {
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                ngram,
-                                refNodeId,
-                                ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
-                        }
+                        // don't associate the entire paragraph's ngrams with the scripture references, that's way too many
+                        //foreach (KnowledgeGraphNodeId ngram in ngrams)
+                        //{
+                        //    trainingFeaturesOut.Add(new TrainingFeature(
+                        //        ngram,
+                        //        refNodeId,
+                        //        ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
+                        //}
                     }
                 }
             }

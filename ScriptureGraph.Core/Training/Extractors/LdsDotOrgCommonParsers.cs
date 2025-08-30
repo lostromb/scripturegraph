@@ -1,5 +1,6 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.Utils;
+using ScriptureGraph.Core.Graph;
 using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training.Extractors
@@ -65,6 +66,53 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
 
             return verses;
+        }
+
+        internal static KnowledgeGraphNodeId ConvertScriptureRefToNodeId(ScriptureReference scriptureRef)
+        {
+            if (string.Equals(scriptureRef.Canon, "tg", StringComparison.Ordinal))
+            {
+                // Topical guide topic
+                return FeatureToNodeMapping.TopicalGuideKeyword(scriptureRef.Book);
+            }
+            else if (string.Equals(scriptureRef.Canon, "bd", StringComparison.Ordinal))
+            {
+                // Bible dictionary topic
+                return FeatureToNodeMapping.BibleDictionaryTopic(scriptureRef.Book);
+            }
+            else if (string.Equals(scriptureRef.Canon, "gs", StringComparison.Ordinal))
+            {
+                // GS topic
+                return FeatureToNodeMapping.GuideToScripturesTopic(scriptureRef.Book);
+            }
+            else
+            {
+                if (scriptureRef.Chapter.HasValue &&
+                    scriptureRef.Verse.HasValue)
+                {
+                    // Regular scripture ref
+                    return FeatureToNodeMapping.ScriptureVerse(
+                        scriptureRef.Canon,
+                        scriptureRef.Book,
+                        scriptureRef.Chapter.Value,
+                        scriptureRef.Verse.Value);
+                }
+                else if (scriptureRef.Chapter.HasValue)
+                {
+                    // Reference to an entire chapter
+                    return FeatureToNodeMapping.ScriptureChapter(
+                        scriptureRef.Canon,
+                        scriptureRef.Book,
+                        scriptureRef.Chapter.Value);
+                }
+                else
+                {
+                    // Reference to an entire book
+                    return FeatureToNodeMapping.ScriptureBook(
+                        scriptureRef.Canon,
+                        scriptureRef.Book);
+                }
+            }
         }
 
         internal static Dictionary<string, StructuredFootnote> ParseFootnotesFromPage(
@@ -253,7 +301,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 // Dump the wordbreaker and tagger output for debug
-                logger.Log($"Parsed: {string.Join(' ', returnVal)}");
+                //logger.Log($"Parsed: {string.Join(' ', returnVal)}");
 
                 parsedPlaintext = pooledSb.Builder.ToString();
                 return returnVal;

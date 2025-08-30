@@ -63,7 +63,7 @@ namespace ScriptureGraph.Console
             //    FeatureToNodeMapping.NGram("logan", "stromberg", LanguageCode.ENGLISH),
             //    TrainingFeatureType.NgramAssociation));
 
-            //string modelFileName = @"D:\Code\scripturegraph\runtime\bom.graph";
+            string modelFileName = @"D:\Code\scripturegraph\runtime\bom.graph";
 
             //if (File.Exists(modelFileName))
             //{
@@ -83,17 +83,17 @@ namespace ScriptureGraph.Console
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
                 await crawler.Crawl(
-                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
+                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
-                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/tg/afraid?lang=eng"),
+                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/gs/cain?lang=eng"),
                     ParseScripturePageAction,
                     logger.Clone("WebCrawler"),
                     scriptureRegexes);
 
-                //using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
-                //{
-                //    graph.Save(testGraphOut);
-                //}
+                using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
+                {
+                    graph.Save(testGraphOut);
+                }
             }
 
             //int dispLines;
@@ -154,24 +154,30 @@ namespace ScriptureGraph.Console
                 logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
                 ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
             }
-
-            match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
-            if (match.Success)
+            else
             {
-                if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal))
+                match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
+                if (match.Success)
                 {
-                    logger.Log($"Parsing TG page {page.Url.AbsolutePath}");
-                    TopicalGuideFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal))
+                    {
+                        logger.Log($"Parsing TG page {page.Url.AbsolutePath}");
+                        TopicalGuideFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    }
+                    else if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
+                    {
+                        logger.Log($"Parsing BD page {page.Url.AbsolutePath}");
+                        BibleDictionaryFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    }
+                    else if (string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal))
+                    {
+                        logger.Log($"Parsing GS page {page.Url.AbsolutePath}");
+                        GuideToScripturesFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    }
                 }
-                else if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
+                else
                 {
-                    logger.Log($"Parsing BD page {page.Url.AbsolutePath}");
-                    TopicalGuideFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
-                }
-                else if (string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal))
-                {
-                    logger.Log($"Parsing GS page {page.Url.AbsolutePath}");
-                    TopicalGuideFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
                 }
             }
 

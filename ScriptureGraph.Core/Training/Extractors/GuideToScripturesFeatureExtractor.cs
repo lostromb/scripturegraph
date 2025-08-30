@@ -5,9 +5,9 @@ using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
-    public class TopicalGuideFeatureExtractor
+    public class GuideToScripturesFeatureExtractor
     {
-        private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/tg\\/(.+?)(?:\\?|$)");
+        private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/gs\\/(.+?)(?:\\?|$)");
 
         private static readonly Regex TGEntryParser = new Regex("<p class=\"entry\".+?>([\\w\\W]+?)<\\/p>");
 
@@ -27,7 +27,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 string topic = urlParse.Groups[1].Value;
-                KnowledgeGraphNodeId topicalGuideNode = FeatureToNodeMapping.TopicalGuideKeyword(topic);
+                KnowledgeGraphNodeId topicalGuideNode = FeatureToNodeMapping.GuideToScripturesTopic(topic);
 
                 List<ScriptureReference> references = new List<ScriptureReference>();
                 foreach (Match entryMatch in TGEntryParser.Matches(htmlPage))

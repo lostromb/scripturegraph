@@ -123,80 +123,15 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     foreach (var scriptureRef in word.Footnote.ScriptureReferences)
                     {
-                        if (string.Equals(scriptureRef.Canon, "tg", StringComparison.Ordinal))
+                       KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            thisVerseNode,
+                            refNodeId,
+                            TrainingFeatureType.EntityReference));
+                        foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(word.Word))
                         {
-                            // Topical guide topic
-                            KnowledgeGraphNodeId refNodeId = FeatureToNodeMapping.TopicalGuideKeyword(scriptureRef.Book);
                             trainingFeaturesOut.Add(new TrainingFeature(
-                                thisVerseNode,
-                                refNodeId,
-                                TrainingFeatureType.EntityReference));
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
-                                refNodeId,
-                                TrainingFeatureType.WordDesignation));
-                        }
-                        else if (string.Equals(scriptureRef.Canon, "bd", StringComparison.Ordinal))
-                        {
-                            // Bible dictionary topic
-                            KnowledgeGraphNodeId refNodeId = FeatureToNodeMapping.BibleDictionaryTopic(scriptureRef.Book);
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                thisVerseNode,
-                                refNodeId,
-                                TrainingFeatureType.EntityReference));
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
-                                refNodeId,
-                                TrainingFeatureType.WordDesignation));
-                        }
-                        else if (string.Equals(scriptureRef.Canon, "gs", StringComparison.Ordinal))
-                        {
-                            // Bible dictionary topic
-                            KnowledgeGraphNodeId refNodeId = FeatureToNodeMapping.GuideToScripturesTopic(scriptureRef.Book);
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                thisVerseNode,
-                                refNodeId,
-                                TrainingFeatureType.EntityReference));
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
-                                refNodeId,
-                                TrainingFeatureType.WordDesignation));
-                        }
-                        else
-                        {
-                            KnowledgeGraphNodeId refNodeId;
-                            if (scriptureRef.Chapter.HasValue &&
-                                scriptureRef.Verse.HasValue)
-                            {
-                                // Regular scripture ref
-                                refNodeId = FeatureToNodeMapping.ScriptureVerse(
-                                    scriptureRef.Canon,
-                                    scriptureRef.Book,
-                                    scriptureRef.Chapter.Value,
-                                    scriptureRef.Verse.Value);
-                            }
-                            else if (scriptureRef.Chapter.HasValue)
-                            {
-                                // Reference to an entire chapter
-                                refNodeId = FeatureToNodeMapping.ScriptureChapter(
-                                    scriptureRef.Canon,
-                                    scriptureRef.Book,
-                                    scriptureRef.Chapter.Value);
-                            }
-                            else
-                            {
-                                // Reference to an entire book
-                                refNodeId = FeatureToNodeMapping.ScriptureBook(
-                                    scriptureRef.Canon,
-                                    scriptureRef.Book);
-                            }
-
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                thisVerseNode,
-                                refNodeId,
-                                TrainingFeatureType.EntityReference));
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                FeatureToNodeMapping.Word(word.Word, LanguageCode.ENGLISH),
+                                ngram,
                                 refNodeId,
                                 TrainingFeatureType.WordDesignation));
                         }
