@@ -20,5 +20,10 @@ namespace ScriptureGraph.App
         {
             InitializeComponent();
         }
+
+        private void ConvertDocumentToReadingPane(StackPanel target)
+        {
+
+        }
     }
 }

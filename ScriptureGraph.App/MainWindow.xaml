@@ -5,9 +5,12 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ScriptureGraph.App"
         mc:Ignorable="d"
-        Title="MainWindow" Height="600" Width="800">
+        Title="MainWindow" Height="600" Width="800"
+    xmlns:System="clr-namespace:System;assembly=System.Runtime">
     <Window.Resources>
         <FontFamily x:Key="VerseFontFamily">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
+        <System:Double x:Key="VerseFontSize">16</System:Double>
+        <Thickness x:Key="VerseParagraphMargin">0,2,20,2</Thickness>
     </Window.Resources>
     <DockPanel Name="ViewRoot" Background="#FFC23A3A" >
         <DockPanel Name="SearchArea" DockPanel.Dock="Top" Background="#FF48972B">
@@ -32,31 +35,34 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Left" Width="20" Text=""/>
                     <TextBlock
+                        FontSize="{DynamicResource VerseFontSize}"
                         FontFamily="{DynamicResource VerseFontFamily}"
                         DockPanel.Dock="Right"
                         TextAlignment="Justify"
                         TextWrapping="Wrap"
-                        Margin="0,2,20,2"
+                        Margin="{DynamicResource VerseParagraphMargin}"
                         Text="Isaiah speaks about the Messiah—The Lord will bring His law and His justice, be a light to the Gentiles, and free the prisoners—Praise the Lord." FontStyle="Italic" />
                 </DockPanel>
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Left" Width="20" Text="1"/>
                     <TextBlock
+                        FontSize="{DynamicResource VerseFontSize}"
                         FontFamily="{DynamicResource VerseFontFamily}"
                         DockPanel.Dock="Right"
                         TextAlignment="Justify"
                         TextWrapping="Wrap"
-                        Margin="0,2,20,2"
+                        Margin="{DynamicResource VerseParagraphMargin}"
                         Text="Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles." />
                 </DockPanel>
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Left" Width="20" Text="2"/>
                     <TextBlock
+                        FontSize="{DynamicResource VerseFontSize}"
                         FontFamily="{DynamicResource VerseFontFamily}"
                         DockPanel.Dock="Right"
                         TextAlignment="Justify"
                         TextWrapping="Wrap"
-                        Margin="0,2,20,2"
+                        Margin="{DynamicResource VerseParagraphMargin}"
                         Text="He shall not cry, nor lift up, nor cause his voice to be heard in the street." />
                 </DockPanel>
             </StackPanel>
