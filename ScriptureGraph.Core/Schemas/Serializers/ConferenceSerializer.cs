@@ -24,14 +24,19 @@ namespace ScriptureGraph.Core.Schemas.Serializers
                 throw new FormatException("Unexpected null string when parsing conference");
             }
 
+            if (parsedText.Length != 7)
+            {
+                throw new FormatException("Could not parse conference string " + parsedText);
+            }
+
             int parsedNum;
-            if (!int.TryParse(parsedText.AsSpan(0, 2), out parsedNum))
+            if (!int.TryParse(parsedText.AsSpan(5, 2), out parsedNum))
             {
                 throw new FormatException("Could not parse conference string " + parsedText);
             }
 
             ConferencePhase phase = parsedNum == 4 ? ConferencePhase.April : ConferencePhase.October;
-            if (!int.TryParse(parsedText.AsSpan(3), out parsedNum))
+            if (!int.TryParse(parsedText.AsSpan(0, 4), out parsedNum))
             {
                 throw new FormatException("Could not parse conference string " + parsedText);
             }
@@ -41,7 +46,7 @@ namespace ScriptureGraph.Core.Schemas.Serializers
 
         public override void Write(Utf8JsonWriter writer, Conference value, JsonSerializerOptions options)
         {
-            writer.WriteStringValue($"{(value.Phase == ConferencePhase.April ? "04" : "10")}-{value.Year}");
+            writer.WriteStringValue($"{value.Year}-{(value.Phase == ConferencePhase.April ? "04" : "10")}");
         }
     }
 }

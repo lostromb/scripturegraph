@@ -1,5 +1,6 @@
 ﻿using Durandal.Common.NLP.Language;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -73,7 +74,24 @@ namespace ScriptureGraph.Core.Training
 
         public static KnowledgeGraphNodeId TripleIndexTopic(string topic)
         {
-            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.GuideToScripturesTopic, topic);
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.TripleIndexTopic, topic);
+        }
+
+        public static KnowledgeGraphNodeId ConferenceTalk(int year, ConferencePhase phase, string talkId)
+        {
+            string phaseStr = phase == ConferencePhase.April ? "04" : "10";
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalk, $"{year}|{phaseStr}|{talkId}");
+        }
+
+        public static KnowledgeGraphNodeId ConferenceTalkParagraph(int year, ConferencePhase phase, string talkId, int paragraph)
+        {
+            string phaseStr = phase == ConferencePhase.April ? "04" : "10";
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalkParagraph, $"{year}|{phaseStr}|{talkId}|{paragraph}");
+        }
+
+        public static KnowledgeGraphNodeId ConferenceSpeaker(string speakerName)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceSpeaker, speakerName.ToLowerInvariant());
         }
     }
 }

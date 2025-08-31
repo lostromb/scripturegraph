@@ -2,17 +2,11 @@
 using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
 using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Data;
 using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace ScriptureGraph.App
 {
@@ -34,11 +28,11 @@ namespace ScriptureGraph.App
 
             ScriptureChapterDocument? scriptureChapter = inputDoc as ScriptureChapterDocument;
             BibleDictionaryDocument? bibleDictEntry = inputDoc as BibleDictionaryDocument;
+            ConferenceTalkDocument? confTalkEntry = inputDoc as ConferenceTalkDocument;
 
             // Build header
-            if (inputDoc is ScriptureChapterDocument)
+            if (scriptureChapter != null)
             {
-                scriptureChapter.AssertNonNull(nameof(scriptureChapter));
                 Section headerSection = new Section();
                 displayVerses = true;
 
@@ -74,14 +68,29 @@ namespace ScriptureGraph.App
                     returnVal.Blocks.Add(headerParagraph);
                 }
             }
-            else if (inputDoc is BibleDictionaryDocument)
+            else if (bibleDictEntry != null)
             {
-                bibleDictEntry.AssertNonNull(nameof(bibleDictEntry));
                 Section headerSection = new Section();
                 Paragraph bookTitle = new Paragraph();
                 bookTitle.TextAlignment = TextAlignment.Center;
                 bookTitle.Inlines.Add(bibleDictEntry.Title);
                 headerSection.Blocks.Add(bookTitle);
+                returnVal.Blocks.Add(headerSection);
+            }
+            else if (confTalkEntry != null)
+            {
+                Section headerSection = new Section();
+
+                Paragraph talkTitle = new Paragraph();
+                talkTitle.TextAlignment = TextAlignment.Center;
+                talkTitle.Inlines.Add(confTalkEntry.Title);
+                headerSection.Blocks.Add(talkTitle);
+
+                Paragraph talkSpeaker = new Paragraph();
+                talkSpeaker.TextAlignment = TextAlignment.Center;
+                talkSpeaker.Inlines.Add(confTalkEntry.Speaker);
+                headerSection.Blocks.Add(talkSpeaker);
+
                 returnVal.Blocks.Add(headerSection);
             }
 
@@ -138,7 +147,8 @@ namespace ScriptureGraph.App
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bofm\alma-32.json", FileMode.Open, FileAccess.Read))
-            using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bd\prayer.json", FileMode.Open, FileAccess.Read))
+            //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bd\prayer.json", FileMode.Open, FileAccess.Read))
+            using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\general-conference\2024-04\15dushku.json", FileMode.Open, FileAccess.Read))
             {
                 ReadingPane2.Document = ConvertDocumentToFlowDocument(GospelDocument.ParsePolymorphic(fileIn));
             }

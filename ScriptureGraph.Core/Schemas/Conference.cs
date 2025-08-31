@@ -19,7 +19,8 @@ namespace ScriptureGraph.Core.Schemas
 
         public override string ToString()
         {
-            return Phase.ToString() + " " + Year.ToString();
+            string phaseStr = Phase == ConferencePhase.April ? "04" : "10";
+            return $"{Year}-{phaseStr}";
         }
 
         public override bool Equals(object? obj)

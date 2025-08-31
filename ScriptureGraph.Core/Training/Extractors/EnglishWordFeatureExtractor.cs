@@ -9,9 +9,9 @@ namespace ScriptureGraph.Core.Training.Extractors
         // Matches latin characters plus extended latin for accented chars
         // Matches contractions at the end of sentences
         // Matches hyphenated words but ignores leading and trailing hyphens
-        public static readonly Regex WordMatcher = new Regex("(?:[\\w\\u00c0-\\u00ff\\u0100-\\u017f][\\-\\w\\u00c0-\\u00ff\\u0100-\\u017f]+[\\w\\u00c0-\\u00ff\\u0100-\\u017f]|[\\w\\u00c0-\\u00ff\\u0100-\\u017f]+)(?:'\\w+)?");
+        public static readonly Regex WordMatcher = new Regex("(?:[\\w\\u00c0-\\u00ff\\u0100-\\u017f][\\-\\w\\u00c0-\\u00ff\\u0100-\\u017f]+[\\w\\u00c0-\\u00ff\\u0100-\\u017f]|[\\w\\u00c0-\\u00ff\\u0100-\\u017f]+)(?:[\\'\\’]\\w+)?");
 
-        private static readonly Regex SentenceMatcher = new Regex("[\\w\\W]+?(?:$|[\\.\\?\\!][\\s\\.\\?\\'\\\"\\)\\]\\!\\”$]+)");
+        private static readonly Regex SentenceMatcher = new Regex("[\\w\\W]+?(?:$|[\\.\\?\\!][\\s\\.\\?\\'\\’\\\"\\)\\]\\!\\”]+)");
 
         private const int MAX_WORD_ASSOCIATION_ORDER = 7;
 

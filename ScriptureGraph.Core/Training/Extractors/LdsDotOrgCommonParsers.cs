@@ -49,6 +49,11 @@ namespace ScriptureGraph.Core.Training.Extractors
         // Used to remove all HTML tags from text
         public static readonly Regex HtmlTagRemover = new Regex("<\\/?[a-z]+(?: [\\w\\W]+?)?>");
 
+        internal static string RemovePageBreakTags(string input)
+        {
+            return StringUtils.RegexRemove(PageBreakRemover, input);
+        }
+
         internal static Dictionary<int, StructuredVerse> ParseVerses(string canon, string book, int chapter, string scriptureHtmlPage)
         {
             Dictionary<int, StructuredVerse> verses = new Dictionary<int, StructuredVerse>();

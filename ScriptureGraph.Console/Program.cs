@@ -89,18 +89,21 @@ namespace ScriptureGraph.Console
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/ot/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/pgp/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/dc-covenant/.+?/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bd/.+?\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/ot/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/pgp/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/dc-covenant/.+?/\\d+\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bd/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+/.+?\\?lang=eng"));
                 await crawler.Crawl(
-                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
+                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bd/abaddon?lang=eng"),
+                    new Uri("https://www.churchofjesuschrist.org/study/general-conference/2024/04/15dushku?lang=eng"),
+                    //new Uri("https://www.churchofjesuschrist.org/study/general-conference/2005/04/now-is-the-time-to-prepare?lang=eng"),
                     ParseDocument,
                     logger.Clone("WebCrawler"),
                     scriptureRegexes);
@@ -135,6 +138,12 @@ namespace ScriptureGraph.Console
 
             logger.Log("Querying");
             KnowledgeGraphQuery query = new KnowledgeGraphQuery();
+
+            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("pure intelligence"))
+            {
+                query.AddRootNode(feature, 0);
+            }
+
             //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("plan of redemption"))
             //{
             //    query.AddRootNode(feature, 0);
@@ -167,6 +176,7 @@ namespace ScriptureGraph.Console
 
         private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
         private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
+        private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
 
         private static void TrainGraph(WebCrawler.CrawledPage page, ILogger logger)
         {
@@ -205,7 +215,16 @@ namespace ScriptureGraph.Console
                 }
                 else
                 {
-                    logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                    match = ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath);
+                    if (match.Success)
+                    {
+                        logger.Log($"Parsing conference talk {page.Url.AbsolutePath}");
+                        ConferenceTalkFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    }
+                    else
+                    {
+                        logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                    }
                 }
             }
 
@@ -258,7 +277,25 @@ namespace ScriptureGraph.Console
                 }
                 else
                 {
-                    logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                    match = ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath);
+                    if (match.Success)
+                    {
+                        logger.Log($"Parsing conference talk {page.Url.AbsolutePath}");
+                        ConferenceTalkDocument? structuredDoc = ConferenceTalkFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                        parsedDoc = structuredDoc;
+                        if (structuredDoc == null)
+                        {
+                            logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                        }
+                        else
+                        {
+                            fileDestination = new VirtualPath($"general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.json");
+                        }
+                    }
+                    else
+                    {
+                        logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                    }
                 }
             }
 

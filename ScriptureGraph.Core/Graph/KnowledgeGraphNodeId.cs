@@ -8,6 +8,11 @@
 
         public KnowledgeGraphNodeId(KnowledgeGraphNodeType type, string name)
         {
+            if (name.Length > 256)
+            {
+                throw new IndexOutOfRangeException("Graph node ID name is too long; must be 256 chars or less");
+            }
+
             Type = type;
             Name = name;
             _cachedHashCode = Type.GetHashCode() + Name.GetHashCode();

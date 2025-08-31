@@ -38,9 +38,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                 // Bible dictionary does not use "see also" headers as far as I know, so just parse paragraphs of text and scripture references.
 
                 List<ScriptureReference> references = new List<ScriptureReference>();
-                int paragraph = 1;
+                int paragraph = 0;
                 foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
                 {
+                    paragraph++;
                     KnowledgeGraphNodeId thisParagraph = FeatureToNodeMapping.BibleDictionaryParagraph(topic, paragraph);
 
                     // Associate this paragraph with the entire article
@@ -59,7 +60,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     }
 
                     // Replace inline scripture references with ones that won't mess up the word breaker
-                    string rawParagraph = entryMatch.Groups[1].Value;
+                    string rawParagraph = LdsDotOrgCommonParsers.RemovePageBreakTags(entryMatch.Groups[1].Value);
                     string linkAlteredParagraph = RemoveScriptureRefAnchorTexts(rawParagraph);
                     foreach (string sentence in EnglishWordFeatureExtractor.BreakSentence(linkAlteredParagraph))
                     {
@@ -145,12 +146,14 @@ namespace ScriptureGraph.Core.Training.Extractors
                     DocumentEntityId = dictEntryNodeId,
                 };
 
+                int paragraph = 0;
                 foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
                 {
+                    paragraph++;
                     string rawParagraph = entryMatch.Groups[1].Value;
                     returnVal.Paragraphs.Add(new GospelParagraph()
                     {
-                        ParagraphEntityId = dictEntryNodeId,
+                        ParagraphEntityId = FeatureToNodeMapping.BibleDictionaryParagraph(topicId, paragraph),
                         Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, rawParagraph)
                     });
                 }

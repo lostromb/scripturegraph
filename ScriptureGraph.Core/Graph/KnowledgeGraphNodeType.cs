@@ -68,5 +68,20 @@ namespace ScriptureGraph.Core.Graph
         /// A reference to the Index to Triple Combination, designated by URL keyword (e.g. scriptures/triple-index/elias where "elias" is the node name)
         /// </summary>
         TripleIndexTopic,
+
+        /// <summary>
+        /// An entire talk given in general conference
+        /// </summary>
+        ConferenceTalk,
+
+        /// <summary>
+        /// A single paragraph within a conference talk
+        /// </summary>
+        ConferenceTalkParagraph,
+
+        /// <summary>
+        /// A speaker at conference
+        /// </summary>
+        ConferenceSpeaker,
     }
 }

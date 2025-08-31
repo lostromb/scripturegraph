@@ -14,6 +14,9 @@ namespace ScriptureGraph.Core.Schemas
         [JsonPropertyName("title")]
         public required string Title { get; set; }
 
+        [JsonPropertyName("talkid")]
+        public required string TalkId { get; set; }
+
         [JsonPropertyName("speaker-eid")]
         [JsonConverter(typeof(KnowledgeIdSerializer))]
         public required KnowledgeGraphNodeId SpeakerEntityId { get; set; }
