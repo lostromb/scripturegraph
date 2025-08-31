@@ -1,6 +1,9 @@
 ﻿using Durandal.Common.Logger;
+using Durandal.Common.NLP.Language;
+using Durandal.Common.Parsers;
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -13,6 +16,8 @@ namespace ScriptureGraph.Core.Training.Extractors
         private static readonly Regex ParagraphParser = new Regex("<p[^>]+?id=\\\"p\\d+\\\".*?>([\\w\\W]+?)<\\/p>");
 
         private static readonly Regex PunctuationParser = new Regex("[\\.\\?\\!]+");
+
+        private static readonly Regex PrintableTitleParser = new Regex("<h1.*?>(.+?)<\\/h1>");
 
 
         public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
@@ -33,8 +38,26 @@ namespace ScriptureGraph.Core.Training.Extractors
                 // Bible dictionary does not use "see also" headers as far as I know, so just parse paragraphs of text and scripture references.
 
                 List<ScriptureReference> references = new List<ScriptureReference>();
+                int paragraph = 1;
                 foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
                 {
+                    KnowledgeGraphNodeId thisParagraph = FeatureToNodeMapping.BibleDictionaryParagraph(topic, paragraph);
+
+                    // Associate this paragraph with the entire article
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        thisParagraph,
+                        dictionaryNode,
+                        TrainingFeatureType.BookAssociation));
+
+                    // And with the previous paragraph
+                    if (paragraph > 1)
+                    {
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            thisParagraph,
+                            FeatureToNodeMapping.BibleDictionaryParagraph(topic, paragraph - 1),
+                            TrainingFeatureType.ParagraphAssociation));
+                    }
+
                     // Replace inline scripture references with ones that won't mess up the word breaker
                     string rawParagraph = entryMatch.Groups[1].Value;
                     string linkAlteredParagraph = RemoveScriptureRefAnchorTexts(rawParagraph);
@@ -47,11 +70,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                         string sanitizedText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
                         List<KnowledgeGraphNodeId> ngrams = EnglishWordFeatureExtractor.ExtractNGrams(wordBreakerText).ToList();
 
+                        // Associate ngrams in the sentence with the paragraph entity
                         foreach (KnowledgeGraphNodeId ngram in ngrams)
                         {
                             trainingFeaturesOut.Add(new TrainingFeature(
                                 ngram,
-                                dictionaryNode,
+                                thisParagraph,
                                 ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
                         }
 
@@ -61,13 +85,15 @@ namespace ScriptureGraph.Core.Training.Extractors
                         {
                             KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
 
+                            // Associate all scripture references in this sentence to the paragraph entity
                             trainingFeaturesOut.Add(new TrainingFeature(
-                                dictionaryNode,
+                                thisParagraph,
                                 refNodeId,
                                 TrainingFeatureType.EntityReference));
 
                             foreach (KnowledgeGraphNodeId ngram in ngrams)
                             {
+                                // And associate the words within this sentence with that scripture reference as well
                                 trainingFeaturesOut.Add(new TrainingFeature(
                                     ngram,
                                     refNodeId,
@@ -80,6 +106,61 @@ namespace ScriptureGraph.Core.Training.Extractors
             catch (Exception e)
             {
                 logger.Log(e);
+            }
+        }
+
+        public static BibleDictionaryDocument? ParseDocument(string htmlPage, Uri pageUrl, ILogger logger)
+        {
+            try
+            {
+                Match urlParse = UrlPathParser.Match(pageUrl.AbsolutePath);
+                if (!urlParse.Success)
+                {
+                    logger.Log("Failed to parse URL", LogLevel.Err);
+                    return null;
+                }
+
+                htmlPage = WebUtility.HtmlDecode(htmlPage);
+                string topicId = urlParse.Groups[1].Value;
+
+                Match titleParse = PrintableTitleParser.Match(htmlPage);
+                if (!titleParse.Success)
+                {
+                    logger.Log("Failed to parse article title", LogLevel.Err);
+                    return null;
+                }
+
+                string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
+
+                // Parse the actual correct topic from the page
+                KnowledgeGraphNodeId dictEntryNodeId = FeatureToNodeMapping.BibleDictionaryTopic(topicId);
+
+                BibleDictionaryDocument returnVal = new BibleDictionaryDocument()
+                {
+                    Title = prettyTopicString,
+                    TopicId = topicId,
+                    DocumentType = GospelDocumentType.BibleDictionaryEntry,
+                    Language = LanguageCode.ENGLISH,
+                    Paragraphs = new List<GospelParagraph>(),
+                    DocumentEntityId = dictEntryNodeId,
+                };
+
+                foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
+                {
+                    string rawParagraph = entryMatch.Groups[1].Value;
+                    returnVal.Paragraphs.Add(new GospelParagraph()
+                    {
+                        ParagraphEntityId = dictEntryNodeId,
+                        Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, rawParagraph)
+                    });
+                }
+
+                return returnVal;
+            }
+            catch (Exception e)
+            {
+                logger.Log(e);
+                return null;
             }
         }
 

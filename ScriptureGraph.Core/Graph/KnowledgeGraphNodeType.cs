@@ -50,9 +50,14 @@ namespace ScriptureGraph.Core.Graph
         ScriptureBook,
 
         /// <summary>
-        /// A reference to the bible dictionary, designated by URL keyword (e.g. scriptures/bg/sobriety where "sobriety" is the node name)
+        /// A reference to the bible dictionary, designated by URL keyword (e.g. scriptures/bg/abaddon where "abaddon" is the node name)
         /// </summary>
         BibleDictionaryTopic,
+
+        /// <summary>
+        /// A numbered paragraph within a bible dictionary entry
+        /// </summary>
+        BibleDictionaryParagraph,
 
         /// <summary>
         /// A reference to the Guide to the Scriptures, designated by URL keyword (e.g. scriptures/gs/abraham where "abraham" is the node name)

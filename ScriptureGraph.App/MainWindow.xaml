@@ -10,7 +10,10 @@
     <Window.Resources>
         <FontFamily x:Key="VerseFontFamily">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
         <System:Double x:Key="VerseFontSize">16</System:Double>
+        <System:Double x:Key="VerseNumFontSize">12</System:Double>
         <Thickness x:Key="VerseParagraphMargin">10,0,10,0</Thickness>
+        <SolidColorBrush x:Key="DocumentReaderPageBackground" Color="#FFF2F2F2"/>
+        <Thickness x:Key="VerseNumMargin">0,0,5,0</Thickness>
     </Window.Resources>
     <DockPanel Name="ViewRoot" Background="#FFC23A3A" >
         <DockPanel Name="SearchArea" DockPanel.Dock="Top" Background="#FF48972B">
@@ -26,7 +29,7 @@
                     Name="ReadingPane1"
                     Width="400">
                     <FlowDocument
-                        Background="#FFE2E2E2">
+                        Background="{DynamicResource DocumentReaderPageBackground}">
                         <Section>
                             <Paragraph FontSize="18" TextAlignment="Center">
                                 Isaiah
@@ -40,51 +43,43 @@
                             FontFamily="{DynamicResource VerseFontFamily}"
                             FontSize="{DynamicResource VerseFontSize}"
                             Margin="{DynamicResource VerseParagraphMargin}">
+
                             <Paragraph Tag="ot-isa-42-0" >
                                 <Italic>Isaiah speaks about the Messiah—The Lord will bring His law and His justice, be a light to the Gentiles, and free the prisoners—Praise the Lord.</Italic>
                             </Paragraph>
                             <Paragraph Tag="ot-isa-42-1" >
+                                <Floater Padding="0"
+                                            Margin="{DynamicResource VerseNumMargin}"
+                                            FontSize="{DynamicResource VerseNumFontSize}"
+                                            HorizontalAlignment="Left" IsEnabled="False">
+                                    <Paragraph>1</Paragraph>
+                                </Floater>
                                 Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
                             </Paragraph>
                             <Paragraph Tag="ot-isa-42-2" >
+                                <Floater Padding="0"
+                                            Margin="{DynamicResource VerseNumMargin}"
+                                            FontSize="{DynamicResource VerseNumFontSize}"
+                                            HorizontalAlignment="Left" IsEnabled="False">
+                                    <Paragraph>2</Paragraph>
+                                </Floater>
                                 Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
                             </Paragraph>
-                            <Paragraph Tag="ot-isa-42-3" >
-                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
-                            </Paragraph>
-                            <Paragraph>
-                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
-                            </Paragraph>
-                            <Paragraph>
-                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
-                            </Paragraph>
-                            <Paragraph>
-                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
-                            </Paragraph>
-                            <Paragraph>
-                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
-                            </Paragraph>
-                            <Paragraph>
-                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
-                            </Paragraph>
-                            <Paragraph>
-                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
-                            </Paragraph>
-                            <Paragraph>
-                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
-                            </Paragraph>
-                            <Paragraph>
-                                Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
-                            </Paragraph>
+                            <BlockUIContainer>
+                                <UniformGrid>
+                                    <Button DockPanel.Dock="Left" Content="Previous"></Button>
+                                    <Button DockPanel.Dock="Right" Content="Next"></Button>
+                                </UniformGrid>
+                            </BlockUIContainer>
                         </Section>
                     </FlowDocument>
                 </FlowDocumentScrollViewer>
-                <StackPanel Name="ReadingPane2" Orientation="Vertical" Width="400" Background="#FF197926" >
+                <FlowDocumentScrollViewer Name="ReadingPane2" Width="400" >
 
-                </StackPanel>
-                <StackPanel Name="ReadingPane3" Orientation="Vertical" Width="400" Background="#FF606824" >
+                </FlowDocumentScrollViewer>
+                <FlowDocumentScrollViewer Name="ReadingPane3" Width="400" >
 
-                </StackPanel>
+                </FlowDocumentScrollViewer>
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

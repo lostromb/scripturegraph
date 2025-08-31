@@ -5,6 +5,7 @@ using Durandal.Common.Net.Http;
 using Durandal.Common.Tasks;
 using Durandal.Common.Time;
 using Durandal.Common.Utils.NativePlatform;
+using Org.BouncyCastle.Bcpg.Sig;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
@@ -88,32 +89,33 @@ namespace ScriptureGraph.Console
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
-                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/.+?/\\d+\\?lang=eng$"));
-                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$"));
-                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/ot/.+?/\\d+\\?lang=eng$"));
-                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/pgp/.+?/\\d+\\?lang=eng$"));
-                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/dc-covenant/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/ot/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/pgp/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/dc-covenant/.+?/\\d+\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bd/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
+                //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
                 await crawler.Crawl(
-                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
-                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
+                    new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
+                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bd/abaddon?lang=eng"),
                     ParseDocument,
                     logger.Clone("WebCrawler"),
                     scriptureRegexes);
 
-                do
-                {
-                    // fixme this is jank
-                    await Task.Delay(10000);
-                    await trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
-                } while (trainingThreadPool.RunningWorkItems > 0);
+                //do
+                //{
+                //    // fixme this is jank
+                //    await Task.Delay(10000);
+                //    await trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
+                //} while (trainingThreadPool.RunningWorkItems > 0);
 
-                using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
-                {
-                    graph.Save(testGraphOut);
-                }
+                //using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
+                //{
+                //    graph.Save(testGraphOut);
+                //}
             }
 
             int dispLines;
@@ -234,7 +236,30 @@ namespace ScriptureGraph.Console
             }
             else
             {
-                logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
+                if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
+                {
+                    logger.Log($"Parsing BD page {page.Url.AbsolutePath}");
+                    BibleDictionaryDocument? structuredDoc = BibleDictionaryFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                    parsedDoc = structuredDoc;
+                    if (structuredDoc == null)
+                    {
+                        logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                    }
+                    else
+                    {
+                        fileDestination = new VirtualPath($"bd\\{structuredDoc.TopicId}.json");
+                    }
+                }
+                else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal) ||
+                    string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal) ||
+                    string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
+                {
+                }
+                else
+                {
+                    logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                }
             }
 
             if (parsedDoc != null)

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace ScriptureGraph.Core.Graph
+﻿namespace ScriptureGraph.Core.Graph
 {
     public struct KnowledgeGraphNodeId
     {
@@ -38,6 +32,28 @@ namespace ScriptureGraph.Core.Graph
         public override int GetHashCode()
         {
             return _cachedHashCode;
+        }
+
+        public string Serialize()
+        {
+            return $"{(ushort)Type} {Name}";
+        }
+
+        public static KnowledgeGraphNodeId Deserialize(ReadOnlySpan<char> input)
+        {
+            int space = input.IndexOf(' ');
+            if (space <= 0)
+            {
+                throw new FormatException("Invalid format: " + input.ToString());
+            }
+
+            ushort parsedVal;
+            if (!ushort.TryParse(input.Slice(0, space), out parsedVal))
+            {
+                throw new FormatException("Couldn't parse node type " + input.ToString());
+            }
+
+            return new KnowledgeGraphNodeId((KnowledgeGraphNodeType)parsedVal, input.Slice(space + 1).ToString());
         }
     }
 }

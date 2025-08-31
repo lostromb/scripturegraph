@@ -12,57 +12,6 @@ namespace ScriptureGraph.Core.Training.Extractors
     {
         private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/(.+?)\\/(.+?)\\/(\\d+)");
 
-        // used for resolving next / prev chapters for any given page
-        private static readonly string[] BOOKS_IN_ORDER = new string[]
-            {
-                // ot
-                //"gen", "ex", "lev", "num", "deut", "josh", "judg", "ruth", "1-sam", "2-sam", "1-kgs", "2-kgs", "1-chr", "2-chr", "ezra",
-                //"neh", "esth", "job", "ps", "prov", "eccl", "song", "isa", "jer", "lam", "ezek", "dan", "hosea", "joel", "amos", "obad",
-                //"jonah", "micah", "nahum", "hab", "zeph", "hag", "zech", "mal",
-                // nt
-                // bofm
-                "1-ne", "2-ne", "jacob", "enos", "jarom", "omni", "w-of-m", "mosiah", "alma", "hel", "3-ne", "4-ne", "morm", "ether", "moro",
-            };
-
-        private static readonly IReadOnlyDictionary<string, string> BOOK_TO_CANON = new Dictionary<string, string>()
-        {
-            { "1-ne", "bofm" },
-            { "2-ne", "bofm" },
-            { "jacob", "bofm" },
-            { "enos", "bofm" },
-            { "jarom", "bofm" },
-            { "omni", "bofm" },
-            { "w-of-m", "bofm" },
-            { "mosiah", "bofm" },
-            { "alma", "bofm" },
-            { "hel", "bofm" },
-            { "3-ne", "bofm" },
-            { "4-ne", "bofm" },
-            { "morm", "bofm" },
-            { "ether", "bofm" },
-            { "moro", "bofm" },
-        };
-
-        private static readonly IReadOnlyDictionary<string, int> BOOK_CHAPTER_LENGTHS = new Dictionary<string, int>()
-        {
-            // bofm
-            { "1-ne", 22 },
-            { "2-ne", 33 },
-            { "jacob", 7 },
-            { "enos", 1 },
-            { "jarom", 1 },
-            { "omni", 1 },
-            { "w-of-m", 1 },
-            { "mosiah", 29 },
-            { "alma", 63 },
-            { "hel", 16 },
-            { "3-ne", 30 },
-            { "4-ne", 1 },
-            { "morm", 9 },
-            { "ether", 15 },
-            { "moro", 10 },
-        };
-
         public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> returnVal)
         {
             try
@@ -124,8 +73,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                     Language = LanguageCode.ENGLISH,
                     Paragraphs = new List<GospelParagraph>(),
                     DocumentEntityId = FeatureToNodeMapping.ScriptureChapter(canon, book, chapter),
-                    Prev = GetPrevChapter(canon, book, chapter),
-                    Next = GetNextChapter(canon, book, chapter)
+                    Prev = ScriptureMetadata.GetPrevChapter(canon, book, chapter),
+                    Next = ScriptureMetadata.GetNextChapter(canon, book, chapter)
                 };
 
                 Dictionary<int, StructuredVerse> verses = LdsDotOrgCommonParsers.ParseVerses(canon, book, chapter, htmlPage);
@@ -158,50 +107,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             catch (Exception e)
             {
                 logger.Log(e);
-            }
-
-            return null;
-        }
-
-        private static KnowledgeGraphNodeId? GetPrevChapter(string canon, string book, int chapter)
-        {
-            if (chapter > 1)
-            {
-                return FeatureToNodeMapping.ScriptureChapter(canon, book, chapter - 1);
-            }
-            else
-            {
-                int thisBookIndex = Array.IndexOf(BOOKS_IN_ORDER, book);
-                if (thisBookIndex <= 0)
-                {
-                    return null;
-                }
-
-                string prevBookName = BOOKS_IN_ORDER[thisBookIndex - 1];
-                string prevBookCanon = BOOK_TO_CANON[prevBookName];
-                int prevBookChapter = BOOK_CHAPTER_LENGTHS[prevBookName];
-                return FeatureToNodeMapping.ScriptureChapter(prevBookCanon, prevBookName, prevBookChapter);
-            }
-        }
-
-        private static KnowledgeGraphNodeId? GetNextChapter(string canon, string book, int chapter)
-        {
-            int thisBookLength = BOOK_CHAPTER_LENGTHS[book];
-            if (chapter < thisBookLength)
-            {
-                return FeatureToNodeMapping.ScriptureChapter(canon, book, chapter + 1);
-            }
-            else
-            {
-                int thisBookIndex = Array.IndexOf(BOOKS_IN_ORDER, book);
-                if (thisBookIndex <= 0)
-                {
-                    return null;
-                }
-
-                string nextBookName = BOOKS_IN_ORDER[thisBookIndex + 1];
-                string nextBookCanon = BOOK_TO_CANON[nextBookName];
-                return FeatureToNodeMapping.ScriptureChapter(nextBookCanon, nextBookName, 1);
+                return null;
             }
         }
 

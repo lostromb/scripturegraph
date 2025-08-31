@@ -13,5 +13,8 @@ namespace ScriptureGraph.Core.Schemas
     {
         [JsonPropertyName("title")]
         public required string Title { get; set; }
+
+        [JsonPropertyName("topicid")]
+        public required string TopicId { get; set; }
     }
 }
