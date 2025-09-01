@@ -39,7 +39,14 @@ namespace ScriptureGraph.Core.Training.Extractors
                 ConferencePhase phase = int.Parse(urlParse.Groups[2].Value) < 7 ? ConferencePhase.April : ConferencePhase.October;
                 string talkId = urlParse.Groups[3].Value;
                 string talkTitle = StringUtils.RegexRip(PrintableTitleParser, htmlPage, 1, logger);
+                talkTitle = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, talkTitle);
                 string authorFullName = StringUtils.RegexRip(AuthorNameParser, htmlPage, 1, logger);
+                authorFullName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, authorFullName);
+
+                if (!IsValidConferenceTalk(talkTitle, authorFullName))
+                {
+                    return;
+                }
 
                 KnowledgeGraphNodeId entireTalkNode = FeatureToNodeMapping.ConferenceTalk(year, phase, talkId);
                 Dictionary<string, StructuredFootnote> footnotes = LdsDotOrgCommonParsers.ParseFootnotesFromPage(htmlPage, logger);
@@ -60,6 +67,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                     FeatureToNodeMapping.ConferenceSpeaker(authorFullName),
                     TrainingFeatureType.EntityReference));
 
+                List<ScriptureReference> scriptureReferences = new List<ScriptureReference>();
+                // Break paragraphs
                 int paragraph = 0;
                 foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
                 {
@@ -82,6 +91,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                     }
 
                     string rawParagraph = LdsDotOrgCommonParsers.RemovePageBreakTags(entryMatch.Groups[1].Value);
+
+                    // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
+                    // doing 9x permutations between every single word in the paragraph)
                     List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(rawParagraph).ToList();
 
                     // We need to do some postprocessing of each sentence.
@@ -116,7 +128,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                         Match footnoteMatch = FootnoteParser.Match(sentences[sentenceIdx]);
                         if (sentenceIdx > 0 && footnoteMatch.Success && footnoteMatch.Index == 0)
                         {
-                            // Append to previous line
                             sentences[sentenceIdx - 1] = sentences[sentenceIdx - 1] + footnoteMatch.Value;
                             sentences[sentenceIdx] = sentences[sentenceIdx].Substring(footnoteMatch.Length);
                         }
@@ -131,6 +142,30 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                         // Common word and ngram level features associated with this paragraph entity
                         EnglishWordFeatureExtractor.ExtractTrainingFeatures(thisSentenceWordBreakerText, trainingFeaturesOut, thisParagraphNode);
+
+                        LdsDotOrgCommonParsers.ParseAllScriptureReferences(sentence, scriptureReferences, logger);
+
+                        // Cross-references between this verse and other verses based on inline scripture links (used on legacy pages before footnotes)
+                        foreach (ScriptureReference scriptureRef in scriptureReferences)
+                        {
+                            KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
+                            // Entity reference between this talk paragraph and the scripture ref
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                thisParagraphNode,
+                                refNodeId,
+                                TrainingFeatureType.EntityReference));
+
+                            // And association between all words spoken in this sentence and the scripture ref
+                            foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(thisSentenceWordBreakerText))
+                            {
+                                trainingFeaturesOut.Add(new TrainingFeature(
+                                    ngram,
+                                    refNodeId,
+                                    TrainingFeatureType.WordAssociation));
+                            }
+                        }
+
+                        scriptureReferences.Clear();
 
                         // Cross-references between this verse and other verses based on footnotes
                         foreach (Match footnoteMatch in FootnoteParser.Matches(sentence))
@@ -185,9 +220,17 @@ namespace ScriptureGraph.Core.Training.Extractors
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
                 int year = int.Parse(urlParse.Groups[1].Value);
                 ConferencePhase phase = int.Parse(urlParse.Groups[2].Value) < 7 ? ConferencePhase.April : ConferencePhase.October;
+                Conference conferenceInfo = new Conference(phase, year);
                 string talkId = urlParse.Groups[3].Value;
                 string talkTitle = StringUtils.RegexRip(PrintableTitleParser, htmlPage, 1, logger);
+                talkTitle = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, talkTitle);
                 string authorFullName = StringUtils.RegexRip(AuthorNameParser, htmlPage, 1, logger);
+                authorFullName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, authorFullName);
+
+                if (!IsValidConferenceTalk(talkTitle, authorFullName))
+                {
+                    return null;
+                }
 
                 KnowledgeGraphNodeId entireTalkNode = FeatureToNodeMapping.ConferenceTalk(year, phase, talkId);
 
@@ -195,7 +238,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     Title = talkTitle,
                     TalkId = talkId,
-                    Conference = new Conference(phase, year),
+                    Conference = conferenceInfo,
                     DocumentEntityId = entireTalkNode,
                     DocumentType = GospelDocumentType.GeneralConferenceTalk,
                     Language = LanguageCode.ENGLISH,
@@ -230,20 +273,50 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private static void RemoveEmptyEntries(List<string> list)
         {
-            Stack<int> entriesRemoved = new Stack<int>();
-
-            for (int sentenceIdx = 0; sentenceIdx < list.Count; sentenceIdx++)
+            for (int sentenceIdx = list.Count - 1; sentenceIdx >= 0; sentenceIdx--)
             {
                 if (string.IsNullOrWhiteSpace(list[sentenceIdx]))
                 {
-                    entriesRemoved.Push(sentenceIdx);
+                    list.RemoveAt(sentenceIdx);
                 }
             }
+        }
 
-            while (entriesRemoved.Count > 0)
+        private static bool IsValidConferenceTalk(string talkTitle, string authorFullName)
+        {
+            if ((talkTitle.Contains("Audit") ||
+                    talkTitle.Contains("Finance")) &&
+                    talkTitle.Contains("Report"))
             {
-                list.RemoveAt(entriesRemoved.Pop());
+                // Ignore auditing department reports
+                return false;
             }
+
+            if (talkTitle.Contains("Statistic"))
+            {
+                // Ignore church statistical reports
+                return false;
+            }
+
+            if (talkTitle.Contains("Sustain") && talkTitle.Contains("Officers"))
+            {
+                // Ignore sustainings of church officers
+                return false;
+            }
+
+            // This catches general assemblies, solemn assemblies, and other special occasionas
+            if (authorFullName.Contains("Presented by"))
+            {
+                return false;
+            }
+
+            // Ignore entire sessions, meetings, firesides, video presentations, and proclamations
+            if (string.IsNullOrWhiteSpace(authorFullName))
+            {
+                return false;
+            }
+
+            return true;
         }
     }
 }

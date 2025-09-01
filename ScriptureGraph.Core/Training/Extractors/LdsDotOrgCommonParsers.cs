@@ -32,7 +32,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         /// Capture group 3: The chapter integer being referenced, or empty (for refs without chapter such as TG or BD)
         /// Capture group 4: The "paragraph" string, interpreted as the verse or verse range being referenced, in the specific HTML anchor format that must be parsed. Example: "p2", "p37-p38", "p11-p12,19"
         /// </summary>
-        private static readonly Regex ScriptureRefParser = new Regex("class=\\\"scripture-ref\\\"\\s+href=\\\"\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=eng(?:&id=(.+?)(?:#.+?))?\\\"");
+        private static readonly Regex ScriptureRefParser = new Regex("class=\\\"scripture-ref\\\"\\s+href=\\\"\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=eng(?:&id=(.+?)(?:#.+?))?(?:&span=(.+?)(?:#.+?))?\\\"");
 
         private static readonly Regex IntroParser = new Regex("<p class=\\\"intro\\\".+?>(.+?)<\\/p>");
 
@@ -148,6 +148,17 @@ namespace ScriptureGraph.Core.Training.Extractors
 
             return footnotes;
         }
+
+        // Parsing examples:
+        // Single verse:
+        // <a class="scripture-ref" href="/study/scriptures/dc-testament/dc/98?lang=eng&amp;id=p11#p11">D&amp;C 98:11</a>
+        // A few verses:
+        // <a class="scripture-ref" href="/study/scriptures/dc-testament/dc/128?lang=eng&amp;id=p15,p18#p15">D&amp;C 128:15, 18</a>
+        // <a class="scripture-ref" href="/study/scriptures/dc-testament/dc/130?lang=eng&amp;id=p20-p21#p20">D&amp;C 130:20–21</a>
+        // A chapter:
+        // <a class="scripture-ref" href="/study/scriptures/ot/ex/18?lang=eng">18</a>
+        // Multi-chapter spans (often seen in BD)
+        // <a class="scripture-ref" href="/study/scriptures/ot/ex/12?lang=eng&span=12:37-13:16#p37">12:37–13:16</a>
 
         internal static void ParseAllScriptureReferences(
             string scriptureHtmlPage,

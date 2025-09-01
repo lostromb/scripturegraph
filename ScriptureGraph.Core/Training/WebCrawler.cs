@@ -11,7 +11,7 @@ namespace ScriptureGraph.Core.Training
     public class WebCrawler
     {
         private static readonly string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:80.0) Gecko/20100101 Firefox/80.0";
-        private static readonly Regex LINK_EXTRACTOR = new Regex("href=([\"\'])([^#].+?)\\1", RegexOptions.IgnoreCase);
+        private static readonly Regex LINK_EXTRACTOR = new Regex("href=([\\\"\\'])([^#]+?)(?:#.+?)?\\1", RegexOptions.IgnoreCase);
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly WebPageCache _pageCache;
         private readonly RateLimiter _rateLimiter;

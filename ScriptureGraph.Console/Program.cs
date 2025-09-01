@@ -86,6 +86,11 @@ namespace ScriptureGraph.Console
             else
             {
                 HashSet<Regex> scriptureRegexes = new HashSet<Regex>();
+
+                // Process everything
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/.+?\\?lang=eng$"));
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
+
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?/.+?/\\d+\\?lang=eng$"));
@@ -97,29 +102,38 @@ namespace ScriptureGraph.Console
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bd/.+?\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/\\d+\\?lang=eng$"));
                 //scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1\\?lang=eng$"));
-                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+/.+?\\?lang=eng"));
+
+                // Process only general conference talks
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference\\?lang=eng$")); // overall conference index
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+\\?lang=eng$")); // decade index pages
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+\\?lang=eng$")); // conference index page
+                scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+/.+?\\?lang=eng$")); // specific talks
+
                 await crawler.Crawl(
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm?lang=eng"),
+                    //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bd/exodus-book-of?lang=eng"),
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/1?lang=eng"),
                     //new Uri("https://www.churchofjesuschrist.org/study/scriptures/bd/abaddon?lang=eng"),
-                    new Uri("https://www.churchofjesuschrist.org/study/general-conference/2024/04/15dushku?lang=eng"),
-                    //new Uri("https://www.churchofjesuschrist.org/study/general-conference/2005/04/now-is-the-time-to-prepare?lang=eng"),
-                    ParseDocument,
+                    //new Uri("https://www.churchofjesuschrist.org/study/general-conference/1978/10/the-worth-of-souls?lang=eng"),
+                    new Uri("https://www.churchofjesuschrist.org/study/general-conference/2005/04/now-is-the-time-to-prepare?lang=eng"),
+                    ExtractPageFeaturesThreaded,
                     logger.Clone("WebCrawler"),
                     scriptureRegexes);
 
-                //do
-                //{
-                //    // fixme this is jank
-                //    await Task.Delay(10000);
-                //    await trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
-                //} while (trainingThreadPool.RunningWorkItems > 0);
+                do
+                {
+                    // fixme this is jank
+                    await Task.Delay(10000);
+                    await trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
+                } while (trainingThreadPool.RunningWorkItems > 0);
 
-                //using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
-                //{
-                //    graph.Save(testGraphOut);
-                //}
+                using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
+                {
+                    graph.Save(testGraphOut);
+                }
             }
+
+            return;
 
             int dispLines;
             //logger.Log("Edge dump");
@@ -285,7 +299,7 @@ namespace ScriptureGraph.Console
                         parsedDoc = structuredDoc;
                         if (structuredDoc == null)
                         {
-                            logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                            //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
                         }
                         else
                         {

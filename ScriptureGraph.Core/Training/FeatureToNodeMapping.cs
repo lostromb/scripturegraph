@@ -91,7 +91,7 @@ namespace ScriptureGraph.Core.Training
 
         public static KnowledgeGraphNodeId ConferenceSpeaker(string speakerName)
         {
-            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceSpeaker, speakerName.ToLowerInvariant());
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceSpeaker, speakerName.ToLowerInvariant().Replace(".", string.Empty));
         }
     }
 }

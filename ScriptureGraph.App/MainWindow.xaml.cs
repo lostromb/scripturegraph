@@ -144,7 +144,7 @@ namespace ScriptureGraph.App
             return returnVal;
         }
 
-        private void Button_Click(object sender, RoutedEventArgs e)
+        private void TestButton_Click(object sender, RoutedEventArgs e)
         {
             //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bofm\alma-32.json", FileMode.Open, FileAccess.Read))
             //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bd\prayer.json", FileMode.Open, FileAccess.Read))

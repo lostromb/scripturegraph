@@ -6,7 +6,6 @@ using ScriptureGraph.Core.Schemas.Serializers;
 using ScriptureGraph.Core.Training;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Xml.Schema;
 
 namespace ScriptureGraph.Tests
 {
@@ -75,7 +74,7 @@ namespace ScriptureGraph.Tests
         {
             ConferenceContainer myObject = new ConferenceContainer()
             {
-                Conf1 = new Conference(ConferencePhase.April, 2010),
+                Conf1 = new Conference(ConferencePhase.April, 1998),
                 Conf2 = new Conference(ConferencePhase.October, 2010),
             };
 

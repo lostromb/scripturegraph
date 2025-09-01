@@ -15,10 +15,93 @@
         <SolidColorBrush x:Key="DocumentReaderPageBackground" Color="#FFF2F2F2"/>
         <Thickness x:Key="VerseNumMargin">0,0,5,0</Thickness>
     </Window.Resources>
-    <DockPanel Name="ViewRoot" Background="#FFC23A3A" >
-        <DockPanel Name="SearchArea" DockPanel.Dock="Top" Background="#FF48972B">
+    <DockPanel Name="ViewRoot" Background="#FFC23A3A">
+        <DockPanel
+            Name="Ribbon"
+            DockPanel.Dock="Top"
+            Background="#FF48972B"
+            Panel.ZIndex="50">
             <StackPanel Orientation="Horizontal" Height="50">
-                <Button Content="Whatups" Click="Button_Click"></Button>
+                <Button
+                    Name="TestButton"
+                    Content="Whatups"
+                    Click="TestButton_Click"></Button>
+                <Grid Name="SearchBoxAndFlyoutGrid"
+                      Height="30"
+                      Margin="20,0,20,0">
+                    <TextBox
+                        Name="SearchTextBox"
+                        Width="300"
+                        FontSize="16"
+                        Height="30"
+                        Text="Enter search term here"
+                        VerticalAlignment="Center"
+                        TextAlignment="Left"></TextBox>
+                    <Canvas
+                        Name="SearchFlyout"
+                        Margin="0,30,0,0">
+                        <StackPanel
+                            Name="SearchFlyoutList"
+                            Orientation="Vertical"
+                            Background="AntiqueWhite">
+                            <StackPanel
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                                <TextBlock
+                                    Margin="10"
+                                    FontSize="16"
+                                    VerticalAlignment="Center"
+                                    Text="russell m nelson"></TextBlock>
+                                <TextBlock
+                                    Margin="10"
+                                    FontSize="14"
+                                    Foreground="Gray"
+                                    VerticalAlignment="Center"
+                                    Text="Search Phrase"></TextBlock>
+                            </StackPanel>
+                            <StackPanel
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                                <TextBlock
+                                    Margin="10"
+                                    FontSize="16"
+                                    VerticalAlignment="Center"
+                                    Text="Russell M. Nelson"></TextBlock>
+                                <TextBlock
+                                    Margin="10"
+                                    FontSize="14"
+                                    Foreground="Gray"
+                                    VerticalAlignment="Center"
+                                    Text="Person"></TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </Canvas>
+                </Grid>
+                <DockPanel Background="Aquamarine">
+                    <DockPanel DockPanel.Dock="Top" Background="LightSalmon">
+                        <TextBlock
+                            Padding="0"
+                            Margin="0"
+                            Foreground="Gray"
+                            Background="Honeydew"
+                            Text="Person"
+                            HorizontalAlignment="Left">
+                        </TextBlock>
+                        <Button
+                            DockPanel.Dock="Right"
+                            Width="20"
+                            Height="20" 
+                            Padding="0"
+                            Margin="0"
+                            Content="X"
+                            HorizontalAlignment="Right">
+                        </Button>
+                    </DockPanel>
+                    <TextBlock
+                        Padding="5"
+                        DockPanel.Dock="Bottom"
+                        Text="Russell M. Nelson"></TextBlock>
+                </DockPanel>
             </StackPanel>
         </DockPanel>
         <ScrollViewer
@@ -28,7 +111,6 @@
                 <Grid Width="400">
                     <TextBlock
                         Height="24"
-                        Panel.ZIndex="1"
                         VerticalAlignment="Top"
                         Background="#FFD1BF49"
                         TextAlignment="Center">
@@ -58,9 +140,10 @@
                                 </Paragraph>
                                 <Paragraph Tag="ot-isa-42-1" >
                                     <Floater Padding="0"
-                                                Margin="{DynamicResource VerseNumMargin}"
-                                                FontSize="{DynamicResource VerseNumFontSize}"
-                                                HorizontalAlignment="Left" IsEnabled="False">
+                                        Margin="{DynamicResource VerseNumMargin}"
+                                        FontSize="{DynamicResource VerseNumFontSize}"
+                                        HorizontalAlignment="Left"
+                                        IsEnabled="False">
                                         <Paragraph>1</Paragraph>
                                     </Floater>
                                     Behold my servant, whom I uphold; mine elect, in whom my soul delighteth; I have put my spirit upon him: he shall bring forth judgment to the Gentiles.
