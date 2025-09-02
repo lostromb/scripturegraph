@@ -249,14 +249,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                 chars.Buffer[numChars - 1] = ']';
                 for (int startIndex = 0; startIndex < numChars; startIndex++)
                 {
-                    if (startIndex < numChars - 1)
+                    if (startIndex < numChars - 2)
                     {
-                        yield return FeatureToNodeMapping.CharNGram(chars.Buffer[startIndex], chars.Buffer[startIndex + 1]);
-
-                        if (startIndex < numChars - 2)
-                        {
-                            yield return FeatureToNodeMapping.CharNGram(chars.Buffer[startIndex], chars.Buffer[startIndex + 1], chars.Buffer[startIndex + 2]);
-                        }
+                        yield return FeatureToNodeMapping.CharNGram(chars.Buffer[startIndex], chars.Buffer[startIndex + 1], chars.Buffer[startIndex + 2]);
                     }
                 }
             }

@@ -14,6 +14,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         /// Capture group 1: node ID (e.g. "note16a")
         /// Capture group 2: Footnote HTML span
         /// </summary>
+        // <li[^>]+?id=\"(.+?)\".+?>\s*<p[\w\W]*?>([\w\W]+?)<\/p>
         private static readonly Regex NoteParser = new Regex("<li[^>]+?id=\\\"(.+?)\\\".+?>\\s*<p[\\w\\W]*?>([\\w\\W]+?)<\\/p>");
 
         // Input:
@@ -32,7 +33,8 @@ namespace ScriptureGraph.Core.Training.Extractors
         /// Capture group 3: The chapter integer being referenced, or empty (for refs without chapter such as TG or BD)
         /// Capture group 4: The "paragraph" string, interpreted as the verse or verse range being referenced, in the specific HTML anchor format that must be parsed. Example: "p2", "p37-p38", "p11-p12,19"
         /// </summary>
-        private static readonly Regex ScriptureRefParser = new Regex("class=\\\"scripture-ref\\\"\\s+href=\\\"\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=eng(?:&id=(.+?)(?:#.+?))?(?:&span=(.+?)(?:#.+?))?\\\"");
+        // class=\"scripture-ref\"\s+href=\"\/study\/scriptures\/(.+?)\/(.+?)(?:\/(\d+?))?\?lang=eng(?:&id=(.+?))?(?:#.+?)?(?:&span=(.+?)(?:#.+?))?\"
+        private static readonly Regex ScriptureRefParser = new Regex("class=\\\"scripture-ref\\\"\\s+href=\\\"\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=eng(?:&id=(.+?))?(?:#.+?)?(?:&span=(.+?)(?:#.+?))?\\\"");
 
         private static readonly Regex IntroParser = new Regex("<p class=\\\"intro\\\".+?>(.+?)<\\/p>");
 
@@ -185,12 +187,20 @@ namespace ScriptureGraph.Core.Training.Extractors
                     int refChapter = int.Parse(footnotScriptureRef.Groups[3].Value);
                     if (footnotScriptureRef.Groups[4].Success)
                     {
-                        ParseVerseParagraphRangeString(footnotScriptureRef.Groups[4].Value, logger,
-                            (verseNum) =>
-                            {
-                                destination.Add(
-                                    new ScriptureReference(refCanon, refBook, refChapter, verseNum));
-                            });
+                        if (string.Equals("intro", footnotScriptureRef.Groups[4].Value))
+                        {
+                            // Commonly found on footnotes in D&C that refer to the "intro" of the chapter, which we call verse 0
+                            destination.Add( new ScriptureReference(refCanon, refBook, refChapter, 0));
+                        }
+                        else
+                        {
+                            ParseVerseParagraphRangeString(footnotScriptureRef.Groups[4].Value, logger,
+                                (verseNum) =>
+                                {
+                                    destination.Add(
+                                        new ScriptureReference(refCanon, refBook, refChapter, verseNum));
+                                });
+                        }
                     }
                     else
                     {

@@ -15,8 +15,15 @@ namespace ScriptureGraph.Core.Training.Extractors
     {
         private static readonly Regex UrlPathParser = new Regex("\\/study\\/general-conference\\/(\\d+)\\/(\\d+)\\/(.+?)(?:\\?|$)");
 
-        private static readonly Regex ParagraphParser = new Regex("<p[^>]+?id=\\\"p\\d+\\\".*?>([\\w\\W]+?)<\\/p>");
+        // <p[^>]+?(?:class=\"(.+?)\"[^>]+?)?id=\"p.+?\".*?>([\w\W]+?)<\/p>
+        // group 1: paragraph role, e.g. "subtitle", "kicker", or empty for body paragraphs
+        // group 2: paragraph content
+        private static readonly Regex ParagraphParser = new Regex("<p[^>]+?(?:class=\\\"(.+?)\\\"[^>]+?)?id=\\\"p.+?\\\".*?>([\\w\\W]+?)<\\/p>");
 
+        // <footer class=\"notes\">
+        private static readonly Regex BeginningOfFootnotesMatcher = new Regex("<footer class=\"notes\">");
+
+        // \s*<a[^>]+?class=\"note-ref\"[^>]+?data-scroll-id=\"(.+?)\"><sup class=\"marker\" data-value=\".+?\"><\/sup><\/a>
         private static readonly Regex FootnoteParser = new Regex("\\s*<a[^>]+?class=\"note-ref\"[^>]+?data-scroll-id=\"(.+?)\"><sup class=\"marker\" data-value=\".+?\"><\\/sup><\\/a>");
 
         public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
@@ -62,11 +69,20 @@ namespace ScriptureGraph.Core.Training.Extractors
                     FeatureToNodeMapping.ConferenceSpeaker(authorFullName),
                     TrainingFeatureType.EntityReference));
 
+                Match startOfFootnotes = BeginningOfFootnotesMatcher.Match(htmlPage);
                 List<ScriptureReference> scriptureReferences = new List<ScriptureReference>();
                 // Break paragraphs
                 int paragraph = 0;
                 foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
                 {
+                    if (entryMatch.Groups[1].Success ||
+                        (startOfFootnotes.Success && entryMatch.Index > startOfFootnotes.Index))
+                    {
+                        // It's some kind of special paragraph like a subtitle; don't count it
+                        // Or else it's down in the footnotes region
+                        continue;
+                    }
+
                     paragraph++;
                     KnowledgeGraphNodeId thisParagraphNode = FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, paragraph);
 
@@ -85,7 +101,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                             TrainingFeatureType.ParagraphAssociation));
                     }
 
-                    string rawParagraph = LdsDotOrgCommonParsers.RemovePageBreakTags(entryMatch.Groups[1].Value);
+                    string rawParagraph = LdsDotOrgCommonParsers.RemovePageBreakTags(entryMatch.Groups[2].Value);
 
                     // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
                     // doing 9x permutations between every single word in the paragraph)
@@ -295,16 +311,25 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 string sanitizedHtml = LdsDotOrgCommonParsers.RemovePageBreakTags(htmlPage);
                 sanitizedHtml = StringUtils.RegexRemove(FootnoteParser, sanitizedHtml);
+                Match startOfFootnotes = BeginningOfFootnotesMatcher.Match(sanitizedHtml);
 
                 int paragraph = 0;
                 foreach (Match entryMatch in ParagraphParser.Matches(sanitizedHtml))
                 {
+                    if (entryMatch.Groups[1].Success ||
+                         (startOfFootnotes.Success && entryMatch.Index > startOfFootnotes.Index))
+                    {
+                        // It's some kind of special paragraph like a subtitle; don't count it
+                        // Or else it's down in the footnotes region
+                        continue;
+                    }
+
                     paragraph++;
                     KnowledgeGraphNodeId thisParagraphNode = FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, paragraph);
                     returnVal.Paragraphs.Add(new GospelParagraph()
                     {
                         ParagraphEntityId = FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, paragraph),
-                        Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, entryMatch.Groups[1].Value)
+                        Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, entryMatch.Groups[2].Value)
                     });
                 }
 

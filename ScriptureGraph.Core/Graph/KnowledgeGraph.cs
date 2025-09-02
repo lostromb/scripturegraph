@@ -581,6 +581,7 @@ namespace ScriptureGraph.Core.Graph
 
         public List<KeyValuePair<KnowledgeGraphNodeId, float>> Query(KnowledgeGraphQuery query, ILogger logger)
         {
+            HashSet<KnowledgeGraphNodeId> allRootNodeIds = new HashSet<KnowledgeGraphNodeId>();
             Counter<KnowledgeGraphNodeId> finalCumulativeResult = new Counter<KnowledgeGraphNodeId>();
             HashSet<BitVector32> scopesInitialized = new HashSet<BitVector32>();
             HashSet<BitVector32> scopesProcessed = new HashSet<BitVector32>();
@@ -601,10 +602,16 @@ namespace ScriptureGraph.Core.Graph
                 foreach (var initialActivation in query.GetRoots(scope))
                 {
                     thisScopeActivation.Increment(initialActivation.Key, initialActivation.Value);
+
+                    if (!allRootNodeIds.Contains(initialActivation.Key))
+                    {
+                        allRootNodeIds.Add(initialActivation.Key);
+                    }
                 }
 
                 initialActivationsPerScope.Add(thisScopeArray, thisScopeActivation);
                 scopesInitialized.Add(thisScopeArray);
+
                 logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope {0:x}", thisScopeArray.Data);
             }
 
@@ -700,6 +707,12 @@ namespace ScriptureGraph.Core.Graph
                     initialActivationsPerScope.Clear();
                     initialActivationsPerScope = newInitialActivations;
                 } while (mergeHappened);
+            }
+
+            // Remove original root nodes from the output
+            foreach (KnowledgeGraphNodeId originalNode in allRootNodeIds)
+            {
+                finalCumulativeResult.Remove(originalNode);
             }
 
             List<KeyValuePair<KnowledgeGraphNodeId, float>> returnVal = new List<KeyValuePair<KnowledgeGraphNodeId, float>>(finalCumulativeResult);

@@ -33,8 +33,16 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
                 htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
-                string topic = urlParse.Groups[1].Value;
-                KnowledgeGraphNodeId dictionaryNode = FeatureToNodeMapping.BibleDictionaryTopic(topic);
+                string topicId = urlParse.Groups[1].Value;
+
+                if (string.Equals(topicId, "quotations", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Handle this page specially
+                    ExtractFeaturesFromQuotationsPage(htmlPage, topicId, logger, trainingFeaturesOut);
+                    return;
+                }
+
+                KnowledgeGraphNodeId dictionaryNode = FeatureToNodeMapping.BibleDictionaryTopic(topicId);
 
                 // Bible dictionary does not use "see also" headers as far as I know, so just parse paragraphs of text and scripture references.
 
@@ -43,7 +51,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
                 {
                     paragraph++;
-                    KnowledgeGraphNodeId thisParagraph = FeatureToNodeMapping.BibleDictionaryParagraph(topic, paragraph);
+                    KnowledgeGraphNodeId thisParagraph = FeatureToNodeMapping.BibleDictionaryParagraph(topicId, paragraph);
 
                     // Associate this paragraph with the entire article
                     trainingFeaturesOut.Add(new TrainingFeature(
@@ -56,7 +64,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         trainingFeaturesOut.Add(new TrainingFeature(
                             thisParagraph,
-                            FeatureToNodeMapping.BibleDictionaryParagraph(topic, paragraph - 1),
+                            FeatureToNodeMapping.BibleDictionaryParagraph(topicId, paragraph - 1),
                             TrainingFeatureType.ParagraphAssociation));
                     }
 
@@ -111,6 +119,25 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
+        public static void ExtractFeaturesFromQuotationsPage(string htmlPage, string topicId, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        {
+            // TODO Implement
+            //try
+            //{
+            //    List<ScriptureReference> references = new List<ScriptureReference>();
+            //    int paragraph = 0;
+            //    foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
+            //    {
+            //        paragraph++;
+            //        KnowledgeGraphNodeId thisParagraph = FeatureToNodeMapping.BibleDictionaryParagraph(topicId, paragraph);
+            //    }
+            //}
+            //catch (Exception e)
+            //{
+            //    logger.Log(e);
+            //}
+        }
+
         public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
         {
             try
@@ -126,6 +153,11 @@ namespace ScriptureGraph.Core.Training.Extractors
                 htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 string topicId = urlParse.Groups[1].Value;
 
+                if (string.Equals(topicId, "quotations", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
                 Match titleParse = PrintableTitleParser.Match(htmlPage);
                 if (!titleParse.Success)
                 {
@@ -135,12 +167,12 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
 
-                // Parse the actual correct topic from the page
+                // Parse the actual correct topicId from the page
                 KnowledgeGraphNodeId dictEntryNodeId = FeatureToNodeMapping.BibleDictionaryTopic(topicId);
 
                 do
                 {
-                    // Extract ngrams from the topic title and associate it with the topic
+                    // Extract ngrams from the topicId title and associate it with the topicId
                     foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(prettyTopicString))
                     {
                         trainingFeaturesOut.Add(new TrainingFeature(
@@ -173,6 +205,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                 htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 string topicId = urlParse.Groups[1].Value;
 
+                if (string.Equals(topicId, "introduction", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(topicId, "quotations", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
                 Match titleParse = PrintableTitleParser.Match(htmlPage);
                 if (!titleParse.Success)
                 {
@@ -182,7 +220,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
 
-                // Parse the actual correct topic from the page
+                // Parse the actual correct topicId from the page
                 KnowledgeGraphNodeId dictEntryNodeId = FeatureToNodeMapping.BibleDictionaryTopic(topicId);
 
                 BibleDictionaryDocument returnVal = new BibleDictionaryDocument()

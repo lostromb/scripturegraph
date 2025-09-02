@@ -33,7 +33,7 @@ namespace ScriptureGraph.Core
             DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(entitySearchGraph);
             await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
             return entitySearchGraph;
@@ -49,6 +49,8 @@ namespace ScriptureGraph.Core
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
             private readonly KnowledgeGraph _trainingGraph;
             private readonly IThreadPool _trainingThreadPool;
+            private int _threadsStarted = 0;
+            private int _threadsFinished = 0;
 
             public DocumentProcessorForFeatureExtraction(KnowledgeGraph graph)
             {
@@ -63,17 +65,27 @@ namespace ScriptureGraph.Core
 
             public async Task WaitForThreadsToFinish()
             {
-                do
+                while (_threadsFinished < _threadsStarted)
                 {
-                    // fixme this is jank
-                    await Task.Delay(10000);
-                    await _trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
-                } while (_trainingThreadPool.RunningWorkItems > 0);
+                    await Task.Delay(100);
+                }
             }
 
             public Task<bool> ProcessFromWebCrawlerThreaded(WebCrawler.CrawledPage page, ILogger logger)
             {
-                _trainingThreadPool.EnqueueUserWorkItem(() => ProcessFromWebCrawler(page, logger));
+                Interlocked.Increment(ref _threadsStarted);
+                _trainingThreadPool.EnqueueUserWorkItem(() =>
+                {
+                    try
+                    {
+                        ProcessFromWebCrawler(page, logger);
+                    }
+                    finally
+                    {
+                        Interlocked.Increment(ref _threadsFinished);
+                    }
+                });
+
                 return Task.FromResult<bool>(true);
             }
 
@@ -148,10 +160,7 @@ namespace ScriptureGraph.Core
             KnowledgeGraph entitySearchGraph = new KnowledgeGraph();
             DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph);
             await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlGuideToScriptures(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlTopicalGuide(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlTripleIndex(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
             return entitySearchGraph;
@@ -167,6 +176,8 @@ namespace ScriptureGraph.Core
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
             private readonly KnowledgeGraph _trainingGraph;
             private readonly IThreadPool _trainingThreadPool;
+            private int _threadsStarted = 0;
+            private int _threadsFinished = 0;
 
             public DocumentProcessorForSearchIndex(KnowledgeGraph graph)
             {
@@ -181,17 +192,27 @@ namespace ScriptureGraph.Core
 
             public async Task WaitForThreadsToFinish()
             {
-                do
+                while (_threadsFinished < _threadsStarted)
                 {
-                    // fixme this is jank
-                    await Task.Delay(10000);
-                    await _trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
-                } while (_trainingThreadPool.RunningWorkItems > 0);
+                    await Task.Delay(100);
+                }
             }
 
             public Task<bool> ProcessFromWebCrawlerThreaded(WebCrawler.CrawledPage page, ILogger logger)
             {
-                _trainingThreadPool.EnqueueUserWorkItem(() => ProcessFromWebCrawler(page, logger));
+                Interlocked.Increment(ref _threadsStarted);
+                _trainingThreadPool.EnqueueUserWorkItem(() =>
+                {
+                    try
+                    {
+                        ProcessFromWebCrawler(page, logger);
+                    }
+                    finally
+                    {
+                        Interlocked.Increment(ref _threadsFinished);
+                    }
+                });
+
                 return Task.FromResult<bool>(true);
             }
 
@@ -273,6 +294,8 @@ namespace ScriptureGraph.Core
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
             private readonly IThreadPool _trainingThreadPool;
             private readonly IFileSystem _documentCacheFileSystem;
+            private int _threadsStarted = 0;
+            private int _threadsFinished = 0;
 
             public DocumentProcessorForDocumentParsing(IFileSystem documentCacheFileSystem)
             {
@@ -287,17 +310,27 @@ namespace ScriptureGraph.Core
 
             public async Task WaitForThreadsToFinish()
             {
-                do
+                while (_threadsFinished < _threadsStarted)
                 {
-                    // fixme this is jank
-                    await Task.Delay(10000);
-                    await _trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
-                } while (_trainingThreadPool.RunningWorkItems > 0);
+                    await Task.Delay(100);
+                }
             }
 
             public Task<bool> ProcessFromWebCrawlerThreaded(WebCrawler.CrawledPage page, ILogger logger)
             {
-                _trainingThreadPool.EnqueueUserWorkItem(() => ProcessFromWebCrawler(page, logger));
+                Interlocked.Increment(ref _threadsStarted);
+                _trainingThreadPool.EnqueueUserWorkItem(() =>
+                {
+                    try
+                    {
+                        ProcessFromWebCrawler(page, logger);
+                    }
+                    finally
+                    {
+                        Interlocked.Increment(ref _threadsFinished);
+                    }
+                });
+
                 return Task.FromResult<bool>(true);
             }
 
@@ -393,6 +426,7 @@ namespace ScriptureGraph.Core
 
             await crawler.Crawl(
                 new Uri("https://www.churchofjesuschrist.org/study/general-conference?lang=eng"),
+                //new Uri("https://www.churchofjesuschrist.org/study/general-conference/2025/04/41bednar?lang=eng"),
                 pageAction,
                 logger.Clone("WebCrawler-GC"),
                 allowedUrls);

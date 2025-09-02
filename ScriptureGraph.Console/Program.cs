@@ -18,7 +18,7 @@ using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Console
 {
-    internal class Program
+    internal static class Program
     {
         public static async Task Main(string[] args)
         {
@@ -39,14 +39,15 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            await BuildAndTestSearchIndex(logger);
+            await BuildAndTestUniversalGraph(logger);
         }
 
         private static async Task Test(ILogger logger)
         {
             IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
+            IFileSystem documentCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\documents");
             WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-            await CommonTasks.BuildSearchIndex(logger, pageCache);
+            await CommonTasks.ParseDocuments(logger, pageCache, documentCacheFileSystem);
         }
 
         private static async Task BuildAndTestSearchIndex(ILogger logger)
@@ -143,7 +144,7 @@ namespace ScriptureGraph.Console
         {
             KnowledgeGraph graph;
 
-            string modelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
+            string modelFileName = @"D:\Code\scripturegraph\runtime\scriptures.graph";
 
             if (File.Exists(modelFileName))
             {
@@ -241,9 +242,30 @@ namespace ScriptureGraph.Console
 
             Stopwatch timer = Stopwatch.StartNew();
             KnowledgeGraphQuery query = new KnowledgeGraphQuery();
-            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams(queryString))
+
+            ScriptureReference? parsedRef = ScriptureMetadata.TryParseScriptureReferenceEnglish(queryString);
+            if (parsedRef != null)
             {
-                query.AddRootNode(feature, 0);
+                logger.Log("Parsed query as " + parsedRef);
+                if (!parsedRef.Chapter.HasValue)
+                {
+                    query.AddRootNode(FeatureToNodeMapping.ScriptureBook(parsedRef.Canon, parsedRef.Book), 0);
+                }
+                else if (!parsedRef.Verse.HasValue)
+                {
+                    query.AddRootNode(FeatureToNodeMapping.ScriptureChapter(parsedRef.Canon, parsedRef.Book, parsedRef.Chapter.Value), 0);
+                }
+                else
+                {
+                    query.AddRootNode(FeatureToNodeMapping.ScriptureVerse(parsedRef.Canon, parsedRef.Book, parsedRef.Chapter.Value, parsedRef.Verse.Value), 0);
+                }
+            }
+            else
+            {
+                foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams(queryString))
+                {
+                    query.AddRootNode(feature, 0);
+                }
             }
 
             var results = graph.Query(query, logger.Clone("Query"));
@@ -257,9 +279,9 @@ namespace ScriptureGraph.Console
                 if (result.Key.Type == KnowledgeGraphNodeType.NGram ||
                     result.Key.Type == KnowledgeGraphNodeType.CharNGram ||
                     result.Key.Type == KnowledgeGraphNodeType.Word ||
-                    result.Key.Type == KnowledgeGraphNodeType.GuideToScripturesTopic ||
-                    result.Key.Type == KnowledgeGraphNodeType.TopicalGuideKeyword ||
-                    result.Key.Type == KnowledgeGraphNodeType.TripleIndexTopic ||
+                    //result.Key.Type == KnowledgeGraphNodeType.GuideToScripturesTopic ||
+                    //result.Key.Type == KnowledgeGraphNodeType.TopicalGuideKeyword ||
+                    //result.Key.Type == KnowledgeGraphNodeType.TripleIndexTopic ||
                     result.Key.Type == KnowledgeGraphNodeType.ConferenceSpeaker)
                 {
                     continue;
@@ -281,7 +303,7 @@ namespace ScriptureGraph.Console
                     break;
                 }
 
-                logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value, result.Key.ToString());
+                logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F5} : {1}", result.Value, result.Key.ToString());
             }
         }
 

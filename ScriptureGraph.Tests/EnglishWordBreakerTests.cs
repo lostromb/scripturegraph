@@ -40,25 +40,6 @@ namespace ScriptureGraph.Tests
             Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.Word("a", LanguageCode.ENGLISH)));
             Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.Word("test", LanguageCode.ENGLISH)));
 
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('[', 't')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('t', 'h')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('h', 'i')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('i', 's')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('s', ']')));
-
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('[', 'i')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('i', 's')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('s', ']')));
-
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('[', 'a')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('a', ']')));
-
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('[', 't')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('t', 'e')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('e', 's')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('s', 't')));
-            Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('t', ']')));
-
             Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('[', 't', 'h')));
             Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('t', 'h', 'i')));
             Assert.IsTrue(ngrams.Contains(FeatureToNodeMapping.CharNGram('h', 'i', 's')));
