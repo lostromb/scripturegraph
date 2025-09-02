@@ -10,9 +10,11 @@ using Org.BouncyCastle.Bcpg.Sig;
 using ScriptureGraph.Core;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
+using ScriptureGraph.Core.Schemas.Serializers;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System.Diagnostics;
+using System.IO;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -39,15 +41,33 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            await BuildAndTestUniversalGraph(logger);
+            await BuildAndTestSearchIndex(logger);
         }
 
         private static async Task Test(ILogger logger)
         {
-            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
-            IFileSystem documentCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\documents");
-            WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-            await CommonTasks.ParseDocuments(logger, pageCache, documentCacheFileSystem);
+            KnowledgeGraph graph;
+            string inModelFileName = @"D:\Code\scripturegraph\runtime\scriptures.graph";
+            string outModelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
+
+            if (File.Exists(inModelFileName))
+            {
+                logger.Log("Loading model");
+                using (FileStream testGraphIn = new FileStream(inModelFileName, FileMode.Open, FileAccess.Read))
+                {
+                    graph = KnowledgeGraph.Load(testGraphIn);
+                }
+            }
+            else
+            {
+                IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
+                WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
+                graph = await CommonTasks.BuildUniversalGraph(logger, pageCache);
+                using (FileStream testGraphOut = new FileStream(outModelFileName, FileMode.Create, FileAccess.Write))
+                {
+                    graph.Save(testGraphOut);
+                }
+            }
         }
 
         private static async Task BuildAndTestSearchIndex(ILogger logger)
@@ -55,6 +75,7 @@ namespace ScriptureGraph.Console
             KnowledgeGraph entitySearchGraph;
 
             string modelFileName = @"D:\Code\scripturegraph\runtime\searchindex.graph";
+            string entityMapFileName = @"D:\Code\scripturegraph\runtime\entitynames_eng.map";
 
             if (File.Exists(modelFileName))
             {
@@ -67,11 +88,17 @@ namespace ScriptureGraph.Console
             {
                 IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
                 WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-                entitySearchGraph = await CommonTasks.BuildSearchIndex(logger, pageCache);
+                Tuple<KnowledgeGraph, EntityNameIndex> returnVal = await CommonTasks.BuildSearchIndex(logger, pageCache);
+                entitySearchGraph = returnVal.Item1;
 
                 using (FileStream searchGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
                 {
                     entitySearchGraph.Save(searchGraphOut);
+                }
+
+                using (FileStream nameMappingOut = new FileStream(entityMapFileName, FileMode.Create, FileAccess.Write))
+                {
+                    returnVal.Item2.Serialize(nameMappingOut);
                 }
             }
 

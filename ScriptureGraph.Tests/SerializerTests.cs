@@ -60,6 +60,50 @@ namespace ScriptureGraph.Tests
             }
         }
 
+
+        [TestMethod]
+        public void TestEntityNameIndexSerializer()
+        {
+            EntityNameIndex myObject = new EntityNameIndex();
+
+            JsonSerializerOptions options = new JsonSerializerOptions()
+            {
+                WriteIndented = true
+            };
+
+            Console.WriteLine(JsonSerializer.Serialize(myObject, options));
+            //Assert.AreEqual(s, null);
+
+            using (RecyclableMemoryStream utf8JsonStream = new RecyclableMemoryStream(RecyclableMemoryStreamManager.Default))
+            using (Utf8JsonWriter jsonWriter = new Utf8JsonWriter(utf8JsonStream))
+            {
+                utf8JsonStream.Seek(0, SeekOrigin.Begin);
+                jsonWriter.Reset();
+                JsonSerializer.Serialize(jsonWriter, myObject, options);
+                utf8JsonStream.Seek(0, SeekOrigin.Begin);
+                EntityNameIndex? newObject = JsonSerializer.Deserialize<EntityNameIndex>(utf8JsonStream, options);
+                Assert.IsNotNull(newObject);
+                Assert.AreEqual(myObject.Mapping.Count, newObject.Mapping.Count);
+            }
+
+            myObject.Mapping.Add(FeatureToNodeMapping.Entity("entity A"), "A");
+            myObject.Mapping.Add(FeatureToNodeMapping.Entity("entity B"), "B");
+
+            Console.WriteLine(JsonSerializer.Serialize(myObject, options));
+
+            using (RecyclableMemoryStream utf8JsonStream = new RecyclableMemoryStream(RecyclableMemoryStreamManager.Default))
+            using (Utf8JsonWriter jsonWriter = new Utf8JsonWriter(utf8JsonStream))
+            {
+                utf8JsonStream.Seek(0, SeekOrigin.Begin);
+                jsonWriter.Reset();
+                JsonSerializer.Serialize(jsonWriter, myObject, options);
+                utf8JsonStream.Seek(0, SeekOrigin.Begin);
+                EntityNameIndex? newObject = JsonSerializer.Deserialize<EntityNameIndex>(utf8JsonStream, options);
+                Assert.IsNotNull(newObject);
+                Assert.AreEqual(myObject.Mapping.Count, newObject.Mapping.Count);
+            }
+        }
+
         private class ConferenceContainer
         {
             [JsonConverter(typeof(ConferenceSerializer))]

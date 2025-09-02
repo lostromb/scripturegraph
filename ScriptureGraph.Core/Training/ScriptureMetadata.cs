@@ -727,12 +727,22 @@ namespace ScriptureGraph.Core.Training
                 if (match.Groups[2].Success)
                 {
                     chapter = int.Parse(match.Groups[2].Value);
+                    
+                    if (chapter <= 0 || chapter > 200)
+                    {
+                        return null;
+                    }
                 }
 
                 int? verse = null;
                 if (match.Groups[3].Success)
                 {
                     verse = int.Parse(match.Groups[3].Value);
+
+                    if (verse <= 0 || verse > 200)
+                    {
+                        return null;
+                    }
                 }
 
                 return new ScriptureReference(canon, bookId, chapter, verse);

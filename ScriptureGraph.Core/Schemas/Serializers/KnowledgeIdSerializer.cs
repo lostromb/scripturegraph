@@ -1,4 +1,5 @@
-﻿using ScriptureGraph.Core.Graph;
+﻿using Newtonsoft.Json.Linq;
+using ScriptureGraph.Core.Graph;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Schemas.Serializers
 {
-    internal class KnowledgeIdSerializer : JsonConverter<KnowledgeGraphNodeId>
+    public class KnowledgeIdSerializer : JsonConverter<KnowledgeGraphNodeId>
     {
         public override KnowledgeGraphNodeId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
@@ -27,7 +28,7 @@ namespace ScriptureGraph.Core.Schemas.Serializers
         }
     }
 
-    internal class KnowledgeIdNullableSerializer : JsonConverter<KnowledgeGraphNodeId?>
+    public class KnowledgeIdNullableSerializer : JsonConverter<KnowledgeGraphNodeId?>
     {
         public override KnowledgeGraphNodeId? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {

@@ -138,7 +138,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             //}
         }
 
-        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut, EntityNameIndex nameIndex)
         {
             try
             {
@@ -169,6 +169,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 // Parse the actual correct topicId from the page
                 KnowledgeGraphNodeId dictEntryNodeId = FeatureToNodeMapping.BibleDictionaryTopic(topicId);
+                nameIndex.Mapping[dictEntryNodeId] = prettyTopicString;
 
                 do
                 {

@@ -1,6 +1,7 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -90,7 +91,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut, EntityNameIndex nameIndex)
         {
             try
             {
@@ -120,9 +121,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                 KnowledgeGraphNodeId thisNode = FeatureToNodeMapping.TripleIndexTopic(topicId);
 
                 string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
-                prettyTopicString = StringUtils.RegexRemove(BracketRemover, prettyTopicString); // remove "[verb]", "[noun]" etc from titles
                 prettyTopicString = StringUtils.RegexRemove(SuperscriptNumberRemover, prettyTopicString); // remove all numbers - this is to handle things like "aaron2"
+                nameIndex.Mapping[thisNode] = prettyTopicString;
 
+                prettyTopicString = StringUtils.RegexRemove(BracketRemover, prettyTopicString); // remove "[verb]", "[noun]" etc from titles
                 foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(prettyTopicString))
                 {
                     trainingFeaturesOut.Add(new TrainingFeature(
@@ -130,6 +132,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         ngram,
                         TrainingFeatureType.WordDesignation));
                 }
+
 
                 // remove the clarifier after the title (if any), such as "brother of Moses"
                 string topicStringWithoutClarification = StringUtils.RegexRemove(EmDashRemover, prettyTopicString);

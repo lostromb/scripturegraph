@@ -9,6 +9,11 @@ namespace ScriptureGraph.App
     /// </summary>
     public partial class App : Application
     {
-    }
+        internal AppCore _core;
 
+        public App()
+        {
+            _core = new AppCore();
+        }
+    }
 }

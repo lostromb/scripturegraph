@@ -154,16 +154,17 @@ namespace ScriptureGraph.Core
         /// <param name="logger"></param>
         /// <param name="pageCache"></param>
         /// <returns></returns>
-        public static async Task<KnowledgeGraph> BuildSearchIndex(ILogger logger, WebPageCache pageCache)
+        public static async Task<Tuple<KnowledgeGraph, EntityNameIndex>> BuildSearchIndex(ILogger logger, WebPageCache pageCache)
         {
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
             KnowledgeGraph entitySearchGraph = new KnowledgeGraph();
-            DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph);
+            EntityNameIndex nameIndex = new EntityNameIndex();
+            DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex);
             await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
-            return entitySearchGraph;
+            return new Tuple<KnowledgeGraph, EntityNameIndex>(entitySearchGraph, nameIndex);
         }
 
         /// <summary>
@@ -175,13 +176,15 @@ namespace ScriptureGraph.Core
             private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
             private readonly KnowledgeGraph _trainingGraph;
+            private readonly EntityNameIndex _nameIndex;
             private readonly IThreadPool _trainingThreadPool;
             private int _threadsStarted = 0;
             private int _threadsFinished = 0;
 
-            public DocumentProcessorForSearchIndex(KnowledgeGraph graph)
+            public DocumentProcessorForSearchIndex(KnowledgeGraph graph, EntityNameIndex nameIndex)
             {
                 _trainingGraph = graph;
+                _nameIndex = nameIndex;
                 _trainingThreadPool = new FixedCapacityThreadPool(
                     new TaskThreadPool(),
                     NullLogger.Singleton,
@@ -226,22 +229,22 @@ namespace ScriptureGraph.Core
                     if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
                     {
                         logger.Log($"Building search index from BD page {page.Url.AbsolutePath}");
-                        BibleDictionaryFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features);
+                        BibleDictionaryFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
                     }
                     else if (string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal))
                     {
                         logger.Log($"Building search index from GS page {page.Url.AbsolutePath}");
-                        GuideToScripturesFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features);
+                        GuideToScripturesFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
                     }
                     else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal))
                     {
                         logger.Log($"Building search index from TG page {page.Url.AbsolutePath}");
-                        TopicalGuideFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features);
+                        TopicalGuideFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
                     }
                     else if (string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
                     {
                         logger.Log($"Building search index from triple index page {page.Url.AbsolutePath}");
-                        TripleIndexFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features);
+                        TripleIndexFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
                     }
                     else
                     {
@@ -249,7 +252,7 @@ namespace ScriptureGraph.Core
                         if (match.Success)
                         {
                             logger.Log($"Building search index from conference talk {page.Url.AbsolutePath}");
-                            ConferenceTalkFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features);
+                            ConferenceTalkFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
                         }
                         else
                         {

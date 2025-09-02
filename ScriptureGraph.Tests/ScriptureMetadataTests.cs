@@ -65,6 +65,14 @@ namespace ScriptureGraph.Tests
             // currently don't parse ranges
             reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("Moroni 10:3-5");
             Assert.IsNull(reference);
+
+            // And don't parse invalid values
+            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne -3:5"));
+            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 0:5"));
+            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 3:0"));
+            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 3:-1"));
+            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 3:205"));
+            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 670:25"));
         }
     }
 }

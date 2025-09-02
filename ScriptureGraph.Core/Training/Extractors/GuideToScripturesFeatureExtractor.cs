@@ -1,6 +1,7 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -90,7 +91,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut, EntityNameIndex nameIndex)
         {
             try
             {
@@ -120,6 +121,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
 
                 KnowledgeGraphNodeId thisNode = FeatureToNodeMapping.GuideToScripturesTopic(topicId);
+                nameIndex.Mapping[thisNode] = prettyTopicString;
 
                 do
                 {

@@ -217,7 +217,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut, EntityNameIndex nameIndex)
         {
             try
             {
@@ -253,6 +253,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 KnowledgeGraphNodeId speakerNode = FeatureToNodeMapping.ConferenceSpeaker(authorFullName);
+                nameIndex.Mapping[speakerNode] = authorFullName;
+                nameIndex.Mapping[entireTalkNode] = talkTitle;
 
                 // Extract ngrams from the speaker's name and associate it with the speaker
                 foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(authorFullName))
