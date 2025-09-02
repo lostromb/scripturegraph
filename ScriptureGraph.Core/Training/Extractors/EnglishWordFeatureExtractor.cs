@@ -212,9 +212,25 @@ namespace ScriptureGraph.Core.Training.Extractors
         {
             foreach (string sentence in BreakSentenceLowerCase(input))
             {
-                foreach (string word in BreakWords(sentence))
+                // Word-level ngrams
+                string[] words = BreakWords(sentence).ToArray();
+                for (int startIndex = 0; startIndex < words.Length; startIndex++)
                 {
-                    yield return FeatureToNodeMapping.Word(word, LanguageCode.ENGLISH);
+                    yield return FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH);
+                    if (startIndex < words.Length - 1)
+                    {
+                        yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
+
+                        if (startIndex < words.Length - 2)
+                        {
+                            yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
+                        }
+                    }
+                }
+
+                // And char-level ngrams
+                foreach (string word in words)
+                {
                     foreach (KnowledgeGraphNodeId ngram in ExtractCharLevelNGramsSingleWord(word))
                     {
                         yield return ngram;

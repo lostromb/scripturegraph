@@ -90,7 +90,16 @@ namespace ScriptureGraph.Core.Graph
                 _scopes.Add(searchScope, scopeDict);
             }
 
-            scopeDict.Add(nodeId, weight);
+            float existingWeight;
+            if (scopeDict.TryGetValue(nodeId, out existingWeight))
+            {
+                // Same entity id multiple times in input. Just increase the weight
+                scopeDict[nodeId] = existingWeight + weight;
+            }
+            else
+            {
+                scopeDict.Add(nodeId, weight);
+            }
         }
     }
 }

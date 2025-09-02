@@ -17,10 +17,6 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private static readonly Regex ParagraphParser = new Regex("<p[^>]+?id=\\\"p\\d+\\\".*?>([\\w\\W]+?)<\\/p>");
 
-        private static readonly Regex PrintableTitleParser = new Regex("<h1.*?>(.+?)<\\/h1>");
-
-        private static readonly Regex AuthorNameParser = new Regex("<p[^>]+class=\"author-name\"[^>]+?>(?:By |From )?(?:Elder |Sister |President |Bishop |Brother )?(.+?)<\\/p>");
-
         private static readonly Regex FootnoteParser = new Regex("\\s*<a[^>]+?class=\"note-ref\"[^>]+?data-scroll-id=\"(.+?)\"><sup class=\"marker\" data-value=\".+?\"><\\/sup><\\/a>");
 
         public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
@@ -35,13 +31,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 int year = int.Parse(urlParse.Groups[1].Value);
                 ConferencePhase phase = int.Parse(urlParse.Groups[2].Value) < 7 ? ConferencePhase.April : ConferencePhase.October;
                 string talkId = urlParse.Groups[3].Value;
-                string talkTitle = StringUtils.RegexRip(PrintableTitleParser, htmlPage, 1, logger);
-                talkTitle = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, talkTitle);
-                string authorFullName = StringUtils.RegexRip(AuthorNameParser, htmlPage, 1, logger);
-                authorFullName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, authorFullName);
+                string talkTitle, authorFullName;
+                ParseTalkAndAuthorNames(htmlPage, logger, out talkTitle, out authorFullName);
 
                 if (!IsValidConferenceTalk(talkTitle, authorFullName))
                 {
@@ -218,13 +213,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 int year = int.Parse(urlParse.Groups[1].Value);
                 ConferencePhase phase = int.Parse(urlParse.Groups[2].Value) < 7 ? ConferencePhase.April : ConferencePhase.October;
                 string talkId = urlParse.Groups[3].Value;
-                string talkTitle = StringUtils.RegexRip(PrintableTitleParser, htmlPage, 1, logger);
-                talkTitle = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, talkTitle);
-                string authorFullName = StringUtils.RegexRip(AuthorNameParser, htmlPage, 1, logger);
-                authorFullName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, authorFullName);
+                string talkTitle, authorFullName;
+                ParseTalkAndAuthorNames(htmlPage, logger, out talkTitle, out authorFullName);
 
                 if (!IsValidConferenceTalk(talkTitle, authorFullName))
                 {
@@ -271,14 +265,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 int year = int.Parse(urlParse.Groups[1].Value);
                 ConferencePhase phase = int.Parse(urlParse.Groups[2].Value) < 7 ? ConferencePhase.April : ConferencePhase.October;
                 Conference conferenceInfo = new Conference(phase, year);
                 string talkId = urlParse.Groups[3].Value;
-                string talkTitle = StringUtils.RegexRip(PrintableTitleParser, htmlPage, 1, logger);
-                talkTitle = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, talkTitle);
-                string authorFullName = StringUtils.RegexRip(AuthorNameParser, htmlPage, 1, logger);
-                authorFullName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, authorFullName);
+                string talkTitle, authorFullName;
+                ParseTalkAndAuthorNames(htmlPage, logger, out talkTitle, out authorFullName);
 
                 if (!IsValidConferenceTalk(talkTitle, authorFullName))
                 {
@@ -370,6 +363,24 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
 
             return true;
+        }
+
+        private static readonly Regex PrintableTitleParser = new Regex("<h1.*?>(.+?)<\\/h1>");
+
+        // <p[^>]+class=\"author-name\"[^>]+?>\s*(?:<span[\w\W]+?<\/span>)?(?:By |From )?(?:Elder |Sister |President |Bishop |Brother )?(.+?)<\/p>
+        private static readonly Regex AuthorNameParser = new Regex("<p[^>]+class=\\\"author-name\\\"[^>]+?>\\s*(.+?)<\\/p>");
+
+        private static readonly Regex AuthorTitleRemover = new Regex("(?:By |From )?(?:Elder |Sister |President |Bishop |Brother )?");
+
+        private static void ParseTalkAndAuthorNames(string htmlPage, ILogger logger, out string talkTitle, out string authorFullName)
+        {
+            talkTitle = StringUtils.RegexRip(PrintableTitleParser, htmlPage, 1, logger);
+            talkTitle = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, talkTitle);
+            talkTitle = talkTitle.Trim();
+            authorFullName = StringUtils.RegexRip(AuthorNameParser, htmlPage, 1, logger);
+            authorFullName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, authorFullName);
+            authorFullName = StringUtils.RegexRemove(AuthorTitleRemover, authorFullName);
+            authorFullName = authorFullName.Trim();
         }
     }
 }

@@ -54,6 +54,11 @@ namespace ScriptureGraph.Core.Training.Extractors
             return StringUtils.RegexRemove(PageBreakRemover, input);
         }
 
+        internal static string RemoveNbsp(string input)
+        {
+            return input.Replace('\u00a0', ' ');
+        }
+
         internal static Dictionary<int, StructuredVerse> ParseVerses(string canon, string book, int chapter, string scriptureHtmlPage)
         {
             Dictionary<int, StructuredVerse> verses = new Dictionary<int, StructuredVerse>();

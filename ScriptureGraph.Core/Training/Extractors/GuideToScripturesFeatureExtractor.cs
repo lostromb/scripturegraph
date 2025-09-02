@@ -22,6 +22,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 string topic = urlParse.Groups[1].Value;
                 KnowledgeGraphNodeId topicalGuideNode = FeatureToNodeMapping.GuideToScripturesTopic(topic);
 

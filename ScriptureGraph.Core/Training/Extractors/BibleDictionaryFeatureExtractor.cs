@@ -32,6 +32,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 string topic = urlParse.Groups[1].Value;
                 KnowledgeGraphNodeId dictionaryNode = FeatureToNodeMapping.BibleDictionaryTopic(topic);
 
@@ -122,6 +123,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 string topicId = urlParse.Groups[1].Value;
 
                 Match titleParse = PrintableTitleParser.Match(htmlPage);
@@ -168,6 +170,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 string topicId = urlParse.Groups[1].Value;
 
                 Match titleParse = PrintableTitleParser.Match(htmlPage);

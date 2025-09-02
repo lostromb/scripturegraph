@@ -24,6 +24,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
                 string canon = urlParse.Groups[1].Value;
                 string book = urlParse.Groups[2].Value;
                 int chapter = int.Parse(urlParse.Groups[3].Value);
@@ -59,7 +60,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
-                
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
+
                 string canon = urlParse.Groups[1].Value;
                 string book = urlParse.Groups[2].Value;
                 int chapter = int.Parse(urlParse.Groups[3].Value);

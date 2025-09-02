@@ -6,10 +6,12 @@ using Durandal.Common.Tasks;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
 using Durandal.Common.Utils.NativePlatform;
+using ScriptureGraph.Core;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
+using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -29,119 +31,6 @@ namespace ScriptureGraph.App
         public MainWindow()
         {
             InitializeComponent();
-
-            BuildSearchIndex().Await();
-        }
-
-
-        private static async Task BuildSearchIndex()
-        {
-            ILogger logger = new ConsoleLogger("Main", LogLevel.All);
-            NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
-            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
-            IFileSystem documentCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\documents");
-            WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-            WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
-            KnowledgeGraph graph = new KnowledgeGraph();
-
-            string modelFileName = @"D:\Code\scripturegraph\runtime\searchindex.graph";
-
-            HashSet<Regex> scriptureRegexes = new HashSet<Regex>();
-
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/.+?\\?lang=eng$"));
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/scriptures/.+?\\?lang=eng$"));
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference\\?lang=eng$")); // overall conference index
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+\\?lang=eng$")); // decade index pages
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+\\?lang=eng$")); // conference index page
-            scriptureRegexes.Add(new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+/.+?\\?lang=eng$")); // specific talks
-
-            DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex();
-
-            await crawler.Crawl(
-                new Uri("https://www.churchofjesuschrist.org/study/general-conference/2024/04/15dushku?lang=eng"),
-                processor.ProcessFromWebCrawler,
-                logger.Clone("WebCrawler"),
-                scriptureRegexes);
-
-            using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
-            {
-                graph.Save(testGraphOut);
-            }
-        }
-
-        private class DocumentProcessorForSearchIndex
-        {
-            private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
-            private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
-            private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
-
-            public Task<bool> ProcessFromWebCrawler(WebCrawler.CrawledPage page, ILogger logger)
-            {
-                VirtualPath fileDestination = VirtualPath.Root;
-                GospelDocument? parsedDoc = null;
-                Match match = ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath);
-                if (match.Success)
-                {
-                    logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
-                    ScriptureChapterDocument? structuredDoc = ScripturePageFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
-                    parsedDoc = structuredDoc;
-                    if (structuredDoc == null)
-                    {
-                        logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
-                    }
-                    else
-                    {
-                        fileDestination = new VirtualPath($"{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.json");
-                    }
-                }
-                else
-                {
-                    match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
-                    if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
-                    {
-                        logger.Log($"Parsing BD page {page.Url.AbsolutePath}");
-                        BibleDictionaryDocument? structuredDoc = BibleDictionaryFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
-                        parsedDoc = structuredDoc;
-                        if (structuredDoc == null)
-                        {
-                            logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
-                        }
-                        else
-                        {
-                            fileDestination = new VirtualPath($"bd\\{structuredDoc.TopicId}.json");
-                        }
-                    }
-                    else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal) ||
-                        string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal) ||
-                        string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
-                    {
-                    }
-                    else
-                    {
-                        match = ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath);
-                        if (match.Success)
-                        {
-                            logger.Log($"Parsing conference talk {page.Url.AbsolutePath}");
-                            ConferenceTalkDocument? structuredDoc = ConferenceTalkFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
-                            parsedDoc = structuredDoc;
-                            if (structuredDoc == null)
-                            {
-                                //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
-                            }
-                            else
-                            {
-                                fileDestination = new VirtualPath($"general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.json");
-                            }
-                        }
-                        else
-                        {
-                            logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
-                        }
-                    }
-                }
-
-                return Task.FromResult<bool>(true);
-            }
         }
 
         private FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc)
