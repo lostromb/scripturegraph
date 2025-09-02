@@ -10,6 +10,13 @@ namespace ScriptureGraph.Core.Training.Extractors
     {
         private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/triple-index\\/(.+?)(?:\\?|$)");
 
+        private static readonly Regex PrintableTitleParser = new Regex("<h1.*?>(.+?)<\\/h1>");
+
+        private static readonly Regex BracketRemover = new Regex("\\s*([\\[\\(]).+?([\\]\\)])");
+
+        private static readonly Regex SuperscriptNumberRemover = new Regex("\\d+");
+        private static readonly Regex EmDashRemover = new Regex("—.+");
+
         public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
         {
             try
@@ -76,6 +83,70 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
                     }
                 }
+            }
+            catch (Exception e)
+            {
+                logger.Log(e);
+            }
+        }
+
+        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        {
+            try
+            {
+                Match urlParse = UrlPathParser.Match(pageUrl.AbsolutePath);
+                if (!urlParse.Success)
+                {
+                    logger.Log("Failed to parse URL", LogLevel.Err);
+                    return;
+                }
+
+                htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
+                string topicId = urlParse.Groups[1].Value;
+
+                Match titleParse = PrintableTitleParser.Match(htmlPage);
+                if (!titleParse.Success)
+                {
+                    logger.Log("Failed to parse article title", LogLevel.Err);
+                    return;
+                }
+
+                if (string.Equals(topicId, "introduction", StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                KnowledgeGraphNodeId thisNode = FeatureToNodeMapping.TripleIndexTopic(topicId);
+
+                string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
+                prettyTopicString = StringUtils.RegexRemove(BracketRemover, prettyTopicString); // remove "[verb]", "[noun]" etc from titles
+                prettyTopicString = StringUtils.RegexRemove(SuperscriptNumberRemover, prettyTopicString); // remove all numbers - this is to handle things like "aaron2"
+
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(prettyTopicString))
+                {
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        thisNode,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
+
+                // remove the clarifier after the title (if any), such as "brother of Moses"
+                string topicStringWithoutClarification = StringUtils.RegexRemove(EmDashRemover, prettyTopicString);
+
+                // This comma inversion loop is different from normal since we already extracted non-inversion features in the loop above,
+                // so this only runs if there is a possible inversion in just the short article title, such as "Ammon, Children of"
+                while (EnglishWordFeatureExtractor.PerformCommaInversion(ref topicStringWithoutClarification))
+                {
+                    // Extract ngrams from the topic title and associate it with the topic
+                    foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(topicStringWithoutClarification))
+                    {
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            thisNode,
+                            ngram,
+                            TrainingFeatureType.WordDesignation));
+                    }
+                } 
             }
             catch (Exception e)
             {

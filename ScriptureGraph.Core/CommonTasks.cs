@@ -149,7 +149,9 @@ namespace ScriptureGraph.Core
             DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph);
             await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            // Todo index other reference pages like TG
+            await CrawlGuideToScriptures(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlTopicalGuide(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlTripleIndex(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
             return entitySearchGraph;
@@ -205,11 +207,20 @@ namespace ScriptureGraph.Core
                         logger.Log($"Building search index from BD page {page.Url.AbsolutePath}");
                         BibleDictionaryFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features);
                     }
-                    else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal) ||
-                        string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal) ||
-                        string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
+                    else if (string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal))
                     {
-                        // TODO parse these
+                        logger.Log($"Building search index from GS page {page.Url.AbsolutePath}");
+                        GuideToScripturesFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features);
+                    }
+                    else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal))
+                    {
+                        logger.Log($"Building search index from TG page {page.Url.AbsolutePath}");
+                        TopicalGuideFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features);
+                    }
+                    else if (string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
+                    {
+                        logger.Log($"Building search index from triple index page {page.Url.AbsolutePath}");
+                        TripleIndexFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features);
                     }
                     else
                     {

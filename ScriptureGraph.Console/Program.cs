@@ -39,7 +39,14 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            await BuildAndTestUniversalGraph(logger);
+            await BuildAndTestSearchIndex(logger);
+        }
+
+        private static async Task Test(ILogger logger)
+        {
+            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
+            WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
+            await CommonTasks.BuildSearchIndex(logger, pageCache);
         }
 
         private static async Task BuildAndTestSearchIndex(ILogger logger)
@@ -158,23 +165,23 @@ namespace ScriptureGraph.Console
             }
 
             int dispLines;
-            logger.Log("Edge dump");
-            dispLines = 100;
-            KnowledgeGraphNode node;
-            if (graph.TryGet(FeatureToNodeMapping.NGram("exceedingly", "great", "joy", LanguageCode.ENGLISH), out node))
-            {
-                var edgeEnumerator = node.Edges.GetEnumerator();
-                while (edgeEnumerator.MoveNext())
-                {
-                    if (dispLines-- <= 0)
-                    {
-                        break;
-                    }
+            //logger.Log("Edge dump");
+            //dispLines = 100;
+            //KnowledgeGraphNode node;
+            //if (graph.TryGet(FeatureToNodeMapping.NGram("exceedingly", "great", "joy", LanguageCode.ENGLISH), out node))
+            //{
+            //    var edgeEnumerator = node.Edges.GetEnumerator();
+            //    while (edgeEnumerator.MoveNext())
+            //    {
+            //        if (dispLines-- <= 0)
+            //        {
+            //            break;
+            //        }
 
-                    KnowledgeGraphEdge edge = edgeEnumerator.Current();
-                    logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", edge.Mass, edge.Target.ToString());
-                }
-            }
+            //        KnowledgeGraphEdge edge = edgeEnumerator.Current();
+            //        logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", edge.Mass, edge.Target.ToString());
+            //    }
+            //}
 
             logger.Log("Ready to query");
             KnowledgeGraphQuery query = new KnowledgeGraphQuery();
@@ -184,15 +191,17 @@ namespace ScriptureGraph.Console
             //    query.AddRootNode(feature, 0);
             //}
 
-            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("plan of redemption"))
-            {
-                query.AddRootNode(feature, 0);
-            }
-
-            //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("quench"))
+            //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("plan of redemption"))
             //{
-            //    query.AddRootNode(feature, 1);
+            //    query.AddRootNode(feature, 0);
             //}
+
+            query.AddRootNode(FeatureToNodeMapping.ConferenceSpeaker("neal a maxwell"), 0);
+
+            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("intelligence"))
+            {
+                query.AddRootNode(feature, 1);
+            }
 
             //query.AddRootNode(FeatureToNodeMapping.ScriptureBook("bofm", "jacob"), 2);
             //query.AddRootNode(FeatureToNodeMapping.ScriptureBook("ot", "isa"), 2);

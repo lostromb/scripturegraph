@@ -10,6 +10,8 @@ namespace ScriptureGraph.Core.Training.Extractors
     {
         private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/gs\\/(.+?)(?:\\?|$)");
 
+        private static readonly Regex PrintableTitleParser = new Regex("<h1.*?>(.+?)<\\/h1>");
+
         public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
         {
             try
@@ -23,8 +25,13 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 htmlPage = WebUtility.HtmlDecode(htmlPage);
                 htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
-                string topic = urlParse.Groups[1].Value;
-                KnowledgeGraphNodeId topicalGuideNode = FeatureToNodeMapping.GuideToScripturesTopic(topic);
+                string topicId = urlParse.Groups[1].Value;
+                KnowledgeGraphNodeId topicalGuideNode = FeatureToNodeMapping.GuideToScripturesTopic(topicId);
+
+                if (string.Equals(topicId, "introduction", StringComparison.Ordinal))
+                {
+                    return;
+                }
 
                 List<ScriptureReference> references = new List<ScriptureReference>();
                 Match titleMatch = LdsDotOrgCommonParsers.IndexTitleParser.Match(htmlPage);
@@ -76,6 +83,57 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
                     }
                 }
+            }
+            catch (Exception e)
+            {
+                logger.Log(e);
+            }
+        }
+
+        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        {
+            try
+            {
+                Match urlParse = UrlPathParser.Match(pageUrl.AbsolutePath);
+                if (!urlParse.Success)
+                {
+                    logger.Log("Failed to parse URL", LogLevel.Err);
+                    return;
+                }
+
+                htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
+                string topicId = urlParse.Groups[1].Value;
+
+                Match titleParse = PrintableTitleParser.Match(htmlPage);
+                if (!titleParse.Success)
+                {
+                    logger.Log("Failed to parse article title", LogLevel.Err);
+                    return;
+                }
+
+                if (string.Equals(topicId, "introduction", StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
+
+                KnowledgeGraphNodeId thisNode = FeatureToNodeMapping.GuideToScripturesTopic(topicId);
+
+                do
+                {
+                    // Extract ngrams from the topic title and associate it with the topic
+                    foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(prettyTopicString))
+                    {
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            thisNode,
+                            ngram,
+                            TrainingFeatureType.WordDesignation));
+                    }
+
+                    // Also see if comma inversion changes the title. If so, loop and extract those features as well
+                } while (EnglishWordFeatureExtractor.PerformCommaInversion(ref prettyTopicString));
             }
             catch (Exception e)
             {

@@ -372,10 +372,15 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private static readonly Regex AuthorTitleRemover = new Regex("(?:By |From )?(?:Elder |Sister |President |Bishop |Brother )?");
 
+        private static readonly Regex ParenthesesRemover = new Regex("\\s+\\(.+?\\)");
+
         private static void ParseTalkAndAuthorNames(string htmlPage, ILogger logger, out string talkTitle, out string authorFullName)
         {
             talkTitle = StringUtils.RegexRip(PrintableTitleParser, htmlPage, 1, logger);
             talkTitle = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, talkTitle);
+            // Some rare talks have a scripture citation in the title, to handle that remove anything within parentheses
+            // https://www.churchofjesuschrist.org/study/general-conference/1999/04/repent-of-our-selfishness-d-c-56-8?lang=eng
+            talkTitle = StringUtils.RegexRemove(ParenthesesRemover, talkTitle);
             talkTitle = talkTitle.Trim();
             authorFullName = StringUtils.RegexRip(AuthorNameParser, htmlPage, 1, logger);
             authorFullName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, authorFullName);
