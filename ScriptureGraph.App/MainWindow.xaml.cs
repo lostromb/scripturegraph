@@ -14,6 +14,7 @@ using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System.Diagnostics;
+using System.DirectoryServices;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -207,11 +208,13 @@ namespace ScriptureGraph.App
             
         }
 
-        private async void SearchTextBox_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+        private void SearchTextBox_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
         {
             string searchQuery = SearchTextBox.Text;
             if (string.IsNullOrWhiteSpace(searchQuery))
             {
+                SearchFlyoutList.Children.Clear();
+                SearchFlyoutList.Visibility = Visibility.Collapsed;
                 return;
             }
 
@@ -219,7 +222,7 @@ namespace ScriptureGraph.App
             _searchBoxCommitter.Commit();
         }
 
-        private async Task UpdateSearchResultsInBackground(IRealTimeProvider realTime)
+        private Task UpdateSearchResultsInBackground(IRealTimeProvider realTime)
         {
             // BACKGROUND THREAD
             List<SearchQueryResult> searchResults = _core.RunSearchQuery(_latestSearchQuery).ToList();
@@ -228,14 +231,24 @@ namespace ScriptureGraph.App
             Dispatcher.Invoke(() =>
             {
                 SearchFlyoutList.Children.Clear();
+                if (searchResults.Count > 0)
+                {
+                    SearchFlyoutList.Visibility = Visibility.Visible;
+                }
+
                 foreach (SearchQueryResult searchResult in searchResults)
                 {
                     _core.CoreLogger.Log($"{searchResult.DisplayName} ({searchResult.EntityType.ToString()}) - {string.Join(",", searchResult.EntityIds.Length)}");
                     StackPanel horizontalPanel = new StackPanel()
                     {
                         Orientation = Orientation.Horizontal,
-                        VerticalAlignment = VerticalAlignment.Center
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Tag = searchResult
                     };
+
+                    horizontalPanel.MouseEnter += SearchFlyoutItem_MouseEnter;
+                    horizontalPanel.MouseLeave += SearchFlyoutItem_MouseLeave;
+                    horizontalPanel.MouseDown += SearchFlyoutItem_MouseDown;
 
                     TextBlock nameBlock = new TextBlock()
                     {
@@ -260,6 +273,8 @@ namespace ScriptureGraph.App
                     SearchFlyoutList.Children.Add(horizontalPanel);
                 }
             });
+
+            return Task.CompletedTask;
         }
 
         private static string ConvertSearchResultTypeToString(SearchResultEntityType entityType)
@@ -283,6 +298,35 @@ namespace ScriptureGraph.App
                 default:
                     return "UNKNOWN_TYPE";
             }
+        }
+
+        private void SearchTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            SearchFlyoutList.Visibility = Visibility.Collapsed; 
+        }
+
+        private void SearchTextBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            SearchFlyoutList.Visibility = SearchFlyoutList.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void SearchFlyoutItem_MouseDown(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            SearchQueryResult selectedSearchResult = (SearchQueryResult)((StackPanel)sender).Tag;
+            _core.CoreLogger.Log("Selected search result " + selectedSearchResult.DisplayName);
+            SearchTextBox.Text = string.Empty;
+            SearchFlyoutList.Children.Clear();
+            SearchFlyoutList.Visibility = Visibility.Collapsed;
+        }
+
+        private void SearchFlyoutItem_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            ((StackPanel)sender).Background = new SolidColorBrush(Color.FromArgb(64, 0, 0, 0));
+        }
+
+        private void SearchFlyoutItem_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            ((StackPanel)sender).Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
         }
     }
 }

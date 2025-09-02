@@ -34,9 +34,11 @@
                         Width="300"
                         FontSize="16"
                         Height="30"
-                        Text="Enter search term here"
                         VerticalAlignment="Center"
-                        TextAlignment="Left" KeyUp="SearchTextBox_KeyUp"></TextBox>
+                        TextAlignment="Left"
+                        KeyUp="SearchTextBox_KeyUp"
+                        LostFocus="SearchTextBox_LostFocus"
+                        GotFocus="SearchTextBox_GotFocus"></TextBox>
                     <Canvas
                         Name="SearchFlyout"
                         Margin="0,30,0,0">
@@ -44,7 +46,7 @@
                             Name="SearchFlyoutList"
                             Orientation="Vertical"
                             Background="AntiqueWhite">
-                            <StackPanel
+                            <!--<StackPanel
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
                                 <TextBlock
@@ -73,7 +75,7 @@
                                     Foreground="Gray"
                                     VerticalAlignment="Center"
                                     Text="Person"></TextBlock>
-                            </StackPanel>
+                            </StackPanel>-->
                         </StackPanel>
                     </Canvas>
                 </Grid>

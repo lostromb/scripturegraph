@@ -597,6 +597,13 @@ namespace ScriptureGraph.Core.Graph
             {
                 BitVector32 thisScopeArray = new BitVector32(scopeIdxNormalized);
                 scopeIdxNormalized = scopeIdxNormalized << 1;
+                if (scopeIdxNormalized == 0x0)
+                {
+                    // if we have more than 32 scopes, just dump everything into the final scope
+                    logger.Log("More than 32 input scopes in search query; some will be combined arbitrarily", LogLevel.Wrn);
+                    scopeIdxNormalized = unchecked((int)0x80000000U);
+                }
+
                 Counter<KnowledgeGraphNodeId> thisScopeActivation = new Counter<KnowledgeGraphNodeId>();
 
                 foreach (var initialActivation in query.GetRoots(scope))
