@@ -83,5 +83,10 @@ namespace ScriptureGraph.Core.Graph
         /// A speaker at conference
         /// </summary>
         ConferenceSpeaker,
+
+        /// <summary>
+        /// A series of N characters in any language
+        /// </summary>
+        CharNGram,
     }
 }

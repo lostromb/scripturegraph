@@ -110,6 +110,52 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
+        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        {
+            try
+            {
+                Match urlParse = UrlPathParser.Match(pageUrl.AbsolutePath);
+                if (!urlParse.Success)
+                {
+                    logger.Log("Failed to parse URL", LogLevel.Err);
+                    return;
+                }
+
+                htmlPage = WebUtility.HtmlDecode(htmlPage);
+                string topicId = urlParse.Groups[1].Value;
+
+                Match titleParse = PrintableTitleParser.Match(htmlPage);
+                if (!titleParse.Success)
+                {
+                    logger.Log("Failed to parse article title", LogLevel.Err);
+                    return;
+                }
+
+                string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
+
+                // Parse the actual correct topic from the page
+                KnowledgeGraphNodeId dictEntryNodeId = FeatureToNodeMapping.BibleDictionaryTopic(topicId);
+
+                do
+                {
+                    // Extract ngrams from the topic title and associate it with the topic
+                    foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(prettyTopicString))
+                    {
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            dictEntryNodeId,
+                            ngram,
+                            TrainingFeatureType.WordDesignation));
+                    }
+
+                    // Also see if comma inversion changes the title. If so, loop and extract those features as well
+                } while (EnglishWordFeatureExtractor.PerformCommaInversion(ref prettyTopicString));
+            }
+            catch (Exception e)
+            {
+                logger.Log(e);
+            }
+        }
+
         public static BibleDictionaryDocument? ParseDocument(string htmlPage, Uri pageUrl, ILogger logger)
         {
             try

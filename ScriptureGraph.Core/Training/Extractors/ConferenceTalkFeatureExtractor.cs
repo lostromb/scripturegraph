@@ -206,6 +206,59 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
+        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        {
+            try
+            {
+                Match urlParse = UrlPathParser.Match(pageUrl.AbsolutePath);
+                if (!urlParse.Success)
+                {
+                    logger.Log("Failed to parse URL", LogLevel.Err);
+                    return;
+                }
+
+                htmlPage = WebUtility.HtmlDecode(htmlPage);
+                int year = int.Parse(urlParse.Groups[1].Value);
+                ConferencePhase phase = int.Parse(urlParse.Groups[2].Value) < 7 ? ConferencePhase.April : ConferencePhase.October;
+                string talkId = urlParse.Groups[3].Value;
+                string talkTitle = StringUtils.RegexRip(PrintableTitleParser, htmlPage, 1, logger);
+                talkTitle = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, talkTitle);
+                string authorFullName = StringUtils.RegexRip(AuthorNameParser, htmlPage, 1, logger);
+                authorFullName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, authorFullName);
+
+                if (!IsValidConferenceTalk(talkTitle, authorFullName))
+                {
+                    return;
+                }
+
+                KnowledgeGraphNodeId entireTalkNode = FeatureToNodeMapping.ConferenceTalk(year, phase, talkId);
+
+                // Extract ngrams from the talk title and associate it with the talk
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(talkTitle))
+                {
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        entireTalkNode,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
+
+                KnowledgeGraphNodeId speakerNode = FeatureToNodeMapping.ConferenceSpeaker(authorFullName);
+
+                // Extract ngrams from the speaker's name and associate it with the speaker
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(authorFullName))
+                {
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        speakerNode,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
+            }
+            catch (Exception e)
+            {
+                logger.Log(e);
+            }
+        }
+
         public static ConferenceTalkDocument? ParseDocument(string htmlPage, Uri pageUrl, ILogger logger)
         {
             try

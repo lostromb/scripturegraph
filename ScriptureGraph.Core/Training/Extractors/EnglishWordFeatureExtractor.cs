@@ -1,4 +1,6 @@
-﻿using Durandal.Common.NLP.Language;
+﻿using Durandal.Common.IO;
+using Durandal.Common.NLP.Language;
+using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
 using System.Text.RegularExpressions;
 
@@ -165,6 +167,79 @@ namespace ScriptureGraph.Core.Training.Extractors
                                 FeatureToNodeMapping.Word(words[startIndex + 2], LanguageCode.ENGLISH),
                                 trigram,
                                 TrainingFeatureType.WordAssociation));
+                        }
+                    }
+                }
+            }
+        }
+
+        // (.+?),\s*(.+?)(?:$|(,\s*.+))
+        private static readonly Regex CommaInverter = new Regex("(.+?),\\s*(.+?)(?:$|(,\\s*.+))");
+
+        /// <summary>
+        /// Given a sentence like "Jesus Christ, Appearances of", invert the comma so it appears first "Appearances of Jesus Christ".
+        /// This attempts to reverse the "librarian's" alphabetical format applies to many articles in TG, BD, etc.
+        /// For sentences with multiple commas, only the first one will be inverted.
+        /// Operates on a string in-place and returns true if the string was changed.
+        /// </summary>
+        /// <param name="sentence"></param>
+        /// <returns></returns>
+        public static bool PerformCommaInversion(ref string sentence)
+        {
+            using (PooledStringBuilder pooledSb = StringBuilderPool.Rent())
+            {
+                Match m = CommaInverter.Match(sentence);
+                if (m.Success)
+                {
+                    pooledSb.Builder.Append(m.Groups[2].Value);
+                    pooledSb.Builder.Append(' ');
+                    pooledSb.Builder.Append(m.Groups[1].Value);
+                    if (m.Groups[3].Success)
+                    {
+                        // There's a second comma. Just append it (this group includes the comma itself
+                        pooledSb.Builder.Append(m.Groups[3].Value);
+                    }
+
+                    sentence = pooledSb.Builder.ToString();
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        public static IEnumerable<KnowledgeGraphNodeId> ExtractCharLevelNGrams(string input)
+        {
+            foreach (string sentence in BreakSentenceLowerCase(input))
+            {
+                foreach (string word in BreakWords(sentence))
+                {
+                    yield return FeatureToNodeMapping.Word(word, LanguageCode.ENGLISH);
+                    foreach (KnowledgeGraphNodeId ngram in ExtractCharLevelNGramsSingleWord(word))
+                    {
+                        yield return ngram;
+                    }
+                }
+            }
+        }
+
+        private static IEnumerable<KnowledgeGraphNodeId> ExtractCharLevelNGramsSingleWord(string singleWord)
+        {
+            int numChars = singleWord.Length + 2;
+            using (PooledBuffer<char> chars = BufferPool<char>.Rent(numChars))
+            {
+                singleWord.CopyTo(0, chars.Buffer, 1, singleWord.Length);
+                chars.Buffer[0] = '[';
+                chars.Buffer[numChars - 1] = ']';
+                for (int startIndex = 0; startIndex < numChars; startIndex++)
+                {
+                    if (startIndex < numChars - 1)
+                    {
+                        yield return FeatureToNodeMapping.CharNGram(chars.Buffer[startIndex], chars.Buffer[startIndex + 1]);
+
+                        if (startIndex < numChars - 2)
+                        {
+                            yield return FeatureToNodeMapping.CharNGram(chars.Buffer[startIndex], chars.Buffer[startIndex + 1], chars.Buffer[startIndex + 2]);
                         }
                     }
                 }

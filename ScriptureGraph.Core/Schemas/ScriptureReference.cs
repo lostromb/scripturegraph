@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
-    internal class ScriptureReference
+    public class ScriptureReference
     {
         public ScriptureReference(string canon, string book, int? chapter = null, int? verse = null)
         {

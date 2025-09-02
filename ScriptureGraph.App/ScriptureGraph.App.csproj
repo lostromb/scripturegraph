@@ -9,6 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Durandal.AI" Version="22.0.4670" />
+    <PackageReference Include="Durandal.AI.Extensions.Compression" Version="22.0.4670" />
+    <PackageReference Include="Durandal.AI.NonPortable" Version="22.0.4670" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ScriptureGraph.Core\ScriptureGraph.Core.csproj" />
   </ItemGroup>
 

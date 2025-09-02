@@ -1,4 +1,7 @@
 ﻿using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Training.Extractors;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training
 {
@@ -250,7 +253,7 @@ namespace ScriptureGraph.Core.Training
             { "esth", "Esther" },
             { "job", "Job" },
             { "ps", "Psalms" },
-            { "prov", "Provers" },
+            { "prov", "Proverbs" },
             { "eccl", "Ecclesiastes" },
             { "song", "Song of Solomon" },
             { "isa", "Isaiah" },
@@ -298,6 +301,7 @@ namespace ScriptureGraph.Core.Training
             { "3-jn", "3 John" },
             { "jude", "Jude" },
             { "rev", "Revelation" },
+            // bom
             { "1-ne", "1 Nephi" },
             { "2-ne", "2 Nephi" },
             { "jacob", "Jacob" },
@@ -376,6 +380,364 @@ namespace ScriptureGraph.Core.Training
         public static int GetNumChaptesInBook(string bookId)
         {
             return BOOK_CHAPTER_LENGTHS[bookId];
+        }
+
+        private static readonly IReadOnlyDictionary<string, string> ENGLISH_BOOK_NAMES = new Dictionary<string, string>
+        {
+            // ot
+            { "genesis", "gen" },
+            { "gen", "gen" },
+            { "exodus", "ex" },
+            { "exo", "ex" },
+            { "leviticus", "lev" },
+            { "lev", "lev" },
+            { "numbers", "num" },
+            { "num", "num" },
+            { "numb", "num" },
+            { "deuteronomy", "deut" },
+            { "deu", "deut" },
+            { "deut", "deut" },
+            { "deuter", "deut" },
+            { "joshua", "josh" },
+            { "josh", "josh" },
+            { "jos", "josh" },
+            { "judges", "judg" },
+            { "jdg", "judg" },
+            { "judg", "judg" },
+            { "ruth", "ruth" },
+            { "rth", "ruth" },
+            { "1 samuel", "1-sam" },
+            { "1st samuel", "1-sam" },
+            { "1 sam", "1-sam" },
+            { "1sam", "1-sam" },
+            { "1st sam", "1-sam" },
+            { "2 samuel", "2-sam" },
+            { "2nd samuel", "2-sam" },
+            { "2 sam", "2-sam" },
+            { "2sam", "2-sam" },
+            { "2nd sam", "2-sam" },
+            { "1 kings", "1-kgs" },
+            { "1 kng", "1-kgs" },
+            { "1kng", "1-kgs" },
+            { "1 kgs", "1-kgs" },
+            { "1kgs", "1-kgs" },
+            { "1st kings", "1-kgs" },
+            { "1st kng", "1-kgs" },
+            { "1st kgs", "1-kgs" },
+            { "2 kings", "2-kgs" },
+            { "2 kng", "2-kgs" },
+            { "2kng", "2-kgs" },
+            { "2 kgs", "2-kgs" },
+            { "2kgs", "2-kgs" },
+            { "2nd kings", "2-kgs" },
+            { "2nd kng", "2-kgs" },
+            { "2nd kgs", "2-kgs" },
+            { "1 chronicles", "1-chr" },
+            { "1 chron", "1-chr" },
+            { "1 chr", "1-chr" },
+            { "1chr", "1-chr" },
+            { "1st chronicles", "1-chr" },
+            { "1st chron", "1-chr" },
+            { "1st chr", "1-chr" },
+            { "2 chronicles", "2-chr" },
+            { "2 chron", "2-chr" },
+            { "2 chr", "2-chr" },
+            { "2chr", "2-chr" },
+            { "2nd chronicles", "2-chr" },
+            { "2nd chron", "2-chr" },
+            { "2nd chr", "2-chr" },
+            { "ezra", "ezra" },
+            { "ezr", "ezra" },
+            { "nehemiah", "neh" },
+            { "neh", "neh" },
+            { "esther", "esth" },
+            { "est", "esth" },
+            { "esth", "esth" },
+            { "job", "job" },
+            { "psalms", "ps" },
+            { "psa", "ps" },
+            { "ps", "ps" },
+            { "proverbs", "prov" },
+            { "prov", "prov" },
+            { "ecclesiastes", "eccl" },
+            { "eccl", "eccl" },
+            { "ecc", "eccl" },
+            { "song of solomon", "song" },
+            { "song", "song" },
+            { "sos", "song" },
+            { "isaiah", "isa" },
+            { "isa", "isa" },
+            { "ish", "isa" },
+            { "jeremiah", "jer" },
+            { "jerem", "jer" },
+            { "jer", "jer" },
+            { "lamentations", "lam" },
+            { "lament", "lam" },
+            { "lam", "lam" },
+            { "ezekiel", "ezek" },
+            { "eze", "ezek" },
+            { "ezk", "ezek" },
+            { "ekl", "ezek" },
+            { "daniel", "dan" },
+            { "dan", "dan" },
+            { "hosea", "hosea" },
+            { "hos", "hosea" },
+            { "joel", "joel" },
+            { "jol", "joel" },
+            { "amos", "amos" },
+            { "obadiah", "obad" },
+            { "obad", "obad" },
+            { "obd", "obad" },
+            { "jonah", "jonah" },
+            { "jon", "jonah" },
+            { "jna", "jonah" },
+            { "jnh", "jonah" },
+            { "micah", "micah" },
+            { "mic", "micah" },
+            { "mch", "micah" },
+            { "nahum", "nahum" },
+            { "nah", "nahum" },
+            { "nhm", "nahum" },
+            { "habakkuk", "hab" },
+            { "hab", "hab" },
+            { "zephaniah", "zeph" },
+            { "zeph", "zeph" },
+            { "zph", "zeph" },
+            { "haggai", "hag" },
+            { "hag", "hag" },
+            { "hgi", "hag" },
+            { "zechariah", "zech" },
+            { "zech", "zech" },
+            { "zch", "zech" },
+            { "malachi", "mal" },
+            { "mal", "mal" },
+            { "mci", "mal" },
+            // nt
+            { "matthew", "matt" },
+            { "matt", "matt" },
+            { "mark", "mark" },
+            { "luke", "luke" },
+            { "john", "john" },
+            { "acts", "acts" },
+            { "romans", "rom" },
+            { "rom", "rom" },
+            { "1 corinthians", "1-cor" },
+            { "1 cor", "1-cor" },
+            { "1cor", "1-cor" },
+            { "1st corinthians", "1-cor" },
+            { "1st cor", "1-cor" },
+            { "2 corinthians", "2-cor" },
+            { "2 cor", "2-cor" },
+            { "2cor", "2-cor" },
+            { "2nd corinthians", "2-cor" },
+            { "2nd cor", "2-cor" },
+            { "galatians", "gal" },
+            { "gal", "gal" },
+            { "ephesians", "eph" },
+            { "eph", "eph" },
+            { "phillipians", "philip" },
+            { "phil", "philip" },
+            { "phi", "philip" },
+            { "colossians", "col" },
+            { "col", "col" },
+            { "1 thesselonians", "1-thes" },
+            { "1 thess", "1-thes" },
+            { "1 thes", "1-thes" },
+            { "1thes", "1-thes" },
+            { "1st thesselonians", "1-thes" },
+            { "1st thess", "1-thes" },
+            { "1st thes", "1-thes" },
+            { "2 thesselonians", "2-thes" },
+            { "2 thess", "2-thes" },
+            { "2 thes", "2-thes" },
+            { "2thes", "2-thes" },
+            { "2nd thesselonians", "2-thes" },
+            { "2nd thess", "2-thes" },
+            { "2nd thes", "2-thes" },
+            { "1 timothy", "1-tim" },
+            { "1st timothy", "1-tim" },
+            { "1 tim", "1-tim" },
+            { "1tim", "1-tim" },
+            { "1st tim", "1-tim" },
+            { "2 timothy", "2-tim" },
+            { "2nd timothy", "2-tim" },
+            { "2 tim", "2-tim" },
+            { "2tim", "2-tim" },
+            { "2nd tim", "2-tim" },
+            { "titus", "titus" },
+            { "tit", "titus" },
+            { "philemon", "philem" },
+            { "plm", "philem" }, // TODO not sure what the actual abbreviation on the tabs of a quad, need to not interfere with "phillipians"
+            { "hebrews", "heb" },
+            { "heb", "heb" },
+            { "james", "james" },
+            { "jas", "james" },
+            { "jms", "james" },
+            { "1 peter", "1-pet" },
+            { "1peter", "1-pet" },
+            { "1 pet", "1-pet" },
+            { "1pet", "1-pet" },
+            { "1st peter", "1-pet" },
+            { "1st pet", "1-pet" },
+            { "2 peter", "2-pet" },
+            { "2peter", "2-pet" },
+            { "2 pet", "2-pet" },
+            { "2pet", "2-pet" },
+            { "2nd peter", "2-pet" },
+            { "2nd pet", "2-pet" },
+            { "1 john", "1-jn" },
+            { "1john", "1-jn" },
+            { "1 jhn", "1-jn" },
+            { "1jhn", "1-jn" },
+            { "1st john", "1-jn" },
+            { "1st jhn", "1-jn" },
+            { "2 john", "2-jn" },
+            { "2john", "2-jn" },
+            { "2 jhn", "2-jn" },
+            { "2jhn", "2-jn" },
+            { "2nd john", "2-jn" },
+            { "2nd jhn", "2-jn" },
+            { "3 john", "3-jn" },
+            { "3john", "3-jn" },
+            { "3 jhn", "3-jn" },
+            { "3jhn", "3-jn" },
+            { "3rd john", "3-jn" },
+            { "3rd jhn", "3-jn" },
+            { "jude", "jude" },
+            { "jud", "jude" },
+            { "revelation", "rev" },
+            { "rev", "rev" },
+            // bom
+            { "1 nephi", "1-ne" },
+            { "1nephi", "1-ne" },
+            { "1 ne", "1-ne" },
+            { "1ne", "1-ne" },
+            { "1st nephi", "1-ne" },
+            { "1st ne", "1-ne" },
+            { "2 nephi", "2-ne" },
+            { "2nephi", "2-ne" },
+            { "2 ne", "2-ne" },
+            { "2ne", "2-ne" },
+            { "2nd nephi", "2-ne" },
+            { "2nd ne", "2-ne" },
+            { "jacob", "jacob" },
+            { "jac", "jacob" },
+            { "enos", "enos" },
+            { "ens", "enos" },
+            { "jarom", "jarom" },
+            { "jrm", "jarom" },
+            { "omni", "omni" },
+            { "omn", "omni" },
+            { "words of mormon", "w-of-m" },
+            { "w-of-m", "w-of-m" },
+            { "mosiah", "mosiah" },
+            { "msh", "mosiah" },
+            { "alma", "alma" },
+            { "alm", "alma" },
+            { "helaman", "hel" },
+            { "hel", "hel" },
+            { "3 nephi", "3-ne" },
+            { "3nephi", "3-ne" },
+            { "3 ne", "3-ne" },
+            { "3ne", "3-ne" },
+            { "3rd nephi", "3-ne" },
+            { "3rd ne", "3-ne" },
+            { "4 nephi", "4-ne" },
+            { "4nephi", "4-ne" },
+            { "4 ne", "4-ne" },
+            { "4ne", "4-ne" },
+            { "4th nephi", "4-ne" },
+            { "4th ne", "4-ne" },
+            { "mormon", "morm" },
+            { "morm", "morm" },
+            { "mmn", "morm" },
+            { "ether", "ether" },
+            { "eth", "ether" },
+            { "moroni", "moro" },
+            { "morn", "moro" },
+            { "mni", "moro" },
+            // dc-testament
+            { "doctrine & covenants", "dc" },
+            { "d & c", "dc" },
+            { "d&c", "dc" },
+            { "d and c", "dc" },
+            { "official declarations", "od" },
+            { "official declaration", "od" },
+            { "declaration", "od" },
+            // pgp
+            { "moses", "moses" },
+            { "mos", "moses" },
+            { "abraham", "abr" },
+            { "abr", "abr" },
+            { "joseph smith - matthew", "js-m" },
+            { "joseph smith matthew", "js-m" },
+            { "js matthew", "js-m" },
+            { "js-m", "js-m" },
+            { "joseph smith - history", "js-h" },
+            { "joseph smith history", "js-h" },
+            { "js history", "js-h" },
+            { "js-h", "js-h" },
+            { "articles of faith", "a-of-f" },
+            { "article of faith", "a-of-f" },
+            { "aof", "a-of-f" },
+            { "aoff", "a-of-f" },
+            { "a-of-f", "a-of-f" },
+        };
+
+        // Baseline: ^\s*(1st nephi|1 ne|moroni|mormon|enos)(?:\s*(\d)\s*(?::\s*(\d))?)?$
+        // group 1 : book name
+        // group 2 (optional) : chapter
+        // group 3 (optional) : verse
+        private static readonly Regex EnglishScriptureRefMatcher;
+
+        static ScriptureMetadata()
+        {
+            bool first = true;
+            StringBuilder regexBuilder = new StringBuilder();
+            regexBuilder.Append("^\\s*(");
+            foreach (string englishBookName in ENGLISH_BOOK_NAMES.Keys)
+            {
+                if (!first)
+                {
+                    regexBuilder.Append('|');
+                }
+
+                regexBuilder.Append(Regex.Escape(englishBookName));
+                regexBuilder.Append("\\.?");
+                first = false;
+            }
+
+            regexBuilder.Append(")(?:\\s*(\\d+)\\s*(?::\\s*(\\d+))?)?$");
+            EnglishScriptureRefMatcher = new Regex(regexBuilder.ToString());
+        }
+
+        /// <summary>
+        /// Given a string like "2nd Peter 1:5", attempt to parse it into a specific scripture reference.
+        /// </summary>
+        /// <param name="reference"></param>
+        /// <returns></returns>
+        public static ScriptureReference? TryParseScriptureReferenceEnglish(string reference)
+        {
+            Match match = EnglishScriptureRefMatcher.Match(reference);
+            if (match.Success)
+            {
+                string bookId = ENGLISH_BOOK_NAMES[match.Groups[1].Value];
+                string canon = BOOK_TO_CANON[bookId];
+                int? chapter = null;
+                if (match.Groups[2].Success)
+                {
+                    chapter = int.Parse(match.Groups[2].Value);
+                }
+
+                int? verse = null;
+                if (match.Groups[3].Success)
+                {
+                    verse = int.Parse(match.Groups[3].Value);
+                }
+
+                return new ScriptureReference(canon, bookId, chapter, verse);
+            }
+            return null;
         }
     }
 }

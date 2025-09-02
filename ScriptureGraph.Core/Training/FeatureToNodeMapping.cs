@@ -93,5 +93,15 @@ namespace ScriptureGraph.Core.Training
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceSpeaker, speakerName.ToLowerInvariant().Replace(".", string.Empty));
         }
+
+        public static KnowledgeGraphNodeId CharNGram(char ch1, char ch2)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.CharNGram, $"{ch1}|{ch2}");
+        }
+
+        public static KnowledgeGraphNodeId CharNGram(char ch1, char ch2, char ch3)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.CharNGram, $"{ch1}{ch2}{ch3}");
+        }
     }
 }
