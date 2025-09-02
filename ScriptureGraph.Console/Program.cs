@@ -2,6 +2,7 @@
 using Durandal.Common.Instrumentation;
 using Durandal.Common.Logger;
 using Durandal.Common.Net.Http;
+using Durandal.Common.NLP.Language;
 using Durandal.Common.Tasks;
 using Durandal.Common.Time;
 using Durandal.Common.Utils.NativePlatform;
@@ -38,7 +39,7 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            await BuildAndTestSearchIndex(logger);
+            await BuildAndTestUniversalGraph(logger);
         }
 
         private static async Task BuildAndTestSearchIndex(ILogger logger)
@@ -66,6 +67,7 @@ namespace ScriptureGraph.Console
                 }
             }
 
+            logger.Log("Ready to query");
             RunSearchQuery("russell m nelson", entitySearchGraph, logger);
             RunSearchQuery("jeffrey", entitySearchGraph, logger);
             RunSearchQuery("fruit that remains", entitySearchGraph, logger);
@@ -88,18 +90,19 @@ namespace ScriptureGraph.Console
         {
             logger.Log("Querying " + queryString);
 
+            Stopwatch timer = Stopwatch.StartNew();
             KnowledgeGraphQuery query = new KnowledgeGraphQuery();
-
             foreach (var feature in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(queryString))
             {
                 query.AddRootNode(feature, 0);
             }
 
-            Stopwatch timer = Stopwatch.StartNew();
             var results = graph.Query(query, logger.Clone("Query"));
             timer.Stop();
+            logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, $"Search time was {0:F3} ms", timer.ElapsedMillisecondsPrecise());
 
             float highestResultScore = 0;
+            int linesRemaining = 10;
             foreach (var result in results)
             {
                 if (result.Key.Type == KnowledgeGraphNodeType.NGram ||
@@ -120,11 +123,16 @@ namespace ScriptureGraph.Console
                     break;
                 }
 
+                if (linesRemaining-- <= 0)
+                {
+                    break;
+                }
+
                 logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value, result.Key.ToString());
             }
         }
 
-        private static async Task BuildUniversalGraph(ILogger logger)
+        private static async Task BuildAndTestUniversalGraph(ILogger logger)
         {
             KnowledgeGraph graph;
 
@@ -150,32 +158,36 @@ namespace ScriptureGraph.Console
             }
 
             int dispLines;
-            //logger.Log("Edge dump");
-            //dispLines = 100;
-            //var edgeEnumerator = graph.Get(FeatureToNodeMapping.NGram("exceedingly", "great", "joy", LanguageCode.ENGLISH)).Edges.GetEnumerator();
-            //while (edgeEnumerator.MoveNext())
-            //{
-            //    if (dispLines-- <= 0)
-            //    {
-            //        break;
-            //    }
-
-            //    KnowledgeGraphEdge edge = edgeEnumerator.Current();
-            //    logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", edge.Mass, edge.Target.ToString());
-            //}
-
-            logger.Log("Querying");
-            KnowledgeGraphQuery query = new KnowledgeGraphQuery();
-
-            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("pure intelligence"))
+            logger.Log("Edge dump");
+            dispLines = 100;
+            KnowledgeGraphNode node;
+            if (graph.TryGet(FeatureToNodeMapping.NGram("exceedingly", "great", "joy", LanguageCode.ENGLISH), out node))
             {
-                query.AddRootNode(feature, 0);
+                var edgeEnumerator = node.Edges.GetEnumerator();
+                while (edgeEnumerator.MoveNext())
+                {
+                    if (dispLines-- <= 0)
+                    {
+                        break;
+                    }
+
+                    KnowledgeGraphEdge edge = edgeEnumerator.Current();
+                    logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", edge.Mass, edge.Target.ToString());
+                }
             }
 
-            //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("plan of redemption"))
+            logger.Log("Ready to query");
+            KnowledgeGraphQuery query = new KnowledgeGraphQuery();
+
+            //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("pure intelligence"))
             //{
             //    query.AddRootNode(feature, 0);
             //}
+
+            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("plan of redemption"))
+            {
+                query.AddRootNode(feature, 0);
+            }
 
             //foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams("quench"))
             //{
@@ -190,10 +202,72 @@ namespace ScriptureGraph.Console
             timer.Stop();
             logger.Log(string.Format("Query finished in {0} ms", timer.ElapsedMillisecondsPrecise()));
 
-            dispLines = 40;
+            dispLines = 50;
             foreach (var result in results)
             {
                 if (dispLines-- <= 0)
+                {
+                    break;
+                }
+
+                logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value, result.Key.ToString());
+            }
+
+
+            while (true)
+            {
+                string? queryString = System.Console.ReadLine();
+                if (string.IsNullOrEmpty(queryString))
+                {
+                    return;
+                }
+
+                RunGraphQuery(queryString, graph, logger);
+            }
+        }
+
+        private static void RunGraphQuery(string queryString, KnowledgeGraph graph, ILogger logger)
+        {
+            logger.Log("Querying " + queryString);
+
+            Stopwatch timer = Stopwatch.StartNew();
+            KnowledgeGraphQuery query = new KnowledgeGraphQuery();
+            foreach (var feature in EnglishWordFeatureExtractor.ExtractNGrams(queryString))
+            {
+                query.AddRootNode(feature, 0);
+            }
+
+            var results = graph.Query(query, logger.Clone("Query"));
+            timer.Stop();
+            logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, $"Search time was {0:F3} ms", timer.ElapsedMillisecondsPrecise());
+
+            float highestResultScore = 0;
+            int linesRemaining = 30;
+            foreach (var result in results)
+            {
+                if (result.Key.Type == KnowledgeGraphNodeType.NGram ||
+                    result.Key.Type == KnowledgeGraphNodeType.CharNGram ||
+                    result.Key.Type == KnowledgeGraphNodeType.Word ||
+                    result.Key.Type == KnowledgeGraphNodeType.GuideToScripturesTopic ||
+                    result.Key.Type == KnowledgeGraphNodeType.TopicalGuideKeyword ||
+                    result.Key.Type == KnowledgeGraphNodeType.TripleIndexTopic ||
+                    result.Key.Type == KnowledgeGraphNodeType.ConferenceSpeaker)
+                {
+                    continue;
+                }
+
+                if (result.Value > highestResultScore)
+                {
+                    // assumes highest scoring result is first
+                    highestResultScore = result.Value;
+                }
+                else if (result.Value < highestResultScore * 0.25f)
+                {
+                    // too low of confidence
+                    break;
+                }
+
+                if (linesRemaining-- <= 0)
                 {
                     break;
                 }
