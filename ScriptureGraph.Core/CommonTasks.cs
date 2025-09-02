@@ -6,6 +6,7 @@ using Durandal.Common.Tasks;
 using Durandal.Common.Time;
 using Durandal.Common.Utils.NativePlatform;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System;
@@ -14,12 +15,133 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using static ScriptureGraph.Core.Training.WebCrawler;
 
 namespace ScriptureGraph.Core
 {
     public static class CommonTasks
     {
+        /// <summary>
+        /// Builds a master entity graph over all data
+        /// </summary>
+        /// <param name="logger"></param>
+        /// <param name="pageCache"></param>
+        /// <returns></returns>
+        public static async Task<KnowledgeGraph> BuildUniversalGraph(ILogger logger, WebPageCache pageCache)
+        {
+            WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
+            KnowledgeGraph entitySearchGraph = new KnowledgeGraph();
+            DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(entitySearchGraph);
+            await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            logger.Log("Waiting for index building to finish");
+            await processor.WaitForThreadsToFinish();
+            return entitySearchGraph;
+        }
+
+        /// <summary>
+        /// Web page processor which extracts all entity features from pages to build a universal index
+        /// </summary>
+        private class DocumentProcessorForFeatureExtraction
+        {
+            private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
+            private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
+            private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
+            private readonly KnowledgeGraph _trainingGraph;
+            private readonly IThreadPool _trainingThreadPool;
+
+            public DocumentProcessorForFeatureExtraction(KnowledgeGraph graph)
+            {
+                _trainingGraph = graph;
+                _trainingThreadPool = new FixedCapacityThreadPool(
+                    new TaskThreadPool(),
+                    NullLogger.Singleton,
+                    NullMetricCollector.Singleton,
+                    DimensionSet.Empty,
+                    "TrainingThreads");
+            }
+
+            public async Task WaitForThreadsToFinish()
+            {
+                do
+                {
+                    // fixme this is jank
+                    await Task.Delay(10000);
+                    await _trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
+                } while (_trainingThreadPool.RunningWorkItems > 0);
+            }
+
+            public Task<bool> ProcessFromWebCrawlerThreaded(WebCrawler.CrawledPage page, ILogger logger)
+            {
+                _trainingThreadPool.EnqueueUserWorkItem(() => ProcessFromWebCrawler(page, logger));
+                return Task.FromResult<bool>(true);
+            }
+
+            public Task<bool> ProcessFromWebCrawler(WebCrawler.CrawledPage page, ILogger logger)
+            {
+                List<TrainingFeature> features = new List<TrainingFeature>(50000);
+                Match match = ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath);
+                if (match.Success)
+                {
+                    logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
+                    ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                }
+                else
+                {
+                    match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
+                    if (match.Success)
+                    {
+                        if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal))
+                        {
+                            logger.Log($"Parsing TG page {page.Url.AbsolutePath}");
+                            TopicalGuideFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                        }
+                        else if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
+                        {
+                            logger.Log($"Parsing BD page {page.Url.AbsolutePath}");
+                            BibleDictionaryFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                        }
+                        else if (string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal))
+                        {
+                            logger.Log($"Parsing GS page {page.Url.AbsolutePath}");
+                            GuideToScripturesFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                        }
+                        else if (string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
+                        {
+                            logger.Log($"Parsing index page {page.Url.AbsolutePath}");
+                            TripleIndexFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                        }
+                    }
+                    else
+                    {
+                        match = ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath);
+                        if (match.Success)
+                        {
+                            logger.Log($"Parsing conference talk {page.Url.AbsolutePath}");
+                            ConferenceTalkFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                        }
+                        else
+                        {
+                            logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                        }
+                    }
+                }
+
+                foreach (var feature in features)
+                {
+                    _trainingGraph.Train(feature);
+                }
+
+                return Task.FromResult<bool>(true);
+            }
+        }
+
+        /// <summary>
+        /// Builds a search index over conference talks and BD topics
+        /// </summary>
+        /// <param name="logger"></param>
+        /// <param name="pageCache"></param>
+        /// <returns></returns>
         public static async Task<KnowledgeGraph> BuildSearchIndex(ILogger logger, WebPageCache pageCache)
         {
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
@@ -27,6 +149,7 @@ namespace ScriptureGraph.Core
             DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph);
             await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            // Todo index other reference pages like TG
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
             return entitySearchGraph;
@@ -112,7 +235,142 @@ namespace ScriptureGraph.Core
             }
         }
 
-        private static async Task CrawlGeneralConference(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        /// <summary>
+        /// Extracts structured documents from web pages to be loaded into a reader
+        /// </summary>
+        /// <param name="logger"></param>
+        /// <param name="pageCache"></param>
+        /// <returns></returns>
+        public static async Task ParseDocuments(ILogger logger, WebPageCache pageCache, IFileSystem documentFileSystem)
+        {
+            WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
+            DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem);
+            await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            logger.Log("Waiting for document parsing to finish");
+            await processor.WaitForThreadsToFinish();
+        }
+
+        /// <summary>
+        /// Web page processor which extracts all entity features from pages to build a universal index
+        /// </summary>
+        private class DocumentProcessorForDocumentParsing
+        {
+            private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
+            private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
+            private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
+            private readonly IThreadPool _trainingThreadPool;
+            private readonly IFileSystem _documentCacheFileSystem;
+
+            public DocumentProcessorForDocumentParsing(IFileSystem documentCacheFileSystem)
+            {
+                _documentCacheFileSystem = documentCacheFileSystem;
+                _trainingThreadPool = new FixedCapacityThreadPool(
+                    new TaskThreadPool(),
+                    NullLogger.Singleton,
+                    NullMetricCollector.Singleton,
+                    DimensionSet.Empty,
+                    "TrainingThreads");
+            }
+
+            public async Task WaitForThreadsToFinish()
+            {
+                do
+                {
+                    // fixme this is jank
+                    await Task.Delay(10000);
+                    await _trainingThreadPool.WaitForCurrentTasksToFinish(CancellationToken.None, DefaultRealTimeProvider.Singleton);
+                } while (_trainingThreadPool.RunningWorkItems > 0);
+            }
+
+            public Task<bool> ProcessFromWebCrawlerThreaded(WebCrawler.CrawledPage page, ILogger logger)
+            {
+                _trainingThreadPool.EnqueueUserWorkItem(() => ProcessFromWebCrawler(page, logger));
+                return Task.FromResult<bool>(true);
+            }
+
+            public Task<bool> ProcessFromWebCrawler(WebCrawler.CrawledPage page, ILogger logger)
+            {
+                VirtualPath fileDestination = VirtualPath.Root;
+                GospelDocument? parsedDoc = null;
+                Match match = ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath);
+                if (match.Success)
+                {
+                    logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
+                    ScriptureChapterDocument? structuredDoc = ScripturePageFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                    parsedDoc = structuredDoc;
+                    if (structuredDoc == null)
+                    {
+                        logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                    }
+                    else
+                    {
+                        fileDestination = new VirtualPath($"{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.json");
+                    }
+                }
+                else
+                {
+                    match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
+                    if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
+                    {
+                        logger.Log($"Parsing BD page {page.Url.AbsolutePath}");
+                        BibleDictionaryDocument? structuredDoc = BibleDictionaryFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                        parsedDoc = structuredDoc;
+                        if (structuredDoc == null)
+                        {
+                            logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                        }
+                        else
+                        {
+                            fileDestination = new VirtualPath($"bd\\{structuredDoc.TopicId}.json");
+                        }
+                    }
+                    else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal) ||
+                        string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal) ||
+                        string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
+                    {
+                    }
+                    else
+                    {
+                        match = ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath);
+                        if (match.Success)
+                        {
+                            logger.Log($"Parsing conference talk {page.Url.AbsolutePath}");
+                            ConferenceTalkDocument? structuredDoc = ConferenceTalkFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                            parsedDoc = structuredDoc;
+                            if (structuredDoc == null)
+                            {
+                                //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                            }
+                            else
+                            {
+                                fileDestination = new VirtualPath($"general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.json");
+                            }
+                        }
+                        else
+                        {
+                            logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                        }
+                    }
+                }
+
+                if (parsedDoc != null)
+                {
+                    _documentCacheFileSystem.CreateDirectory(fileDestination.Container);
+
+                    using (Stream fileOut = _documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                    {
+                        GospelDocument.SerializePolymorphic(fileOut, parsedDoc);
+                    }
+                }
+
+                return Task.FromResult<bool>(true);
+            }
+        }
+
+
+        private static async Task CrawlGeneralConference(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -129,7 +387,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        private static async Task CrawlBookOfMormon(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlBookOfMormon(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -143,7 +401,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        private static async Task CrawlOldTestament(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlOldTestament(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -157,7 +415,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        private static async Task CrawlNewTestament(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlNewTestament(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -171,7 +429,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        private static async Task CrawlDC(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlDC(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -185,7 +443,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        private static async Task CrawlPGP(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlPGP(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -199,7 +457,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        public static async Task CrawlStandardWorks(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        public static async Task CrawlStandardWorks(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             await CrawlBookOfMormon(crawler, pageAction, logger);
             await CrawlOldTestament(crawler, pageAction, logger);
@@ -208,7 +466,7 @@ namespace ScriptureGraph.Core
             await CrawlPGP(crawler, pageAction, logger);
         }
 
-        private static async Task CrawlBibleDictionary(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlBibleDictionary(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -222,7 +480,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        private static async Task CrawlTopicalGuide(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlTopicalGuide(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -236,7 +494,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        private static async Task CrawlTripleIndex(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlTripleIndex(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -250,7 +508,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        private static async Task CrawlGuideToScriptures(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlGuideToScriptures(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
             [
@@ -264,7 +522,7 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        public static async Task CrawlReferenceMaterials(WebCrawler crawler, Func<CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        public static async Task CrawlReferenceMaterials(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             await CrawlTopicalGuide(crawler, pageAction, logger);
             await CrawlTripleIndex(crawler, pageAction, logger);
