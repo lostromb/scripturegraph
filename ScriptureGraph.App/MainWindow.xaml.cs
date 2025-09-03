@@ -16,6 +16,7 @@ using ScriptureGraph.Core.Training.Extractors;
 using System.Diagnostics;
 using System.DirectoryServices;
 using System.IO;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -42,19 +43,6 @@ namespace ScriptureGraph.App
             _core = ((App)Application.Current)._core;
             _searchBoxCommitter = new Committer(UpdateSearchResultsInBackground, DefaultRealTimeProvider.Singleton, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(500));
             _latestSearchQuery = string.Empty;
-        }
-
-        private void TestButton_Click(object sender, RoutedEventArgs e)
-        {
-            //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bofm\alma-32.json", FileMode.Open, FileAccess.Read))
-            //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bd\prayer.json", FileMode.Open, FileAccess.Read))
-            using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\general-conference\2024-04\15dushku.json", FileMode.Open, FileAccess.Read))
-            {
-                ReadingPane2.Document = ConvertDocumentToFlowDocument(GospelDocument.ParsePolymorphic(fileIn));
-            }
-            
-            //TextSelection s = ReadingPane1.Selection;
-            //s.GetHashCode();
         }
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -219,21 +207,57 @@ namespace ScriptureGraph.App
 
                 await Task.Yield();
                 KnowledgeGraphNodeId entityIdToLoad = (KnowledgeGraphNodeId)((FrameworkElement)sender).Tag;
-                _core.CoreLogger.Log("Loading document for entity " + entityIdToLoad);
-                GospelDocument document = await _core.LoadDocument(entityIdToLoad);
-                FlowDocument readerDocument = ConvertDocumentToFlowDocument(document);
-                string readingPaneHeader = ConvertDocumentEidToHeaderString(document);
-
-                Dispatcher.Invoke(() =>
-                {
-                    ReadingPane2.Document = readerDocument;
-                    ReadingPane2Header.Text = readingPaneHeader;
-                });
+                await LoadDocumentForEntity(entityIdToLoad);
             }
             catch (Exception e)
             {
                 _core.CoreLogger.Log(e);
             }
+        }
+
+        private async void NextPrevChapterButton_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                await Task.Yield();
+                KnowledgeGraphNodeId entityIdToLoad = (KnowledgeGraphNodeId)((FrameworkElement)sender).Tag;
+                await LoadDocumentForEntity(entityIdToLoad);
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
+        private async Task LoadDocumentForEntity(KnowledgeGraphNodeId entityIdToLoad)
+        {
+            _core.CoreLogger.Log("Loading document for entity " + entityIdToLoad);
+            GospelDocument document = await _core.LoadDocument(entityIdToLoad);
+            FlowDocument readerDocument = ConvertDocumentToFlowDocument(document);
+            string readingPaneHeader = ConvertDocumentEidToHeaderString(document);
+
+            Dispatcher.Invoke(() =>
+            {
+                ReadingPane2.Document = readerDocument;
+                //ScrollViewer? internalScrollViewer = typeof(FlowDocumentScrollViewer)!.GetProperty("ScrollViewer", BindingFlags.Instance | BindingFlags.GetField | BindingFlags.NonPublic)!.GetValue(ReadingPane2) as ScrollViewer;
+                //internalScrollViewer.ScrollToVerticalOffset();
+                ReadingPane2Header.Text = readingPaneHeader;
+
+                ReadingPane2.UpdateLayout();
+
+                readerDocument.Blocks.FirstBlock?.BringIntoView();
+
+                // If any blocks in the flow document have a tag equal to the thing we searched for, try to scroll to it immediately
+                // This is for things like linking directly to scripture verses or talk paragraphs
+                foreach (var block in readerDocument.Blocks)
+                {
+                    if (block.Tag != null && block.Tag is KnowledgeGraphNodeId paragraphEntity && entityIdToLoad.Equals(paragraphEntity))
+                    {
+                        block.BringIntoView();
+                        break;
+                    }
+                }
+            });
         }
 
         private static string ConvertDocumentEidToHeaderString(GospelDocument document)
@@ -253,7 +277,7 @@ namespace ScriptureGraph.App
             return "UNKNOWN_DOCUMENT";
         }
 
-        private static FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc)
+        private FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc)
         {
             FlowDocument returnVal = new FlowDocument();
             returnVal.Background = new SolidColorBrush(Color.FromRgb(250, 250, 250));
@@ -296,7 +320,7 @@ namespace ScriptureGraph.App
                 if (scriptureChapter.ChapterHeader != null)
                 {
                     Paragraph headerParagraph = new Paragraph();
-                    headerParagraph.Tag = scriptureChapter.ChapterHeader.ParagraphEntityId.Serialize();
+                    headerParagraph.Tag = scriptureChapter.ChapterHeader.ParagraphEntityId;
                     headerParagraph.Inlines.Add(new Italic(new Run(scriptureChapter.ChapterHeader.Text)));
                     returnVal.Blocks.Add(headerParagraph);
                 }
@@ -332,7 +356,7 @@ namespace ScriptureGraph.App
             foreach (GospelParagraph paragraph in inputDoc.Paragraphs)
             {
                 Paragraph uiParagraph = new Paragraph();
-                uiParagraph.Tag = paragraph.ParagraphEntityId.Serialize();
+                uiParagraph.Tag = paragraph.ParagraphEntityId;
                 if (displayVerses)
                 {
                     Floater verseNumFloater = new Floater();
@@ -359,16 +383,35 @@ namespace ScriptureGraph.App
                 if (scriptureChapter.Prev.HasValue || scriptureChapter.Next.HasValue)
                 {
                     UniformGrid grid = new UniformGrid();
-                    grid.Children.Add(new Button()
+
+                    Button prevButton = new Button()
                     {
                         Content = "Previous",
-                        IsEnabled = scriptureChapter.Prev.HasValue
-                    });
-                    grid.Children.Add(new Button()
+                        IsEnabled = scriptureChapter.Prev.HasValue,
+                    };
+
+                    Button nextButton = new Button()
                     {
                         Content = "Next",
                         IsEnabled = scriptureChapter.Next.HasValue
-                    });
+                    };
+
+                    if (scriptureChapter.Prev.HasValue)
+                    {
+                        prevButton.Tag = scriptureChapter.Prev.Value;
+                        prevButton.Click += NextPrevChapterButton_Click;
+                    }
+
+                    if (scriptureChapter.Next.HasValue)
+                    {
+                        nextButton.Tag = scriptureChapter.Next.Value;
+                        nextButton.Click += NextPrevChapterButton_Click;
+                    }
+
+                    nextButton.Click += NextPrevChapterButton_Click;
+
+                    grid.Children.Add(prevButton);
+                    grid.Children.Add(nextButton);
 
                     BlockUIContainer buttonContainer = new BlockUIContainer();
                     buttonContainer.Child = grid;
