@@ -7,10 +7,8 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.App.Schemas
 {
-    internal class SearchQueryResult
+    internal class SlowSearchQueryResult
     {
-        internal required KnowledgeGraphNodeId[] EntityIds;
-        internal SearchResultEntityType EntityType;
-        internal required string DisplayName;
+        internal required KnowledgeGraphNodeId EntityId;
     }
 }

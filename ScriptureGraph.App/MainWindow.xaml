@@ -221,6 +221,31 @@
                         </FlowDocumentScrollViewer>
                     </DockPanel>
                 </Grid>-->
+                <!-- Design time elements -->
+                <!--<Grid Name="SearchResultsContainer">
+                    <DockPanel>
+                        <Grid DockPanel.Dock="Top">
+                            <TextBlock
+                            Background="{DynamicResource ReadingPaneHeaderColor}"
+                            Padding="0,5,0,5"
+                            TextAlignment="Center"
+                            VerticalAlignment="Stretch">
+                            Search Results
+                            </TextBlock>
+                            <Button Content="Close" Padding="5" HorizontalAlignment="Left"></Button>
+                        </Grid>
+                        <ScrollViewer
+                            Name="SearchResultsScroller"
+                            Width="{DynamicResource ReadingPaneWidth}">
+                            <StackPanel Orientation="Vertical">
+                                <FlowDocumentScrollViewer
+                                    VerticalScrollBarVisibility="Disabled"
+                                    HorizontalScrollBarVisibility="Disabled">
+                                </FlowDocumentScrollViewer>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>-->
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

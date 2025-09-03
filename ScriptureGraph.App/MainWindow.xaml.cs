@@ -4,12 +4,15 @@ using ScriptureGraph.App.Schemas;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
+using ScriptureGraph.Core.Training.Extractors;
 using System.DirectoryServices;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace ScriptureGraph.App
@@ -27,6 +30,7 @@ namespace ScriptureGraph.App
 
         private HashSet<Guid> _activeSearchScopes = new HashSet<Guid>();
         private Dictionary<Guid, ReadingPane> _currentReadingPanes = new Dictionary<Guid, ReadingPane>();
+        private UIElement? _currentSearchResultsPane;
 
         public MainWindow()
         {
@@ -38,16 +42,46 @@ namespace ScriptureGraph.App
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            await _core.LoadSearchIndex();
+            await _core.LoadSearchIndexes();
             await _core.LoadDocumentLibrary();
         }
 
-        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        private async void SearchButton_Click(object sender, RoutedEventArgs args)
         {
-            
+            try
+            {
+                await Task.Yield();
+                SlowSearchQuery query = new SlowSearchQuery()
+                {
+                    SearchScopes = new List<KnowledgeGraphNodeId[]>(),
+                    MaxResults = 10
+                };
+
+                List<SlowSearchQueryResult> resultsList = _core.RunSlowSearchQuery(query).ToList();
+                List<KnowledgeGraphNodeId> resultEntityIds = resultsList.Select((s) => s.EntityId).ToList();
+                Grid searchResultsPane = await CreateNewSearchResultsPane(resultEntityIds);
+
+                // UI THREAD
+                Dispatcher.Invoke(() =>
+                {
+                    if (_currentSearchResultsPane != null)
+                    {
+                        BrowseArea.Children.Remove(_currentSearchResultsPane);
+                    }
+
+                    _currentSearchResultsPane = searchResultsPane;
+                    BrowseArea.Children.Add(searchResultsPane);
+                    BrowseArea.UpdateLayout();
+                    searchResultsPane.BringIntoView();
+                });
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
         }
 
-        private void SearchTextBox_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+        private void SearchTextBox_KeyUp(object sender, KeyEventArgs args)
         {
             string searchQuery = SearchTextBox.Text;
             if (string.IsNullOrWhiteSpace(searchQuery))
@@ -64,7 +98,7 @@ namespace ScriptureGraph.App
         private Task UpdateSearchResultsInBackground(IRealTimeProvider realTime)
         {
             // BACKGROUND THREAD
-            List<SearchQueryResult> searchResults = _core.RunSearchQuery(_latestSearchQuery).ToList();
+            List<FastSearchQueryResult> searchResults = _core.RunFastSearchQuery(_latestSearchQuery).ToList();
 
             // UI THREAD
             Dispatcher.Invoke(() =>
@@ -75,7 +109,7 @@ namespace ScriptureGraph.App
                     SearchFlyoutList.Visibility = Visibility.Visible;
                 }
 
-                foreach (SearchQueryResult searchResult in searchResults)
+                foreach (FastSearchQueryResult searchResult in searchResults)
                 {
                     _core.CoreLogger.Log($"{searchResult.DisplayName} ({searchResult.EntityType.ToString()}) - {string.Join(",", searchResult.EntityIds.Length)}");
                     StackPanel horizontalPanel = new StackPanel()
@@ -168,24 +202,41 @@ namespace ScriptureGraph.App
             SearchFlyoutList.Visibility = SearchFlyoutList.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private void SearchFlyoutItem_MouseDown(object sender, System.Windows.Input.MouseEventArgs args)
+        private void SearchFlyoutItem_MouseDown(object sender, MouseEventArgs args)
         {
-            SearchQueryResult selectedSearchResult = (SearchQueryResult)((FrameworkElement)sender).Tag;
-            _core.CoreLogger.Log("Selected search result " + selectedSearchResult.DisplayName);
-            CreateNewSearchScope(selectedSearchResult.EntityType, selectedSearchResult.DisplayName, selectedSearchResult.EntityIds);
-            SearchTextBox.Text = string.Empty;
-            SearchFlyoutList.Children.Clear();
-            SearchFlyoutList.Visibility = Visibility.Collapsed;
+            try
+            {
+                FastSearchQueryResult selectedSearchResult = (FastSearchQueryResult)((FrameworkElement)sender).Tag;
+                _core.CoreLogger.Log("Selected search result " + selectedSearchResult.DisplayName);
+                CloseSearchResultsIfPresent();
+                CreateNewSearchScope(selectedSearchResult.EntityType, selectedSearchResult.DisplayName, selectedSearchResult.EntityIds);
+                SearchTextBox.Text = string.Empty;
+                SearchFlyoutList.Children.Clear();
+                SearchFlyoutList.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
         }
 
-        private void SearchFlyoutItem_MouseEnter(object sender, System.Windows.Input.MouseEventArgs args)
+        private void SearchFlyoutItem_MouseEnter(object sender, MouseEventArgs args)
         {
             ((StackPanel)sender).Background = new SolidColorBrush(Color.FromArgb(64, 0, 0, 0));
         }
 
-        private void SearchFlyoutItem_MouseLeave(object sender, System.Windows.Input.MouseEventArgs args)
+        private void SearchFlyoutItem_MouseLeave(object sender, MouseEventArgs args)
         {
             ((StackPanel)sender).Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+        }
+
+        private void CloseSearchResultsIfPresent()
+        {
+            if (_currentSearchResultsPane != null)
+            {
+                BrowseArea.Children.Remove(_currentSearchResultsPane);
+                _currentSearchResultsPane = null;
+            }
         }
 
         private async void SearchFlyoutLoadButton_Click(object sender, RoutedEventArgs args)
@@ -195,9 +246,10 @@ namespace ScriptureGraph.App
                 SearchTextBox.Text = string.Empty;
                 SearchFlyoutList.Children.Clear();
                 SearchFlyoutList.Visibility = Visibility.Collapsed;
+                CloseSearchResultsIfPresent();
 
                 await Task.Yield();
-                SearchQueryResult searchResultForThisLineItem = (SearchQueryResult)((FrameworkElement)sender).Tag;
+                FastSearchQueryResult searchResultForThisLineItem = (FastSearchQueryResult)((FrameworkElement)sender).Tag;
                 await LoadDocumentForEntity(searchResultForThisLineItem.EntityIds.First((id) => _core.DoesDocumentExist(id)));
                 CreateNewSearchScope(searchResultForThisLineItem.EntityType, searchResultForThisLineItem.DisplayName, searchResultForThisLineItem.EntityIds);
             }
@@ -276,16 +328,90 @@ namespace ScriptureGraph.App
             };
         }
 
+        private async Task<Grid> CreateNewSearchResultsPane(IList<KnowledgeGraphNodeId> searchResultEntities)
+        {
+            //<Grid Name="ReadingPaneContainer1">
+            //        <DockPanel>
+            //            <Grid DockPanel.Dock="Top">
+            //                <TextBlock
+            //                    Background="{DynamicResource ReadingPaneHeaderColor}"
+            //                    Padding="0,5,0,5"
+            //                    TextAlignment="Center"
+            //                    VerticalAlignment="Stretch">
+            //                    Search Results
+            //                </TextBlock>
+            //                <Button Content="Close" Padding="5" HorizontalAlignment="Left"></Button>
+            //            </Grid>
+                        //<ScrollViewer
+                        //    Name="SearchResultsScroller"
+                        //    Width="{DynamicResource ReadingPaneWidth}">
+                        //    <StackPanel Orientation="Vertical">
+                        //        <FlowDocumentScrollViewer
+                        //            VerticalScrollBarVisibility="Disabled"
+                        //            HorizontalScrollBarVisibility="Disabled">
+                        //        </FlowDocumentScrollViewer>
+                        //    </StackPanel>
+                        //</ScrollViewer>
+            //        </DockPanel>
+            //    </Grid>
+
+            Guid panelId = Guid.NewGuid();
+            Grid resultsPaneContainer = new Grid();
+            DockPanel resultsPaneDocker = new DockPanel();
+            Grid headerGrid = new Grid();
+            DockPanel.SetDock(headerGrid, Dock.Top);
+            TextBlock header = new TextBlock();
+            header.Background = (Brush)TryFindResource("ReadingPaneHeaderColor");
+            header.Padding = new Thickness(0, 5, 0, 5);
+            header.TextAlignment = TextAlignment.Center;
+            header.VerticalAlignment = VerticalAlignment.Stretch;
+            header.Text = "Search Results";
+            //Button closeButton = new Button();
+            //closeButton.Content = "Close";
+            //closeButton.Padding = new Thickness(5);
+            //closeButton.HorizontalAlignment = HorizontalAlignment.Left;
+            //closeButton.Tag = panelId;
+            //closeButton.Click += ClosePanelButton_Click;
+
+            ScrollViewer searchResultsScroller = new ScrollViewer();
+            searchResultsScroller.Width = (double)TryFindResource("ReadingPaneWidth");
+
+            StackPanel searchResultsStacker = new StackPanel();
+            searchResultsStacker.Orientation = Orientation.Vertical;
+
+            // Stack the search results in here...
+            foreach (var resultEntity in searchResultEntities)
+            {
+                FlowDocumentScrollViewer searchResultPreviewViewer = new FlowDocumentScrollViewer()
+                {
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                };
+
+                searchResultPreviewViewer.Document = await ConvertSearchResultIntoFlowDocument(resultEntity);
+                searchResultsStacker.Children.Add(searchResultPreviewViewer);
+            }
+
+            resultsPaneContainer.Children.Add(resultsPaneDocker);
+            resultsPaneDocker.Children.Add(headerGrid);
+            headerGrid.Children.Add(header);
+            //headerGrid.Children.Add(closeButton);
+            resultsPaneDocker.Children.Add(searchResultsScroller);
+            searchResultsScroller.Content = searchResultsStacker;
+
+            return resultsPaneContainer;
+        }
+
         private async Task LoadDocumentForEntity(KnowledgeGraphNodeId entityIdToLoad)
         {
             _core.CoreLogger.Log("Loading document for entity " + entityIdToLoad);
             GospelDocument document = await _core.LoadDocument(entityIdToLoad);
             FlowDocument readerDocument = ConvertDocumentToFlowDocument(document);
             string readingPaneHeader = ConvertDocumentEidToHeaderString(document);
+            ReadingPane newUiPanels = CreateNewReadingPane();
 
             Dispatcher.Invoke(() =>
             {
-                ReadingPane newUiPanels = CreateNewReadingPane();
                 BrowseArea.Children.Add(newUiPanels.Container);
                 _currentReadingPanes[newUiPanels.PanelId] = newUiPanels;
                 BrowseArea.UpdateLayout();
@@ -346,6 +472,7 @@ namespace ScriptureGraph.App
                 Guid scopeToRemove = (Guid)((FrameworkElement)elementToRemove).Tag;
                 _activeSearchScopes.Remove(scopeToRemove);
                 ActiveSearchScopes.Children.Remove(elementToRemove);
+                CloseSearchResultsIfPresent();
 
                 // TODO remove it from the core
             }
@@ -602,6 +729,113 @@ namespace ScriptureGraph.App
             }
 
             return returnVal;
+        }
+
+        private FlowDocument ConvertScriptureVerseResultIntoFlowDocument(KnowledgeGraphNodeId scriptureVerse, ScriptureChapterDocument chapter)
+        {
+            FontFamily bodyParaFont = (FontFamily)TryFindResource("SerifFontFamily");
+            Thickness bodyParaMargin = (Thickness)TryFindResource("ScriptureParagraphMargin");
+            double titleFontSize = (double)TryFindResource("TitleFontSize");
+            Thickness titleMargin = (Thickness)TryFindResource("TitleMargin");
+            double subtitleFontSize = (double)TryFindResource("SubtitleFontSize");
+            Thickness subtitleMargin = (Thickness)TryFindResource("SubtitleMargin");
+            double bodyParaFontSize = (double)TryFindResource("VerseFontSize");
+            double verseNumFontSize = (double)TryFindResource("VerseNumFontSize");
+            Thickness verseNumMargin = (Thickness)TryFindResource("VerseNumMargin");
+
+            ScriptureReference parsedRef = new ScriptureReference(scriptureVerse);
+            if (!parsedRef.Verse.HasValue)
+            {
+                throw new Exception("Scripture reference has no verse data " + scriptureVerse.ToString());
+            }
+
+            if (parsedRef.Verse.Value - 1 >= chapter.Paragraphs.Count )
+            {
+                throw new Exception("Verse reference to invalid verse " + scriptureVerse.ToString());
+            }
+
+            FlowDocument returnVal = new FlowDocument();
+            returnVal.Background = (Brush)TryFindResource("DocumentReaderPageBackground");
+            returnVal.FontFamily = bodyParaFont;
+            returnVal.FontSize = bodyParaFontSize;
+            Section section = new Section();
+            Paragraph uiParagraph = new Paragraph();
+            uiParagraph.Margin = bodyParaMargin;
+            uiParagraph.TextAlignment = TextAlignment.Justify;
+
+            Floater verseNumFloater = new Floater();
+            verseNumFloater.Padding = new Thickness(0);
+            verseNumFloater.HorizontalAlignment = HorizontalAlignment.Left;
+            verseNumFloater.FontSize = verseNumFontSize;
+            verseNumFloater.Margin = verseNumMargin;
+            Paragraph numPara = new Paragraph();
+            numPara.Inlines.Add(parsedRef.Verse.Value.ToString());
+            verseNumFloater.Blocks.Add(numPara);
+            uiParagraph.Inlines.Add(verseNumFloater);
+            uiParagraph.Inlines.Add(chapter.Paragraphs[parsedRef.Verse.Value - 1].Text);
+            section.Blocks.Add(uiParagraph);
+            returnVal.Blocks.Add(section);
+            returnVal.Tag = scriptureVerse;
+            returnVal.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+            returnVal.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+            returnVal.MouseDown += SearchResultPreviewDocument_Click;
+            return returnVal;
+        }
+
+        private async Task<FlowDocument?> ConvertSearchResultIntoFlowDocument(KnowledgeGraphNodeId searchResult)
+        {
+            if (searchResult.Type == KnowledgeGraphNodeType.ScriptureVerse)
+            {
+                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
+                if (scriptureChapter is ScriptureChapterDocument scriptureDoc)
+                {
+                    return ConvertScriptureVerseResultIntoFlowDocument(searchResult, scriptureDoc);
+                }
+                else
+                {
+                    throw new Exception("Invalid loaded document type: expected ScriptureChapterDocument");
+                }
+            }
+            else
+            {
+                FlowDocument returnVal = new FlowDocument();
+                Section section = new Section();
+                Paragraph paragraph = new Paragraph();
+                paragraph.TextAlignment = TextAlignment.Center;
+                paragraph.Inlines.Add(searchResult.ToString());
+                section.Blocks.Add(paragraph);
+                returnVal.Blocks.Add(section);
+                returnVal.Tag = searchResult;
+                returnVal.Background = (Brush)TryFindResource("DocumentReaderPageBackground");
+                returnVal.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                returnVal.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                returnVal.MouseDown += SearchResultPreviewDocument_Click;
+                return returnVal;
+            }
+        }
+
+        private void SearchResultPreviewDocument_MouseEnter(object sender, MouseEventArgs args)
+        {
+            ((FlowDocument)sender).Background = new SolidColorBrush(Color.FromArgb(255, 200, 200, 200));
+        }
+
+        private void SearchResultPreviewDocument_MouseLeave(object sender, MouseEventArgs args)
+        {
+            ((FlowDocument)sender).Background = (Brush)TryFindResource("DocumentReaderPageBackground");
+        }
+
+        private async void SearchResultPreviewDocument_Click(object sender, MouseButtonEventArgs args)
+        {
+            try
+            {
+                CloseSearchResultsIfPresent();
+                KnowledgeGraphNodeId entityIdToLoad = (KnowledgeGraphNodeId)((FlowDocument)sender).Tag;
+                await LoadDocumentForEntity(entityIdToLoad);
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
         }
     }
 }

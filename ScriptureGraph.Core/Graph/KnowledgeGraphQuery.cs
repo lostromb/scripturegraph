@@ -34,7 +34,7 @@ namespace ScriptureGraph.Core.Graph
             }
         }
 
-        private float _minActivation = 0.00001f;
+        private float _minActivation = 0.0001f;
 
         public float MinActivation
         {

@@ -24,8 +24,9 @@ namespace ScriptureGraph.App
         private readonly ILogger _coreLogger;
         private readonly IFileSystem _fileSystem;
         private Dictionary<KnowledgeGraphNodeId, VirtualPath> _documentLibrary;
-        private KnowledgeGraph? _searchIndexGraph;
-        private EntityNameIndex? _searchNameIndex;
+        private KnowledgeGraph? _smallSearchIndex;
+        private EntityNameIndex? _entityNameLookup;
+        private KnowledgeGraph? _largeSearchIndex;
 
         public ILogger CoreLogger => _coreLogger;
 
@@ -36,29 +37,46 @@ namespace ScriptureGraph.App
             _documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>();
         }
 
-        public async Task LoadSearchIndex()
+        public async Task LoadSearchIndexes()
         {
             await Task.Yield();
 
-            VirtualPath graphFileName = new VirtualPath("searchindex.graph");
-            VirtualPath indexFileName = new VirtualPath("entitynames_eng.map");
+            VirtualPath smallGraphFileName = new VirtualPath("searchindex.graph");
+            VirtualPath nameLookupFileName = new VirtualPath("entitynames_eng.map");
+            VirtualPath largeGraphFileName = new VirtualPath("scriptures.graph");
 
-            if (!(await _fileSystem.ExistsAsync(graphFileName)))
+            if (!(await _fileSystem.ExistsAsync(smallGraphFileName)))
             {
-                throw new Exception("Can't find search index file");
+                throw new Exception("Can't find small search graph file");
             }
 
-            if (!(await _fileSystem.ExistsAsync(indexFileName)))
+            if (!(await _fileSystem.ExistsAsync(nameLookupFileName)))
             {
                 throw new Exception("Can't find name index file");
             }
 
-            using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(graphFileName, FileOpenMode.Open, FileAccessMode.Read))
-            using (Stream searchIndexIn = await _fileSystem.OpenStreamAsync(indexFileName, FileOpenMode.Open, FileAccessMode.Read))
+            if (!(await _fileSystem.ExistsAsync(largeGraphFileName)))
             {
-                _searchIndexGraph = KnowledgeGraph.Load(searchGraphIn);
-                _searchNameIndex = EntityNameIndex.Deserialize(searchIndexIn);
+                throw new Exception("Can't find main search graph file");
             }
+
+            using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(smallGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
+            {
+                _coreLogger.Log("Loading small search index");
+                _smallSearchIndex = KnowledgeGraph.Load(searchGraphIn);
+            }
+
+            using (Stream searchIndexIn = await _fileSystem.OpenStreamAsync(nameLookupFileName, FileOpenMode.Open, FileAccessMode.Read))
+            {
+                _coreLogger.Log("Loading name lookup index");
+                _entityNameLookup = EntityNameIndex.Deserialize(searchIndexIn);
+            }
+
+            //using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
+            //{
+            //    _coreLogger.Log("Loading large search index");
+            //    _largeSearchIndex = KnowledgeGraph.Load(searchGraphIn);
+            //}
         }
 
         public bool DoesDocumentExist(KnowledgeGraphNodeId entityId)
@@ -68,16 +86,25 @@ namespace ScriptureGraph.App
 
         private KnowledgeGraphNodeId MapEntityIdToDocument(KnowledgeGraphNodeId entityId)
         {
-            // Map individual verses to chapters
             if (entityId.Type == KnowledgeGraphNodeType.ScriptureVerse)
             {
+                // Map individual verses to chapters
                 return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
             }
-
-            // Do the same with books -> chapter 1
             else if (entityId.Type == KnowledgeGraphNodeType.ScriptureBook)
             {
+                // Do the same with books -> chapter 1
                 return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter, entityId.Name + "|1");
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph)
+            {
+                // Map BD paragraph -> topic
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionaryTopic, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.ConferenceTalkParagraph)
+            {
+                // Map GC talk paragraph -> talk
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalk, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
             }
 
             return entityId;
@@ -167,16 +194,89 @@ namespace ScriptureGraph.App
             }
         }
 
-        public IEnumerable<SearchQueryResult> RunSearchQuery(string queryString, int maxResults = 10)
+        public IEnumerable<SlowSearchQueryResult> RunSlowSearchQuery(SlowSearchQuery query)
         {
-            yield return new SearchQueryResult()
+            _coreLogger.Log("Fake querying graph");
+            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.ScriptureVerse("bofm", "ether", 12, 27) };
+            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.BibleDictionaryTopic("bishop") };
+            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.ConferenceTalkParagraph(2023, ConferencePhase.October, "26choi", 4) };
+            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.BibleDictionaryParagraph("bible", 8) };
+            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.ConferenceTalk(2021, ConferencePhase.April, "12uchtdorf") };
+        }
+
+        public IEnumerable<SlowSearchQueryResult> RunSlowSearchQueryActual(SlowSearchQuery query)
+        {
+            if (_largeSearchIndex == null)
+            {
+                _coreLogger.Log("Search index is not loaded", LogLevel.Err);
+                yield break;
+            }
+
+            _coreLogger.Log("Querying big graph");
+
+            Stopwatch timer = Stopwatch.StartNew();
+            KnowledgeGraphQuery internalQuery = new KnowledgeGraphQuery();
+            int scopeId = 0;
+            foreach (var queryScope in query.SearchScopes)
+            {
+                foreach (KnowledgeGraphNodeId nodeInScope in queryScope)
+                {
+                    internalQuery.AddRootNode(nodeInScope, scopeId);
+                }
+
+                scopeId++;
+            }
+
+            var results = _largeSearchIndex.Query(internalQuery, _coreLogger.Clone("Query"));
+            timer.Stop();
+            _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, $"Search time was {0:F3} ms", timer.ElapsedMillisecondsPrecise());
+
+            float highestResultScore = 0;
+            int maxResults = query.MaxResults;
+            foreach (var result in results)
+            {
+                if (result.Key.Type == KnowledgeGraphNodeType.NGram ||
+                    result.Key.Type == KnowledgeGraphNodeType.CharNGram ||
+                    result.Key.Type == KnowledgeGraphNodeType.Word)
+                {
+                    continue;
+                }
+
+                // TODO apply filters and stuff
+
+                if (result.Value > highestResultScore)
+                {
+                    // assumes highest scoring result is first
+                    highestResultScore = result.Value;
+                }
+                else if (result.Value < highestResultScore * 0.25f)
+                {
+                    // too low of confidence
+                    break;
+                }
+
+                if (maxResults-- <= 0)
+                {
+                    break;
+                }
+
+                yield return new SlowSearchQueryResult()
+                {
+                    EntityId = result.Key
+                };
+            }
+        }
+
+        public IEnumerable<FastSearchQueryResult> RunFastSearchQuery(string queryString, int maxResults = 10)
+        {
+            yield return new FastSearchQueryResult()
             {
                 EntityIds = Array.Empty<KnowledgeGraphNodeId>() ,
                 EntityType = SearchResultEntityType.KeywordPhrase,
                 DisplayName = queryString
             };
 
-            if (_searchIndexGraph == null || _searchNameIndex == null)
+            if (_smallSearchIndex == null || _entityNameLookup == null)
             {
                 _coreLogger.Log("Search index is not loaded", LogLevel.Err);
                 yield break;
@@ -190,7 +290,7 @@ namespace ScriptureGraph.App
                 string formattedBookName = ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book);
                 if (parsedRef.Chapter.HasValue && parsedRef.Verse.HasValue)
                 {
-                    yield return new SearchQueryResult()
+                    yield return new FastSearchQueryResult()
                     {
                         EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureVerse(parsedRef.Canon, parsedRef.Book, parsedRef.Chapter.Value, parsedRef.Verse.Value) },
                         EntityType = SearchResultEntityType.ScriptureVerse,
@@ -199,7 +299,7 @@ namespace ScriptureGraph.App
                 }
                 else if (parsedRef.Chapter.HasValue && !parsedRef.Verse.HasValue)
                 {
-                    yield return new SearchQueryResult()
+                    yield return new FastSearchQueryResult()
                     {
                         EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureChapter(parsedRef.Canon, parsedRef.Book, parsedRef.Chapter.Value) },
                         EntityType = SearchResultEntityType.ScriptureChapter,
@@ -208,7 +308,7 @@ namespace ScriptureGraph.App
                 }
                 else
                 {
-                    yield return new SearchQueryResult()
+                    yield return new FastSearchQueryResult()
                     {
                         EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureBook(parsedRef.Canon, parsedRef.Book) },
                         EntityType = SearchResultEntityType.ScriptureBook,
@@ -228,31 +328,31 @@ namespace ScriptureGraph.App
                 query.AddRootNode(feature, 0);
             }
 
-            var results = _searchIndexGraph.Query(query, _coreLogger.Clone("Query"));
+            var results = _smallSearchIndex.Query(query, _coreLogger.Clone("Query"));
             timer.Stop();
             _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, $"Search time was {0:F3} ms", timer.ElapsedMillisecondsPrecise());
 
             Dictionary<string, List<KnowledgeGraphNodeId>> sameNameMappings = new Dictionary<string, List<KnowledgeGraphNodeId>>();
             foreach (var result in results)
             {
-                if (result.Key.Type == KnowledgeGraphNodeType.NGram ||
-                    result.Key.Type == KnowledgeGraphNodeType.CharNGram ||
-                    result.Key.Type == KnowledgeGraphNodeType.Word)
+                if (result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph ||
+                    result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryTopic ||
+                    result.Key.Type == KnowledgeGraphNodeType.GuideToScripturesTopic ||
+                    result.Key.Type == KnowledgeGraphNodeType.TripleIndexTopic ||
+                    result.Key.Type == KnowledgeGraphNodeType.TopicalGuideKeyword)
                 {
-                    continue;
-                }
-
-                string? prettyName;
-                if (_searchNameIndex.Mapping.TryGetValue(result.Key, out prettyName))
-                {
-                    List<KnowledgeGraphNodeId>? entityList;
-                    if (!sameNameMappings.TryGetValue(prettyName, out entityList))
+                    string? prettyName;
+                    if (_entityNameLookup.Mapping.TryGetValue(result.Key, out prettyName))
                     {
-                        entityList = new List<KnowledgeGraphNodeId>();
-                        sameNameMappings[prettyName] = entityList;
-                    }
+                        List<KnowledgeGraphNodeId>? entityList;
+                        if (!sameNameMappings.TryGetValue(prettyName, out entityList))
+                        {
+                            entityList = new List<KnowledgeGraphNodeId>();
+                            sameNameMappings[prettyName] = entityList;
+                        }
 
-                    entityList.Add(result.Key);
+                        entityList.Add(result.Key);
+                    }
                 }
             }
 
@@ -279,7 +379,7 @@ namespace ScriptureGraph.App
                 }
 
                 string? prettyName;
-                if (!_searchNameIndex.Mapping.TryGetValue(result.Key, out prettyName))
+                if (!_entityNameLookup.Mapping.TryGetValue(result.Key, out prettyName))
                 {
                     prettyName = "UNKNOWN_NAME";
                 }
@@ -301,7 +401,7 @@ namespace ScriptureGraph.App
                     // This is intended for things like "TG: Locust, BD: Locust, GS: Locust", where instead
                     // of displaying multiple options with the same name, we expose one "meta-option"
                     // that contains all of the entity references internally
-                    yield return new SearchQueryResult()
+                    yield return new FastSearchQueryResult()
                     {
                         EntityIds = nodeMappings.ToArray(),
                         DisplayName = prettyName,
@@ -312,7 +412,7 @@ namespace ScriptureGraph.App
                 }
                 else
                 {
-                    yield return new SearchQueryResult()
+                    yield return new FastSearchQueryResult()
                     {
                         EntityIds = new KnowledgeGraphNodeId[] { result.Key },
                         DisplayName = prettyName,

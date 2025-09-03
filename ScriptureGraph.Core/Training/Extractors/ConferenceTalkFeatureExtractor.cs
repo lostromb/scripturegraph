@@ -11,6 +11,9 @@ using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
+    // TODO look at talks like https://www.churchofjesuschrist.org/study/general-conference/2023/10/26choi?lang=eng
+    // which refer in footnotes to a lot of other talks. We should be able to parse these
+    // <a class="" href="/study/general-conference/2002/10/models-to-follow?lang=eng&amp;id=p17#p17" data-scroll-id="note4">Models to Follow</a>
     public class ConferenceTalkFeatureExtractor
     {
         private static readonly Regex UrlPathParser = new Regex("\\/study\\/general-conference\\/(\\d+)\\/(\\d+)\\/(.+?)(?:\\?|$)");
