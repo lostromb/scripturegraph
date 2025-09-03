@@ -247,6 +247,7 @@ namespace ScriptureGraph.App
                 ReadingPane2.UpdateLayout();
                 readerDocument.Blocks.LastBlock?.BringIntoView();
                 ReadingPane2.UpdateLayout();
+                bool focusedOnParagraph = false;
 
                 // If any blocks in the flow document have a tag equal to the thing we searched for, try to scroll to it immediately
                 // This is for things like linking directly to scripture verses or talk paragraphs
@@ -256,8 +257,15 @@ namespace ScriptureGraph.App
                     {
                         block.Background = new SolidColorBrush(Color.FromArgb(32, 0, 255, 255));
                         block.BringIntoView();
+                        focusedOnParagraph = true;
                         break;
                     }
+                }
+
+                if (!focusedOnParagraph)
+                {
+                    readerDocument.Blocks.FirstBlock?.BringIntoView();
+                    ReadingPane2.UpdateLayout();
                 }
             });
         }
@@ -275,35 +283,59 @@ namespace ScriptureGraph.App
                 case GospelDocumentType.ScriptureChapter:
                     ScriptureChapterDocument scriptureDocument = (ScriptureChapterDocument)document;
                     return $"{ScriptureMetadata.GetEnglishNameForCanon(scriptureDocument.Canon)} - {ScriptureMetadata.GetEnglishNameForBook(scriptureDocument.Book)} - {scriptureDocument.Chapter}";
+                default:
+                    return "UNKNOWN_DOCUMENT";
             }
-            return "UNKNOWN_DOCUMENT";
         }
 
         private FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc)
         {
             FlowDocument returnVal = new FlowDocument();
-            returnVal.Background = new SolidColorBrush(Color.FromRgb(250, 250, 250));
-            bool displayVerses = false;
-
             ScriptureChapterDocument? scriptureChapter = inputDoc as ScriptureChapterDocument;
             BibleDictionaryDocument? bibleDictEntry = inputDoc as BibleDictionaryDocument;
             ConferenceTalkDocument? confTalkEntry = inputDoc as ConferenceTalkDocument;
+
+            FontFamily bodyParaFont = (FontFamily)TryFindResource("SerifFontFamily");
+            Thickness bodyParaMargin = (Thickness)TryFindResource("DefaultParagraphMargin");
+            double titleFontSize = (double)TryFindResource("TitleFontSize");
+            Thickness titleMargin = (Thickness)TryFindResource("TitleMargin");
+            double subtitleFontSize = (double)TryFindResource("SubtitleFontSize");
+            Thickness subtitleMargin = (Thickness)TryFindResource("SubtitleMargin");
+            double bodyParaFontSize = (double)TryFindResource("VerseFontSize");
+            double verseNumFontSize = (double)TryFindResource("VerseNumFontSize");
+            Thickness verseNumMargin = (Thickness)TryFindResource("VerseNumMargin");
+            bool displayVerses = false;
+
+            // Determine what styles we need to use
+            if (inputDoc is ScriptureChapterDocument)
+            {
+                bodyParaMargin = (Thickness)TryFindResource("ScriptureParagraphMargin");
+                displayVerses = true;
+            }
+
+
+            returnVal.Background = (Brush)TryFindResource("DocumentReaderPageBackground");
+            returnVal.FontFamily = bodyParaFont;
+            returnVal.FontSize = bodyParaFontSize;
 
             // Build header
             if (scriptureChapter != null)
             {
                 Section headerSection = new Section();
-                displayVerses = true;
 
                 Paragraph bookTitle = new Paragraph();
                 bookTitle.TextAlignment = TextAlignment.Center;
+                bookTitle.Margin = titleMargin;
+                bookTitle.FontSize = titleFontSize;
                 bookTitle.Inlines.Add(ScriptureMetadata.GetEnglishNameForBook(scriptureChapter.Book));
                 headerSection.Blocks.Add(bookTitle);
 
-                if (ScriptureMetadata.GetNumChaptesInBook(scriptureChapter.Book) > 1)
+                if (ScriptureMetadata.GetNumChaptersInBook(scriptureChapter.Book) > 1)
                 {
                     Paragraph chapterNum = new Paragraph();
                     chapterNum.TextAlignment = TextAlignment.Center;
+                    chapterNum.Margin = subtitleMargin;
+                    chapterNum.FontSize = subtitleFontSize;
                     if (string.Equals(scriptureChapter.Book, "dc", StringComparison.Ordinal))
                     {
                         chapterNum.Inlines.Add($"Section {scriptureChapter.Chapter}");
@@ -323,6 +355,8 @@ namespace ScriptureGraph.App
                 {
                     Paragraph headerParagraph = new Paragraph();
                     headerParagraph.Tag = scriptureChapter.ChapterHeader.ParagraphEntityId;
+                    headerParagraph.Margin = bodyParaMargin;
+                    headerParagraph.TextAlignment = TextAlignment.Justify;
                     headerParagraph.Inlines.Add(new Italic(new Run(scriptureChapter.ChapterHeader.Text)));
                     returnVal.Blocks.Add(headerParagraph);
                 }
@@ -331,6 +365,8 @@ namespace ScriptureGraph.App
             {
                 Section headerSection = new Section();
                 Paragraph bookTitle = new Paragraph();
+                bookTitle.Margin = titleMargin;
+                bookTitle.FontSize = titleFontSize;
                 bookTitle.TextAlignment = TextAlignment.Center;
                 bookTitle.Inlines.Add(bibleDictEntry.Title);
                 headerSection.Blocks.Add(bookTitle);
@@ -342,12 +378,16 @@ namespace ScriptureGraph.App
 
                 Paragraph talkTitle = new Paragraph();
                 talkTitle.TextAlignment = TextAlignment.Center;
+                talkTitle.Margin = titleMargin;
+                talkTitle.FontSize = titleFontSize;
                 talkTitle.Inlines.Add(confTalkEntry.Title);
                 headerSection.Blocks.Add(talkTitle);
 
                 Paragraph talkSpeaker = new Paragraph();
                 talkSpeaker.TextAlignment = TextAlignment.Center;
                 talkSpeaker.Inlines.Add(confTalkEntry.Speaker);
+                talkSpeaker.Margin = subtitleMargin;
+                talkSpeaker.FontSize = subtitleFontSize;
                 headerSection.Blocks.Add(talkSpeaker);
 
                 returnVal.Blocks.Add(headerSection);
@@ -359,14 +399,21 @@ namespace ScriptureGraph.App
             {
                 Paragraph uiParagraph = new Paragraph();
                 uiParagraph.Tag = paragraph.ParagraphEntityId;
+
+                uiParagraph.Margin = bodyParaMargin;
+                uiParagraph.TextAlignment = TextAlignment.Justify;
+
                 if (displayVerses)
                 {
                     Floater verseNumFloater = new Floater();
                     verseNumFloater.Padding = new Thickness(0);
-                    verseNumFloater.Margin = new Thickness(0);
                     verseNumFloater.HorizontalAlignment = HorizontalAlignment.Left;
+                    verseNumFloater.FontSize = verseNumFontSize;
+                    verseNumFloater.Margin = verseNumMargin;
+                    verseNumFloater.Tag = paragraph.ParagraphEntityId;
                     Paragraph numPara = new Paragraph();
                     numPara.Inlines.Add(para.ToString());
+                    numPara.Tag = paragraph.ParagraphEntityId;
                     verseNumFloater.Blocks.Add(numPara);
                     uiParagraph.Inlines.Add(verseNumFloater);
                     para++;

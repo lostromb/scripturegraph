@@ -8,12 +8,18 @@
         Title="MainWindow" Height="497" Width="907"
     xmlns:System="clr-namespace:System;assembly=System.Runtime" Loaded="Window_Loaded">
     <Window.Resources>
-        <FontFamily x:Key="VerseFontFamily">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
+        <FontFamily x:Key="SerifFontFamily">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
         <System:Double x:Key="VerseFontSize">16</System:Double>
+        <System:Double x:Key="TitleFontSize">32</System:Double>
+        <Thickness x:Key="TitleMargin">0,0,0,0</Thickness>
+        <System:Double x:Key="SubtitleFontSize">18</System:Double>
+        <Thickness x:Key="SubtitleMargin">0,0,0,10</Thickness>
         <System:Double x:Key="VerseNumFontSize">12</System:Double>
-        <Thickness x:Key="VerseParagraphMargin">10,0,10,0</Thickness>
+        <Thickness x:Key="DefaultParagraphMargin">10,0,10,20</Thickness>
+        <Thickness x:Key="ScriptureParagraphMargin">10,0,10,5</Thickness>
         <SolidColorBrush x:Key="DocumentReaderPageBackground" Color="#FFF2F2F2"/>
         <Thickness x:Key="VerseNumMargin">0,0,5,0</Thickness>
+        <System:Double x:Key="ReadingPaneWidth">500</System:Double>
     </Window.Resources>
     <DockPanel Name="ViewRoot" Background="#FFC23A3A" Margin="0,0,10,20">
         <DockPanel
@@ -45,7 +51,7 @@
                         Name="SearchFlyoutList"
                         Orientation="Vertical"
                         Background="AntiqueWhite">
-                            <StackPanel
+                            <!--<StackPanel
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
                                 <Button
@@ -79,7 +85,7 @@
                                 Foreground="Gray"
                                 VerticalAlignment="Center"
                                 Text="Person"></TextBlock>
-                            </StackPanel>
+                            </StackPanel>-->
                         </StackPanel>
                     </Canvas>
                 </Grid>
@@ -195,7 +201,7 @@
             HorizontalScrollBarVisibility="Auto"
             VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal" Name="BrowseArea" DockPanel.Dock="Bottom" >
-                <Grid Width="400">
+                <Grid>
                     <TextBlock
                         Height="24"
                         VerticalAlignment="Top"
@@ -205,22 +211,29 @@
                     </TextBlock>
                     <FlowDocumentScrollViewer
                         Name="ReadingPane1"
-                        Margin="0,24,0,0">
+                        Margin="0,24,0,0"
+                        Width="{DynamicResource ReadingPaneWidth}">
                         <FlowDocument
                             Background="{DynamicResource DocumentReaderPageBackground}">
                             <Section>
-                                <Paragraph FontSize="18" TextAlignment="Center">
+                                <Paragraph
+                                    FontSize="{DynamicResource TitleFontSize}"
+                                    Margin="{DynamicResource TitleMargin}"
+                                    TextAlignment="Center">
                                     Isaiah
                                 </Paragraph>
-                                <Paragraph FontSize="16" TextAlignment="Center">
+                                <Paragraph
+                                    FontSize="{DynamicResource SubtitleFontSize}"
+                                    Margin="{DynamicResource SubtitleMargin}"
+                                    TextAlignment="Center">
                                     Chapter 42
                                 </Paragraph>
                             </Section>
                             <Section
                                 TextAlignment="Justify"
-                                FontFamily="{DynamicResource VerseFontFamily}"
+                                FontFamily="{DynamicResource SerifFontFamily}"
                                 FontSize="{DynamicResource VerseFontSize}"
-                                Margin="{DynamicResource VerseParagraphMargin}">
+                                Margin="{DynamicResource ScriptureParagraphMargin}">
 
                                 <Paragraph Tag="ot-isa-42-0" >
                                     <Italic>Isaiah speaks about the Messiah—The Lord will bring His law and His justice, be a light to the Gentiles, and free the prisoners—Praise the Lord.</Italic>
@@ -254,7 +267,7 @@
                         </FlowDocument>
                     </FlowDocumentScrollViewer>
                 </Grid>
-                <Grid Width="400">
+                <Grid>
                     <TextBlock
                         Height="24"
                         Panel.ZIndex="1"
@@ -266,14 +279,15 @@
                     </TextBlock>
                     <FlowDocumentScrollViewer
                         Name="ReadingPane2"
-                        Margin="0,24,0,0">
+                        Margin="0,24,0,0"
+                        Width="{DynamicResource ReadingPaneWidth}">
 
                     </FlowDocumentScrollViewer>
                 </Grid>
                 <StackPanel
-                    Orientation="Vertical" 
-                    Width="400">
-                    <FlowDocumentScrollViewer Name="ReadingPane3" Width="400" >
+                    Orientation="Vertical">
+                    <FlowDocumentScrollViewer Name="ReadingPane3"
+                        Width="{DynamicResource ReadingPaneWidth}">
 
                     </FlowDocumentScrollViewer>
                 </StackPanel>

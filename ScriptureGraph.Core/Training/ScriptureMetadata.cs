@@ -417,7 +417,7 @@ namespace ScriptureGraph.Core.Training
             }
         }
 
-        public static int GetNumChaptesInBook(string bookId)
+        public static int GetNumChaptersInBook(string bookId)
         {
             return BOOK_CHAPTER_LENGTHS[bookId];
         }
