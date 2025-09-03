@@ -122,7 +122,12 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
                 prettyTopicString = StringUtils.RegexRemove(SuperscriptNumberRemover, prettyTopicString); // remove all numbers - this is to handle things like "aaron2"
-                nameIndex.Mapping[thisNode] = prettyTopicString;
+
+                // remove the clarifier after the title (if any), such as "brother of Moses"
+                string topicStringWithoutClarification = StringUtils.RegexRemove(EmDashRemover, prettyTopicString);
+
+                // Include the clarifier in the full title (for search retrieval) only if it's not terribly long. see "Large Plates of Nephi" for an example of this
+                nameIndex.Mapping[thisNode] = prettyTopicString.Length > 40 ? topicStringWithoutClarification : prettyTopicString;
 
                 prettyTopicString = StringUtils.RegexRemove(BracketRemover, prettyTopicString); // remove "[verb]", "[noun]" etc from titles
                 foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(prettyTopicString))
@@ -132,10 +137,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                         ngram,
                         TrainingFeatureType.WordDesignation));
                 }
-
-
-                // remove the clarifier after the title (if any), such as "brother of Moses"
-                string topicStringWithoutClarification = StringUtils.RegexRemove(EmDashRemover, prettyTopicString);
 
                 // This comma inversion loop is different from normal since we already extracted non-inversion features in the loop above,
                 // so this only runs if there is a possible inversion in just the short article title, such as "Ammon, Children of"

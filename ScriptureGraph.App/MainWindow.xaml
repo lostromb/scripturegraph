@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ScriptureGraph.App"
         mc:Ignorable="d"
-        Title="MainWindow" Height="469" Width="795"
+        Title="MainWindow" Height="497" Width="907"
     xmlns:System="clr-namespace:System;assembly=System.Runtime" Loaded="Window_Loaded">
     <Window.Resources>
         <FontFamily x:Key="VerseFontFamily">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
@@ -15,20 +15,18 @@
         <SolidColorBrush x:Key="DocumentReaderPageBackground" Color="#FFF2F2F2"/>
         <Thickness x:Key="VerseNumMargin">0,0,5,0</Thickness>
     </Window.Resources>
-    <DockPanel Name="ViewRoot" Background="#FFC23A3A">
+    <DockPanel Name="ViewRoot" Background="#FFC23A3A" Margin="0,0,10,20">
         <DockPanel
             Name="Ribbon"
             DockPanel.Dock="Top"
             Background="#FF48972B"
             Panel.ZIndex="50">
+
             <StackPanel Orientation="Horizontal" Height="50">
-                <Button
-                    Name="TestButton"
-                    Content="Whatups"
-                    Click="TestButton_Click"></Button>
                 <Grid Name="SearchBoxAndFlyoutGrid"
-                      Height="30"
-                      Margin="20,0,20,0">
+                    Height="30"
+                    Margin="20,0,20,0"
+                    Panel.ZIndex="60">
                     <TextBox
                         Name="SearchTextBox"
                         Width="300"
@@ -37,54 +35,60 @@
                         VerticalAlignment="Center"
                         TextAlignment="Left"
                         KeyUp="SearchTextBox_KeyUp"
+                        GotFocus="SearchTextBox_GotFocus"
                         LostFocus="SearchTextBox_LostFocus"
-                        GotFocus="SearchTextBox_GotFocus"></TextBox>
+                        ></TextBox>
                     <Canvas
-                        Name="SearchFlyout"
-                        Margin="0,30,0,0">
+                    Name="SearchFlyout"
+                    Margin="0,30,0,0">
                         <StackPanel
-                            Name="SearchFlyoutList"
-                            Orientation="Vertical"
-                            Background="AntiqueWhite">
-                            <!--<StackPanel
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center">
+                        Name="SearchFlyoutList"
+                        Orientation="Vertical"
+                        Background="AntiqueWhite">
+                            <StackPanel
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                                <Button
+                                Margin="0"
+                                Padding="5,10,5,10"
+                                FontSize="16"
+                                VerticalAlignment="Center">Read</Button>
                                 <TextBlock
-                                    Margin="10"
-                                    FontSize="16"
-                                    VerticalAlignment="Center"
-                                    Text="russell m nelson"></TextBlock>
+                                Margin="10"
+                                FontSize="16"
+                                VerticalAlignment="Center"
+                                Text="russell m nelson"></TextBlock>
                                 <TextBlock
-                                    Margin="10"
-                                    FontSize="14"
-                                    Foreground="Gray"
-                                    VerticalAlignment="Center"
-                                    Text="Search Phrase"></TextBlock>
+                                Margin="10"
+                                FontSize="14"
+                                Foreground="Gray"
+                                VerticalAlignment="Center"
+                                Text="Search Phrase"></TextBlock>
                             </StackPanel>
                             <StackPanel
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center">
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
                                 <TextBlock
-                                    Margin="10"
-                                    FontSize="16"
-                                    VerticalAlignment="Center"
-                                    Text="Russell M. Nelson"></TextBlock>
+                                Margin="10"
+                                FontSize="16"
+                                VerticalAlignment="Center"
+                                Text="Russell M. Nelson and also this is really wide wow"></TextBlock>
                                 <TextBlock
-                                    Margin="10"
-                                    FontSize="14"
-                                    Foreground="Gray"
-                                    VerticalAlignment="Center"
-                                    Text="Person"></TextBlock>
-                            </StackPanel>-->
+                                Margin="10"
+                                FontSize="14"
+                                Foreground="Gray"
+                                VerticalAlignment="Center"
+                                Text="Person"></TextBlock>
+                            </StackPanel>
                         </StackPanel>
                     </Canvas>
                 </Grid>
                 <Button
-                    Name="SearchButton"
-                    Content="Search" Click="SearchButton_Click"></Button>
+                Name="SearchButton"
+                Content="Search" Click="SearchButton_Click"></Button>
                 <Button
-                    Name="BrowseButton"
-                    Content="Browse"></Button>
+                Name="BrowseButton"
+                Content="Browse"></Button>
                 <DockPanel Background="Aquamarine">
                     <DockPanel DockPanel.Dock="Top" Background="LightSalmon">
                         <TextBlock
@@ -109,6 +113,81 @@
                         Padding="5"
                         DockPanel.Dock="Bottom"
                         Text="Russell M. Nelson"></TextBlock>
+                </DockPanel>
+                <DockPanel Background="Aquamarine">
+                    <DockPanel DockPanel.Dock="Top" Background="LightSalmon">
+                        <TextBlock
+            Padding="0"
+            Margin="0"
+            Foreground="Gray"
+            Background="Honeydew"
+            Text="Person"
+            HorizontalAlignment="Left">
+                        </TextBlock>
+                        <Button
+            DockPanel.Dock="Right"
+            Width="20"
+            Height="20" 
+            Padding="0"
+            Margin="0"
+            Content="X"
+            HorizontalAlignment="Right">
+                        </Button>
+                    </DockPanel>
+                    <TextBlock
+        Padding="5"
+        DockPanel.Dock="Bottom"
+        Text="Russell M. Nelson"></TextBlock>
+                </DockPanel>
+                <DockPanel Background="Aquamarine">
+                    <DockPanel DockPanel.Dock="Top" Background="LightSalmon">
+                        <TextBlock
+            Padding="0"
+            Margin="0"
+            Foreground="Gray"
+            Background="Honeydew"
+            Text="Person"
+            HorizontalAlignment="Left">
+                        </TextBlock>
+                        <Button
+            DockPanel.Dock="Right"
+            Width="20"
+            Height="20" 
+            Padding="0"
+            Margin="0"
+            Content="X"
+            HorizontalAlignment="Right">
+                        </Button>
+                    </DockPanel>
+                    <TextBlock
+        Padding="5"
+        DockPanel.Dock="Bottom"
+        Text="Russell M. Nelson"></TextBlock>
+                </DockPanel>
+                <DockPanel Background="Aquamarine">
+                    <DockPanel DockPanel.Dock="Top" Background="LightSalmon">
+                        <TextBlock
+            Padding="0"
+            Margin="0"
+            Foreground="Gray"
+            Background="Honeydew"
+            Text="Person"
+            HorizontalAlignment="Left">
+                        </TextBlock>
+                        <Button
+            DockPanel.Dock="Right"
+            Width="20"
+            Height="20" 
+            Padding="0"
+            Margin="0"
+            Content="X"
+            HorizontalAlignment="Right">
+                        </Button>
+                    </DockPanel>
+                    <TextBlock
+        Padding="5"
+        DockPanel.Dock="Bottom"
+        Text="Russell M. Nelson"></TextBlock>
                 </DockPanel>
             </StackPanel>
         </DockPanel>
@@ -181,7 +260,8 @@
                         Panel.ZIndex="1"
                         VerticalAlignment="Top"
                         Background="#FFD1BF49"
-                        TextAlignment="Center">
+                        TextAlignment="Center"
+                        Name="ReadingPane2Header">
                         Book of Mormon / Alma / Chapter 36
                     </TextBlock>
                     <FlowDocumentScrollViewer

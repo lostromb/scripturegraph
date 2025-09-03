@@ -20,7 +20,7 @@ namespace ScriptureGraph.Tests
             reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("stone cold 3:16");
             Assert.IsNull(reference);
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("1 ne 3:5");
+            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("1 Nephi 3:5");
             Assert.IsNotNull(reference);
             Assert.AreEqual("bofm", reference.Canon);
             Assert.AreEqual("1-ne", reference.Book);
@@ -48,14 +48,14 @@ namespace ScriptureGraph.Tests
             Assert.AreEqual(-1, reference.Chapter.GetValueOrDefault(-1));
             Assert.AreEqual(-1, reference.Verse.GetValueOrDefault(-1));
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("genesis 39");
+            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("Genesis 39");
             Assert.IsNotNull(reference);
             Assert.AreEqual("ot", reference.Canon);
             Assert.AreEqual("gen", reference.Book);
             Assert.AreEqual(39, reference.Chapter.GetValueOrDefault(-1));
             Assert.AreEqual(-1, reference.Verse.GetValueOrDefault(-1));
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("d&c 110:12");
+            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("D&C 110:12");
             Assert.IsNotNull(reference);
             Assert.AreEqual("dc-testament", reference.Canon);
             Assert.AreEqual("dc", reference.Book);

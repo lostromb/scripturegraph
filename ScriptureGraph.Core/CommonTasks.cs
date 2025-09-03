@@ -26,17 +26,15 @@ namespace ScriptureGraph.Core
         /// <param name="logger"></param>
         /// <param name="pageCache"></param>
         /// <returns></returns>
-        public static async Task<KnowledgeGraph> BuildUniversalGraph(ILogger logger, WebPageCache pageCache)
+        public static async Task BuildUniversalGraph(ILogger logger, KnowledgeGraph startGraph, WebPageCache pageCache)
         {
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
-            KnowledgeGraph entitySearchGraph = new KnowledgeGraph();
-            DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(entitySearchGraph);
+            DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(startGraph);
             await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
-            return entitySearchGraph;
         }
 
         /// <summary>

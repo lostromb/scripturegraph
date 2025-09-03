@@ -41,7 +41,7 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            await BuildAndTestSearchIndex(logger);
+            await BuildAndTestUniversalGraph(logger);
         }
 
         private static async Task Test(ILogger logger)
@@ -57,12 +57,10 @@ namespace ScriptureGraph.Console
                 {
                     graph = KnowledgeGraph.Load(testGraphIn);
                 }
-            }
-            else
-            {
+
                 IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
                 WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-                graph = await CommonTasks.BuildUniversalGraph(logger, pageCache);
+                await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
                 using (FileStream testGraphOut = new FileStream(outModelFileName, FileMode.Create, FileAccess.Write))
                 {
                     graph.Save(testGraphOut);
@@ -171,7 +169,7 @@ namespace ScriptureGraph.Console
         {
             KnowledgeGraph graph;
 
-            string modelFileName = @"D:\Code\scripturegraph\runtime\scriptures.graph";
+            string modelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
 
             if (File.Exists(modelFileName))
             {
@@ -185,7 +183,8 @@ namespace ScriptureGraph.Console
             {
                 IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
                 WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-                graph = await CommonTasks.BuildUniversalGraph(logger, pageCache);
+                graph = new KnowledgeGraph();
+                await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
                 using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
                 {
                     graph.Save(testGraphOut);

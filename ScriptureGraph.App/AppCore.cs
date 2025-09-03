@@ -1,6 +1,8 @@
-﻿using Durandal.Common.Logger;
+﻿using Durandal.Common.File;
+using Durandal.Common.Logger;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
+using Org.BouncyCastle.Crypto;
 using ScriptureGraph.App.Schemas;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
@@ -12,13 +14,16 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace ScriptureGraph.App
 {
     internal class AppCore
     {
-        private ILogger _coreLogger;
+        private readonly ILogger _coreLogger;
+        private readonly IFileSystem _fileSystem;
+        private Dictionary<KnowledgeGraphNodeId, VirtualPath> _documentLibrary;
         private KnowledgeGraph? _searchIndexGraph;
         private EntityNameIndex? _searchNameIndex;
 
@@ -27,13 +32,141 @@ namespace ScriptureGraph.App
         public AppCore()
         {
             _coreLogger = new TraceLogger("GraphApp");
+            _fileSystem = new RealFileSystem(_coreLogger.Clone("FileSystem"), @"D:\Code\scripturegraph\runtime");
+            _documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>();
         }
 
-        public async Task LoadSearchIndex(Stream searchIndexStream, Stream nameIndexStream)
+        public async Task LoadSearchIndex()
         {
             await Task.Yield();
-            _searchIndexGraph = KnowledgeGraph.Load(searchIndexStream);
-            _searchNameIndex = EntityNameIndex.Deserialize(nameIndexStream);
+
+            VirtualPath graphFileName = new VirtualPath("searchindex.graph");
+            VirtualPath indexFileName = new VirtualPath("entitynames_eng.map");
+
+            if (!(await _fileSystem.ExistsAsync(graphFileName)))
+            {
+                throw new Exception("Can't find search index file");
+            }
+
+            if (!(await _fileSystem.ExistsAsync(indexFileName)))
+            {
+                throw new Exception("Can't find name index file");
+            }
+
+            using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(graphFileName, FileOpenMode.Open, FileAccessMode.Read))
+            using (Stream searchIndexIn = await _fileSystem.OpenStreamAsync(indexFileName, FileOpenMode.Open, FileAccessMode.Read))
+            {
+                _searchIndexGraph = KnowledgeGraph.Load(searchGraphIn);
+                _searchNameIndex = EntityNameIndex.Deserialize(searchIndexIn);
+            }
+        }
+
+        public bool DoesDocumentExist(KnowledgeGraphNodeId entityId)
+        {
+            return DoesDocumentExistWithAugmentation(entityId, out _);
+        }
+
+        private bool DoesDocumentExistWithAugmentation(KnowledgeGraphNodeId entityId, out KnowledgeGraphNodeId actualId)
+        {
+            if (_documentLibrary.ContainsKey(entityId))
+            {
+                actualId = entityId;
+                return true;
+            }
+
+            // Map individual verses to chapters
+            if (entityId.Type == KnowledgeGraphNodeType.ScriptureVerse)
+            {
+                actualId = new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+                return _documentLibrary.ContainsKey(actualId);
+            }
+
+            actualId = entityId;
+            return false;
+        }
+
+        public async Task<GospelDocument> LoadDocument(KnowledgeGraphNodeId entityId)
+        {
+            KnowledgeGraphNodeId actualEntityId;
+            if (!DoesDocumentExistWithAugmentation(entityId, out actualEntityId))
+            {
+                throw new FileNotFoundException("Could not load document for entity " + entityId);
+            }
+
+            VirtualPath filePath = _documentLibrary[actualEntityId];
+            using (Stream docFileIn = await _fileSystem.OpenStreamAsync(filePath, FileOpenMode.Open, FileAccessMode.Read))
+            {
+                return GospelDocument.ParsePolymorphic(docFileIn);
+            }
+        }
+
+        public async Task LoadDocumentLibrary()
+        {
+            await Task.Yield();
+
+            VirtualPath indexFile = new VirtualPath("documents_index.json");
+            VirtualPath documentRoot = new VirtualPath("documents");
+
+            if (!(await _fileSystem.ExistsAsync(documentRoot)))
+            {
+                _coreLogger.Log("Could not find any structured documents", LogLevel.Err);
+                return;
+            }
+
+            if (await _fileSystem.ExistsAsync(indexFile))
+            {
+                // Load cached file
+                _coreLogger.Log("Loading cached document index");
+                using (Stream cacheIn = await _fileSystem.OpenStreamAsync(indexFile, FileOpenMode.Open, FileAccessMode.Read))
+                {
+                    Dictionary<string, string> plainDict = JsonSerializer.Deserialize<Dictionary<string, string>>(cacheIn)!;
+                    Dictionary<KnowledgeGraphNodeId, VirtualPath> documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>(plainDict.Select((s) =>
+                    {
+                        return new KeyValuePair<KnowledgeGraphNodeId, VirtualPath>(KnowledgeGraphNodeId.Deserialize(s.Key), new VirtualPath(s.Value));
+                    }));
+
+                    _documentLibrary = documentLibrary;
+                    _coreLogger.Log("Cached document index loaded");
+                }
+            }
+            else
+            {
+                _coreLogger.Log("Building a new document index. THIS IS SLOW!!!");
+                Dictionary<KnowledgeGraphNodeId, VirtualPath> documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>();
+                await CrawlDocumentsRecursive(documentRoot, documentLibrary);
+                _documentLibrary = documentLibrary;
+
+                Dictionary<string, string> ids = new Dictionary<string, string>(documentLibrary.Select((s) =>
+                {
+                    return new KeyValuePair<string, string>(s.Key.Serialize(), s.Value.FullName);
+                }));
+
+                using (Stream cacheOut = await _fileSystem.OpenStreamAsync(indexFile, FileOpenMode.Create, FileAccessMode.Write))
+                using (Utf8JsonWriter writer = new Utf8JsonWriter(cacheOut))
+                {
+                    JsonSerializer.Serialize(writer, ids);
+                }
+
+                _coreLogger.Log("Cached document index created");
+            }
+        }
+
+        private async Task CrawlDocumentsRecursive(VirtualPath root, Dictionary<KnowledgeGraphNodeId, VirtualPath> documentLibrary)
+        {
+            foreach (VirtualPath file in await _fileSystem.ListFilesAsync(root))
+            {
+                _coreLogger.Log("Indexing document " + file);
+                using (Stream docFileIn = await _fileSystem.OpenStreamAsync(file, FileOpenMode.Open, FileAccessMode.Read))
+                {
+                    GospelDocumentMeta metadata = GospelDocumentMeta.ParseHeader(docFileIn);
+                    documentLibrary[metadata.DocumentEntityId] = file;
+                }
+            }
+
+            foreach (VirtualPath directory in await _fileSystem.ListDirectoriesAsync(root))
+            {
+                await CrawlDocumentsRecursive(directory, documentLibrary);
+            }
         }
 
         public IEnumerable<SearchQueryResult> RunSearchQuery(string queryString, int maxResults = 10)

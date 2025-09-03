@@ -286,8 +286,8 @@ namespace ScriptureGraph.Core.Training
             { "eph", "Ephesians" },
             { "philip", "Phillipians" },
             { "col", "Colossians" },
-            { "1-thes", "1 Thesselonians" },
-            { "2-thes", "2 Thesselonians" },
+            { "1-thes", "1 Thessalonians" },
+            { "2-thes", "2 Thessalonians" },
             { "1-tim", "1 Timothy" },
             { "2-tim", "2 Timothy" },
             { "titus", "Titus" },
@@ -377,12 +377,52 @@ namespace ScriptureGraph.Core.Training
             return BOOK_TO_ENGLISH_NAME[bookId];
         }
 
+        public static string GetEnglishNameForCanon(string canon)
+        {
+            if (string.Equals(canon, "ot", StringComparison.Ordinal))
+            {
+                return "Old Testament";
+            }
+            else if (string.Equals(canon, "nt", StringComparison.Ordinal))
+            {
+                return "New Testament";
+            }
+            else if (string.Equals(canon, "bofm", StringComparison.Ordinal))
+            {
+                return "Book of Mormon";
+            }
+            else if (string.Equals(canon, "dc-testament", StringComparison.Ordinal))
+            {
+                return "D & C";
+            }
+            else if (string.Equals(canon, "pgp", StringComparison.Ordinal))
+            {
+                return "Pearl of Great Price";
+            }
+            else if (string.Equals(canon, "bd", StringComparison.Ordinal))
+            {
+                return "Bible Dictionary";
+            }
+            else if (string.Equals(canon, "gs", StringComparison.Ordinal))
+            {
+                return "Guide to the Scriptures";
+            }
+            else if (string.Equals(canon, "triple-index", StringComparison.Ordinal))
+            {
+                return "Index";
+            }
+            else
+            {
+                throw new FormatException("Unknown canon " + canon);
+            }
+        }
+
         public static int GetNumChaptesInBook(string bookId)
         {
             return BOOK_CHAPTER_LENGTHS[bookId];
         }
 
-        private static readonly IReadOnlyDictionary<string, string> ENGLISH_BOOK_NAMES = new Dictionary<string, string>
+        private static readonly IReadOnlyDictionary<string, string> ENGLISH_BOOK_NAMES = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             // ot
             { "genesis", "gen" },
@@ -540,18 +580,18 @@ namespace ScriptureGraph.Core.Training
             { "phi", "philip" },
             { "colossians", "col" },
             { "col", "col" },
-            { "1 thesselonians", "1-thes" },
+            { "1 thessalonians", "1-thes" },
             { "1 thess", "1-thes" },
             { "1 thes", "1-thes" },
             { "1thes", "1-thes" },
-            { "1st thesselonians", "1-thes" },
+            { "1st thessalonians", "1-thes" },
             { "1st thess", "1-thes" },
             { "1st thes", "1-thes" },
-            { "2 thesselonians", "2-thes" },
+            { "2 thessalonians", "2-thes" },
             { "2 thess", "2-thes" },
             { "2 thes", "2-thes" },
             { "2thes", "2-thes" },
-            { "2nd thesselonians", "2-thes" },
+            { "2nd thessalonians", "2-thes" },
             { "2nd thess", "2-thes" },
             { "2nd thes", "2-thes" },
             { "1 timothy", "1-tim" },
@@ -708,7 +748,7 @@ namespace ScriptureGraph.Core.Training
             }
 
             regexBuilder.Append(")(?:\\s*(\\d+)\\s*(?::\\s*(\\d+))?)?$");
-            EnglishScriptureRefMatcher = new Regex(regexBuilder.ToString());
+            EnglishScriptureRefMatcher = new Regex(regexBuilder.ToString(), RegexOptions.IgnoreCase);
         }
 
         /// <summary>
@@ -719,9 +759,9 @@ namespace ScriptureGraph.Core.Training
         public static ScriptureReference? TryParseScriptureReferenceEnglish(string reference)
         {
             Match match = EnglishScriptureRefMatcher.Match(reference);
-            if (match.Success)
+            string? bookId;
+            if (match.Success && ENGLISH_BOOK_NAMES.TryGetValue(match.Groups[1].Value, out bookId))
             {
-                string bookId = ENGLISH_BOOK_NAMES[match.Groups[1].Value];
                 string canon = BOOK_TO_CANON[bookId];
                 int? chapter = null;
                 if (match.Groups[2].Success)
@@ -747,6 +787,7 @@ namespace ScriptureGraph.Core.Training
 
                 return new ScriptureReference(canon, bookId, chapter, verse);
             }
+
             return null;
         }
     }

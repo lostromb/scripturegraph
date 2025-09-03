@@ -44,7 +44,216 @@ namespace ScriptureGraph.App
             _latestSearchQuery = string.Empty;
         }
 
-        private FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc)
+        private void TestButton_Click(object sender, RoutedEventArgs e)
+        {
+            //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bofm\alma-32.json", FileMode.Open, FileAccess.Read))
+            //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bd\prayer.json", FileMode.Open, FileAccess.Read))
+            using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\general-conference\2024-04\15dushku.json", FileMode.Open, FileAccess.Read))
+            {
+                ReadingPane2.Document = ConvertDocumentToFlowDocument(GospelDocument.ParsePolymorphic(fileIn));
+            }
+            
+            //TextSelection s = ReadingPane1.Selection;
+            //s.GetHashCode();
+        }
+
+        private async void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            await _core.LoadSearchIndex();
+            await _core.LoadDocumentLibrary();
+        }
+
+        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        {
+            
+        }
+
+        private void SearchTextBox_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            string searchQuery = SearchTextBox.Text;
+            if (string.IsNullOrWhiteSpace(searchQuery))
+            {
+                SearchFlyoutList.Children.Clear();
+                SearchFlyoutList.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            _latestSearchQuery = searchQuery;
+            _searchBoxCommitter.Commit();
+        }
+
+        private Task UpdateSearchResultsInBackground(IRealTimeProvider realTime)
+        {
+            // BACKGROUND THREAD
+            List<SearchQueryResult> searchResults = _core.RunSearchQuery(_latestSearchQuery).ToList();
+
+            // UI THREAD
+            Dispatcher.Invoke(() =>
+            {
+                SearchFlyoutList.Children.Clear();
+                if (searchResults.Count > 0)
+                {
+                    SearchFlyoutList.Visibility = Visibility.Visible;
+                }
+
+                foreach (SearchQueryResult searchResult in searchResults)
+                {
+                    _core.CoreLogger.Log($"{searchResult.DisplayName} ({searchResult.EntityType.ToString()}) - {string.Join(",", searchResult.EntityIds.Length)}");
+                    StackPanel horizontalPanel = new StackPanel()
+                    {
+                        Orientation = Orientation.Horizontal,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Tag = searchResult
+                    };
+
+                    horizontalPanel.MouseEnter += SearchFlyoutItem_MouseEnter;
+                    horizontalPanel.MouseLeave += SearchFlyoutItem_MouseLeave;
+                    horizontalPanel.MouseDown += SearchFlyoutItem_MouseDown;
+
+                    // Does this search result have a linked document?
+                    KnowledgeGraphNodeId existingDocument = searchResult.EntityIds.FirstOrDefault((id) => _core.DoesDocumentExist(id));
+                    if (existingDocument.Type != KnowledgeGraphNodeType.Unknown)
+                    {
+                        // A document exists! Make a link button for it
+                        Button readButton = new Button()
+                        {
+                            Margin = new Thickness(0),
+                            Padding = new Thickness(5, 10, 5, 10),
+                            FontSize = 16,
+                            VerticalAlignment = VerticalAlignment.Center,
+                        };
+
+                        readButton.Content = "Load";
+
+                        readButton.Tag = existingDocument;
+                        readButton.PreviewMouseDown += SearchFlyoutLoadButton_Click;
+                        horizontalPanel.Children.Add(readButton);
+                    }
+
+                    TextBlock nameBlock = new TextBlock()
+                    {
+                        Margin = new Thickness(10),
+                        FontSize = 16,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Text = searchResult.DisplayName
+                    };
+
+                    TextBlock typeBlock = new TextBlock()
+                    {
+                        Margin = new Thickness(10),
+                        FontSize = 14,
+                        Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128)),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Text = ConvertSearchResultTypeToString(searchResult.EntityType)
+                    };
+
+                    horizontalPanel.Children.Add(nameBlock);
+                    horizontalPanel.Children.Add(typeBlock);
+
+                    SearchFlyoutList.Children.Add(horizontalPanel);
+                }
+            });
+
+            return Task.CompletedTask;
+        }
+
+        private static string ConvertSearchResultTypeToString(SearchResultEntityType entityType)
+        {
+            switch (entityType)
+            {
+                case SearchResultEntityType.ScriptureBook:
+                    return "Scripture Book";
+                case SearchResultEntityType.ScriptureChapter:
+                    return "Scripture Chapter";
+                case SearchResultEntityType.ScriptureVerse:
+                    return "Scripture Verse";
+                case SearchResultEntityType.Person:
+                    return "Person";
+                case SearchResultEntityType.KeywordPhrase:
+                    return "Keyword or Phrase";
+                case SearchResultEntityType.ConferenceTalk:
+                    return "General Conference Address";
+                case SearchResultEntityType.Topic:
+                    return "Topic";
+                default:
+                    return "UNKNOWN_TYPE";
+            }
+        }
+
+        private void SearchTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            SearchFlyoutList.Visibility = Visibility.Collapsed; 
+        }
+
+        private void SearchTextBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            SearchFlyoutList.Visibility = SearchFlyoutList.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void SearchFlyoutItem_MouseDown(object sender, System.Windows.Input.MouseEventArgs args)
+        {
+            SearchQueryResult selectedSearchResult = (SearchQueryResult)((FrameworkElement)sender).Tag;
+            _core.CoreLogger.Log("Selected search result " + selectedSearchResult.DisplayName);
+            SearchTextBox.Text = string.Empty;
+            SearchFlyoutList.Children.Clear();
+            SearchFlyoutList.Visibility = Visibility.Collapsed;
+        }
+
+        private void SearchFlyoutItem_MouseEnter(object sender, System.Windows.Input.MouseEventArgs args)
+        {
+            ((StackPanel)sender).Background = new SolidColorBrush(Color.FromArgb(64, 0, 0, 0));
+        }
+
+        private void SearchFlyoutItem_MouseLeave(object sender, System.Windows.Input.MouseEventArgs args)
+        {
+            ((StackPanel)sender).Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+        }
+
+        private async void SearchFlyoutLoadButton_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                SearchTextBox.Text = string.Empty;
+                SearchFlyoutList.Children.Clear();
+                SearchFlyoutList.Visibility = Visibility.Collapsed;
+
+                await Task.Yield();
+                KnowledgeGraphNodeId entityIdToLoad = (KnowledgeGraphNodeId)((FrameworkElement)sender).Tag;
+                _core.CoreLogger.Log("Loading document for entity " + entityIdToLoad);
+                GospelDocument document = await _core.LoadDocument(entityIdToLoad);
+                FlowDocument readerDocument = ConvertDocumentToFlowDocument(document);
+                string readingPaneHeader = ConvertDocumentEidToHeaderString(document);
+
+                Dispatcher.Invoke(() =>
+                {
+                    ReadingPane2.Document = readerDocument;
+                    ReadingPane2Header.Text = readingPaneHeader;
+                });
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
+        private static string ConvertDocumentEidToHeaderString(GospelDocument document)
+        {
+            switch (document.DocumentType)
+            {
+                case GospelDocumentType.BibleDictionaryEntry:
+                    return $"Bible Dictionary - {((BibleDictionaryDocument)document).Title}";
+                case GospelDocumentType.GeneralConferenceTalk:
+                    ConferenceTalkDocument conferenceDocument = (ConferenceTalkDocument)document;
+                    string month = conferenceDocument.Conference.Phase == ConferencePhase.April ? "April" : "October";
+                    return $"General Conference - {month} {conferenceDocument.Conference.Year} - {conferenceDocument.Speaker}";
+                case GospelDocumentType.ScriptureChapter:
+                    ScriptureChapterDocument scriptureDocument = (ScriptureChapterDocument)document;
+                    return $"{ScriptureMetadata.GetEnglishNameForCanon(scriptureDocument.Canon)} - {ScriptureMetadata.GetEnglishNameForBook(scriptureDocument.Book)} - {scriptureDocument.Chapter}";
+            }
+            return "UNKNOWN_DOCUMENT";
+        }
+
+        private static FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc)
         {
             FlowDocument returnVal = new FlowDocument();
             returnVal.Background = new SolidColorBrush(Color.FromRgb(250, 250, 250));
@@ -137,6 +346,8 @@ namespace ScriptureGraph.App
                     para++;
                 }
 
+                // TODO: Remove the "fancy" formatting from documents?
+                // Like nbsp and fancy quotes and stuff - they might mess up copy and pasting
                 uiParagraph.Inlines.Add(paragraph.Text);
                 returnVal.Blocks.Add(uiParagraph);
             }
@@ -166,167 +377,6 @@ namespace ScriptureGraph.App
             }
 
             return returnVal;
-        }
-
-        private void TestButton_Click(object sender, RoutedEventArgs e)
-        {
-            //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bofm\alma-32.json", FileMode.Open, FileAccess.Read))
-            //using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\bd\prayer.json", FileMode.Open, FileAccess.Read))
-            using (FileStream fileIn = new FileStream(@"D:\Code\scripturegraph\runtime\documents\general-conference\2024-04\15dushku.json", FileMode.Open, FileAccess.Read))
-            {
-                ReadingPane2.Document = ConvertDocumentToFlowDocument(GospelDocument.ParsePolymorphic(fileIn));
-            }
-            
-            //TextSelection s = ReadingPane1.Selection;
-            //s.GetHashCode();
-        }
-
-        private async void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            string graphFileName = @"D:\Code\scripturegraph\runtime\searchindex.graph";
-            string indexFileName = @"D:\Code\scripturegraph\runtime\entitynames_eng.map";
-
-            if (!File.Exists(graphFileName))
-            {
-                throw new Exception("Can't find search index file");
-            }
-
-            if (!File.Exists(indexFileName))
-            {
-                throw new Exception("Can't find name index file");
-            }
-
-            using (FileStream searchGraphIn = new FileStream(graphFileName, FileMode.Open, FileAccess.Read))
-            using (FileStream searchIndexIn = new FileStream(indexFileName, FileMode.Open, FileAccess.Read))
-            {
-                await _core.LoadSearchIndex(searchGraphIn, searchIndexIn);
-            }
-        }
-
-        private void SearchButton_Click(object sender, RoutedEventArgs e)
-        {
-            
-        }
-
-        private void SearchTextBox_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
-        {
-            string searchQuery = SearchTextBox.Text;
-            if (string.IsNullOrWhiteSpace(searchQuery))
-            {
-                SearchFlyoutList.Children.Clear();
-                SearchFlyoutList.Visibility = Visibility.Collapsed;
-                return;
-            }
-
-            _latestSearchQuery = searchQuery;
-            _searchBoxCommitter.Commit();
-        }
-
-        private Task UpdateSearchResultsInBackground(IRealTimeProvider realTime)
-        {
-            // BACKGROUND THREAD
-            List<SearchQueryResult> searchResults = _core.RunSearchQuery(_latestSearchQuery).ToList();
-
-            // UI THREAD
-            Dispatcher.Invoke(() =>
-            {
-                SearchFlyoutList.Children.Clear();
-                if (searchResults.Count > 0)
-                {
-                    SearchFlyoutList.Visibility = Visibility.Visible;
-                }
-
-                foreach (SearchQueryResult searchResult in searchResults)
-                {
-                    _core.CoreLogger.Log($"{searchResult.DisplayName} ({searchResult.EntityType.ToString()}) - {string.Join(",", searchResult.EntityIds.Length)}");
-                    StackPanel horizontalPanel = new StackPanel()
-                    {
-                        Orientation = Orientation.Horizontal,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Tag = searchResult
-                    };
-
-                    horizontalPanel.MouseEnter += SearchFlyoutItem_MouseEnter;
-                    horizontalPanel.MouseLeave += SearchFlyoutItem_MouseLeave;
-                    horizontalPanel.MouseDown += SearchFlyoutItem_MouseDown;
-
-                    TextBlock nameBlock = new TextBlock()
-                    {
-                        Margin = new Thickness(10),
-                        FontSize = 16,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Text = searchResult.DisplayName
-                    };
-
-                    TextBlock typeBlock = new TextBlock()
-                    {
-                        Margin = new Thickness(10),
-                        FontSize = 14,
-                        Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128)),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Text = ConvertSearchResultTypeToString(searchResult.EntityType)
-                    };
-
-                    horizontalPanel.Children.Add(nameBlock);
-                    horizontalPanel.Children.Add(typeBlock);
-
-                    SearchFlyoutList.Children.Add(horizontalPanel);
-                }
-            });
-
-            return Task.CompletedTask;
-        }
-
-        private static string ConvertSearchResultTypeToString(SearchResultEntityType entityType)
-        {
-            switch (entityType)
-            {
-                case SearchResultEntityType.ScriptureBook:
-                    return "Scripture Book";
-                case SearchResultEntityType.ScriptureChapter:
-                    return "Scripture Chapter";
-                case SearchResultEntityType.ScriptureVerse:
-                    return "Scripture Verse";
-                case SearchResultEntityType.Person:
-                    return "Person";
-                case SearchResultEntityType.KeywordPhrase:
-                    return "Keyword or Phrase";
-                case SearchResultEntityType.ConferenceTalk:
-                    return "General Conference Address";
-                case SearchResultEntityType.Topic:
-                    return "Topic";
-                default:
-                    return "UNKNOWN_TYPE";
-            }
-        }
-
-        private void SearchTextBox_LostFocus(object sender, RoutedEventArgs e)
-        {
-            SearchFlyoutList.Visibility = Visibility.Collapsed; 
-        }
-
-        private void SearchTextBox_GotFocus(object sender, RoutedEventArgs e)
-        {
-            SearchFlyoutList.Visibility = SearchFlyoutList.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        private void SearchFlyoutItem_MouseDown(object sender, System.Windows.Input.MouseEventArgs e)
-        {
-            SearchQueryResult selectedSearchResult = (SearchQueryResult)((StackPanel)sender).Tag;
-            _core.CoreLogger.Log("Selected search result " + selectedSearchResult.DisplayName);
-            SearchTextBox.Text = string.Empty;
-            SearchFlyoutList.Children.Clear();
-            SearchFlyoutList.Visibility = Visibility.Collapsed;
-        }
-
-        private void SearchFlyoutItem_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
-        {
-            ((StackPanel)sender).Background = new SolidColorBrush(Color.FromArgb(64, 0, 0, 0));
-        }
-
-        private void SearchFlyoutItem_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
-        {
-            ((StackPanel)sender).Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
         }
     }
 }

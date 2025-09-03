@@ -12,11 +12,7 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Schemas
 {
-    /// <summary>
-    /// Generic class for a document to be shown in a reader, consisting of header metadata and a list of paragraphs
-    /// with entity node references for each
-    /// </summary>
-    public class GospelDocument
+    public class GospelDocumentMeta
     {
         [JsonPropertyName("type")]
         [JsonConverter(typeof(JsonStringEnumConverter<GospelDocumentType>))]
@@ -30,19 +26,38 @@ namespace ScriptureGraph.Core.Schemas
         [JsonConverter(typeof(LanguageCodeSerializer))]
         public required LanguageCode Language { get; set; }
 
+        public static GospelDocumentMeta ParseHeader(Stream readStream)
+        {
+            GospelDocumentMeta? parsedDoc = JsonSerializer.Deserialize<GospelDocumentMeta>(readStream);
+            if (parsedDoc == null)
+            {
+                throw new InvalidDataException("Did not parse any valid JSON data from read stream");
+            }
+
+            return parsedDoc;
+        }
+    }
+
+    /// <summary>
+    /// Generic class for a document to be shown in a reader, consisting of header metadata and a list of paragraphs
+    /// with entity node references for each
+    /// </summary>
+    public class GospelDocument : GospelDocumentMeta
+    {
         [JsonPropertyName("para")]
         public required List<GospelParagraph> Paragraphs { get; set; }
 
         public static GospelDocument ParsePolymorphic(Stream readStream)
         {
             JsonDocument jsonStructure = JsonDocument.Parse(readStream);
-            GospelDocument? parsedDoc = jsonStructure.Deserialize<GospelDocument>();
-            if (parsedDoc == null)
+            GospelDocumentMeta? parsedMetaDoc = jsonStructure.Deserialize<GospelDocumentMeta>();
+            if (parsedMetaDoc == null)
             {
                 throw new InvalidDataException("Did not parse any valid JSON data from read stream");
             }
 
-            switch (parsedDoc.DocumentType)
+            GospelDocument? parsedDoc;
+            switch (parsedMetaDoc.DocumentType)
             {
                 case GospelDocumentType.ScriptureChapter:
                     parsedDoc = jsonStructure.Deserialize<ScriptureChapterDocument>();
@@ -54,7 +69,7 @@ namespace ScriptureGraph.Core.Schemas
                     parsedDoc = jsonStructure.Deserialize<BibleDictionaryDocument>();
                     break;
                 default:
-                    throw new InvalidDataException("Unknown document type: " + parsedDoc.DocumentType.ToString());
+                    throw new InvalidDataException("Unknown document type: " + parsedMetaDoc.DocumentType.ToString());
             }
 
             if (parsedDoc == null)

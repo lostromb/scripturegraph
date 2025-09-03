@@ -45,6 +45,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                 string talkTitle, authorFullName;
                 ParseTalkAndAuthorNames(htmlPage, logger, out talkTitle, out authorFullName);
 
+                // todo Check which talk has the author of "The First Presidency and Council of the Twelve Apostles of The Church of Jesus Christ of Latter-day Saints"
+
                 if (!IsValidConferenceTalk(talkTitle, authorFullName))
                 {
                     return;
