@@ -243,9 +243,10 @@ namespace ScriptureGraph.App
                 //internalScrollViewer.ScrollToVerticalOffset();
                 ReadingPane2Header.Text = readingPaneHeader;
 
+                // this is jank and may need better logic
                 ReadingPane2.UpdateLayout();
-
-                readerDocument.Blocks.FirstBlock?.BringIntoView();
+                readerDocument.Blocks.LastBlock?.BringIntoView();
+                ReadingPane2.UpdateLayout();
 
                 // If any blocks in the flow document have a tag equal to the thing we searched for, try to scroll to it immediately
                 // This is for things like linking directly to scripture verses or talk paragraphs
@@ -253,6 +254,7 @@ namespace ScriptureGraph.App
                 {
                     if (block.Tag != null && block.Tag is KnowledgeGraphNodeId paragraphEntity && entityIdToLoad.Equals(paragraphEntity))
                     {
+                        block.Background = new SolidColorBrush(Color.FromArgb(32, 0, 255, 255));
                         block.BringIntoView();
                         break;
                     }

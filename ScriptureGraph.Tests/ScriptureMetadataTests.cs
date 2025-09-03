@@ -55,6 +55,13 @@ namespace ScriptureGraph.Tests
             Assert.AreEqual(39, reference.Chapter.GetValueOrDefault(-1));
             Assert.AreEqual(-1, reference.Verse.GetValueOrDefault(-1));
 
+            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("Gal. 5:19");
+            Assert.IsNotNull(reference);
+            Assert.AreEqual("nt", reference.Canon);
+            Assert.AreEqual("gal", reference.Book);
+            Assert.AreEqual(5, reference.Chapter.GetValueOrDefault(-1));
+            Assert.AreEqual(19, reference.Verse.GetValueOrDefault(-1));
+
             reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("D&C 110:12");
             Assert.IsNotNull(reference);
             Assert.AreEqual("dc-testament", reference.Canon);

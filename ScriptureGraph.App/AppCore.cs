@@ -81,6 +81,13 @@ namespace ScriptureGraph.App
                 return _documentLibrary.ContainsKey(actualId);
             }
 
+            // Do the same with books -> chapter 1
+            if (entityId.Type == KnowledgeGraphNodeType.ScriptureBook)
+            {
+                actualId = new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter, entityId.Name + "|1");
+                return _documentLibrary.ContainsKey(actualId);
+            }
+
             actualId = entityId;
             return false;
         }

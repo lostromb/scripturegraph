@@ -724,7 +724,7 @@ namespace ScriptureGraph.Core.Training
             { "a-of-f", "a-of-f" },
         };
 
-        // Baseline: ^\s*(1st nephi|1 ne|moroni|mormon|enos)(?:\s*(\d)\s*(?::\s*(\d))?)?$
+        // Baseline: ^\s*(1st nephi|1 ne|moroni|mormon|enos)(?:\s*(\d)\s*(?:\:\s*(\d))?)?$
         // group 1 : book name
         // group 2 (optional) : chapter
         // group 3 (optional) : verse
@@ -747,7 +747,7 @@ namespace ScriptureGraph.Core.Training
                 first = false;
             }
 
-            regexBuilder.Append(")(?:\\s*(\\d+)\\s*(?::\\s*(\\d+))?)?$");
+            regexBuilder.Append(")(?:\\s*(\\d+)\\s*(?:\\:\\s*(\\d+))?)?$");
             EnglishScriptureRefMatcher = new Regex(regexBuilder.ToString(), RegexOptions.IgnoreCase);
         }
 
@@ -758,7 +758,7 @@ namespace ScriptureGraph.Core.Training
         /// <returns></returns>
         public static ScriptureReference? TryParseScriptureReferenceEnglish(string reference)
         {
-            Match match = EnglishScriptureRefMatcher.Match(reference);
+            Match match = EnglishScriptureRefMatcher.Match(reference.Replace('.', ' '));
             string? bookId;
             if (match.Success && ENGLISH_BOOK_NAMES.TryGetValue(match.Groups[1].Value, out bookId))
             {
@@ -767,7 +767,7 @@ namespace ScriptureGraph.Core.Training
                 if (match.Groups[2].Success)
                 {
                     chapter = int.Parse(match.Groups[2].Value);
-                    
+
                     if (chapter <= 0 || chapter > 200)
                     {
                         return null;
