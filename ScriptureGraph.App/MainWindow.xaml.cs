@@ -1,23 +1,11 @@
-﻿using Durandal.Common.File;
-using Durandal.Common.Instrumentation;
-using Durandal.Common.Logger;
-using Durandal.Common.Net.Http;
-using Durandal.Common.Tasks;
-using Durandal.Common.Time;
+﻿using Durandal.Common.Time;
 using Durandal.Common.Utils;
-using Durandal.Common.Utils.NativePlatform;
-using Org.BouncyCastle.Tls;
 using ScriptureGraph.App.Schemas;
-using ScriptureGraph.Core;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
-using ScriptureGraph.Core.Training.Extractors;
-using System.Diagnostics;
 using System.DirectoryServices;
-using System.IO;
-using System.Reflection;
-using System.Text.RegularExpressions;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -36,6 +24,9 @@ namespace ScriptureGraph.App
         private readonly Committer _searchBoxCommitter;
 
         private string _latestSearchQuery;
+
+        private HashSet<Guid> _activeSearchScopes = new HashSet<Guid>();
+        private Dictionary<Guid, ReadingPane> _currentReadingPanes = new Dictionary<Guid, ReadingPane>();
 
         public MainWindow()
         {
@@ -112,8 +103,7 @@ namespace ScriptureGraph.App
                         };
 
                         readButton.Content = "Load";
-
-                        readButton.Tag = existingDocument;
+                        readButton.Tag = searchResult;
                         readButton.PreviewMouseDown += SearchFlyoutLoadButton_Click;
                         horizontalPanel.Children.Add(readButton);
                     }
@@ -182,6 +172,7 @@ namespace ScriptureGraph.App
         {
             SearchQueryResult selectedSearchResult = (SearchQueryResult)((FrameworkElement)sender).Tag;
             _core.CoreLogger.Log("Selected search result " + selectedSearchResult.DisplayName);
+            CreateNewSearchScope(selectedSearchResult.EntityType, selectedSearchResult.DisplayName, selectedSearchResult.EntityIds);
             SearchTextBox.Text = string.Empty;
             SearchFlyoutList.Children.Clear();
             SearchFlyoutList.Visibility = Visibility.Collapsed;
@@ -206,8 +197,9 @@ namespace ScriptureGraph.App
                 SearchFlyoutList.Visibility = Visibility.Collapsed;
 
                 await Task.Yield();
-                KnowledgeGraphNodeId entityIdToLoad = (KnowledgeGraphNodeId)((FrameworkElement)sender).Tag;
-                await LoadDocumentForEntity(entityIdToLoad);
+                SearchQueryResult searchResultForThisLineItem = (SearchQueryResult)((FrameworkElement)sender).Tag;
+                await LoadDocumentForEntity(searchResultForThisLineItem.EntityIds.First((id) => _core.DoesDocumentExist(id)));
+                CreateNewSearchScope(searchResultForThisLineItem.EntityType, searchResultForThisLineItem.DisplayName, searchResultForThisLineItem.EntityIds);
             }
             catch (Exception e)
             {
@@ -229,6 +221,61 @@ namespace ScriptureGraph.App
             }
         }
 
+        private ReadingPane CreateNewReadingPane()
+        {
+            //<Grid Name="ReadingPaneContainer1">
+            //        <DockPanel>
+            //            <Grid DockPanel.Dock="Top">
+            //                <TextBlock
+            //                    Background="{DynamicResource ReadingPaneHeaderColor}"
+            //                    Padding="0,5,0,5"
+            //                    TextAlignment="Center"
+            //                    VerticalAlignment="Stretch">
+            //                    Old Testament / Isaiah / Chapter 1
+            //                </TextBlock>
+            //                <Button Content="Close" Padding="5" HorizontalAlignment="Left"></Button>
+            //            </Grid>
+            //            <FlowDocumentScrollViewer
+            //                Name="ReadingPane1"
+            //                Width="{DynamicResource ReadingPaneWidth}">
+            //            </FlowDocumentScrollViewer>
+            //        </DockPanel>
+            //    </Grid>
+
+            Guid panelId = Guid.NewGuid();
+            Grid readingPaneContainer = new Grid();
+            DockPanel readingPaneDocker = new DockPanel();
+            Grid headerGrid = new Grid();
+            DockPanel.SetDock(headerGrid, Dock.Top);
+            TextBlock header = new TextBlock();
+            header.Background = (Brush)TryFindResource("ReadingPaneHeaderColor");
+            header.Padding = new Thickness(0, 5, 0, 5);
+            header.TextAlignment = TextAlignment.Center;
+            header.VerticalAlignment = VerticalAlignment.Stretch;
+            Button closeButton = new Button();
+            closeButton.Content = "Close";
+            closeButton.Padding = new Thickness(5);
+            closeButton.HorizontalAlignment = HorizontalAlignment.Left;
+            closeButton.Tag = panelId;
+            closeButton.Click += ClosePanelButton_Click;
+            FlowDocumentScrollViewer documentScrollViewer = new FlowDocumentScrollViewer();
+            documentScrollViewer.Width = (double)TryFindResource("ReadingPaneWidth");
+
+            readingPaneContainer.Children.Add(readingPaneDocker);
+            readingPaneDocker.Children.Add(headerGrid);
+            headerGrid.Children.Add(header);
+            headerGrid.Children.Add(closeButton);
+            readingPaneDocker.Children.Add(documentScrollViewer);
+
+            return new ReadingPane()
+            {
+                PanelId = panelId,
+                Container = readingPaneContainer,
+                DocumentViewer = documentScrollViewer,
+                Header = header
+            };
+        }
+
         private async Task LoadDocumentForEntity(KnowledgeGraphNodeId entityIdToLoad)
         {
             _core.CoreLogger.Log("Loading document for entity " + entityIdToLoad);
@@ -238,15 +285,22 @@ namespace ScriptureGraph.App
 
             Dispatcher.Invoke(() =>
             {
-                ReadingPane2.Document = readerDocument;
+                ReadingPane newUiPanels = CreateNewReadingPane();
+                BrowseArea.Children.Add(newUiPanels.Container);
+                _currentReadingPanes[newUiPanels.PanelId] = newUiPanels;
+                BrowseArea.UpdateLayout();
+                newUiPanels.Container.BringIntoView();
+                newUiPanels.CurrentDocumentEntity = entityIdToLoad;
+
+                newUiPanels.DocumentViewer.Document = readerDocument;
                 //ScrollViewer? internalScrollViewer = typeof(FlowDocumentScrollViewer)!.GetProperty("ScrollViewer", BindingFlags.Instance | BindingFlags.GetField | BindingFlags.NonPublic)!.GetValue(ReadingPane2) as ScrollViewer;
                 //internalScrollViewer.ScrollToVerticalOffset();
-                ReadingPane2Header.Text = readingPaneHeader;
+                newUiPanels.Header.Text = readingPaneHeader;
 
                 // this is jank and may need better logic
-                ReadingPane2.UpdateLayout();
+                newUiPanels.DocumentViewer.UpdateLayout();
                 readerDocument.Blocks.LastBlock?.BringIntoView();
-                ReadingPane2.UpdateLayout();
+                newUiPanels.DocumentViewer.UpdateLayout();
                 bool focusedOnParagraph = false;
 
                 // If any blocks in the flow document have a tag equal to the thing we searched for, try to scroll to it immediately
@@ -265,9 +319,88 @@ namespace ScriptureGraph.App
                 if (!focusedOnParagraph)
                 {
                     readerDocument.Blocks.FirstBlock?.BringIntoView();
-                    ReadingPane2.UpdateLayout();
+                    newUiPanels.DocumentViewer.UpdateLayout();
                 }
             });
+        }
+
+        private async void ClosePanelButton_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                Guid panelIdToRemove = (Guid)((FrameworkElement)sender).Tag;
+                ReadingPane panelToRemove = _currentReadingPanes[panelIdToRemove];
+                BrowseArea.Children.Remove(panelToRemove.Container);
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
+        private async void RemoveScopeButton_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                UIElement elementToRemove = (UIElement)((FrameworkElement)sender).Tag;
+                Guid scopeToRemove = (Guid)((FrameworkElement)elementToRemove).Tag;
+                _activeSearchScopes.Remove(scopeToRemove);
+                ActiveSearchScopes.Children.Remove(elementToRemove);
+
+                // TODO remove it from the core
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
+        private void CreateNewSearchScope(SearchResultEntityType entityType, string scopeName, params KnowledgeGraphNodeId[] nodes)
+        {
+            Guid newScopeGuid = Guid.NewGuid();
+            // Register it with the core
+            // TODO
+
+            // And make the UI for it
+            DockPanel searchBubbleContainer = new DockPanel();
+            searchBubbleContainer.Background = (Brush)TryFindResource("SearchBubbleBackground");
+            searchBubbleContainer.Tag = newScopeGuid;
+
+            DockPanel headerPanel = new DockPanel();
+            DockPanel.SetDock(headerPanel, Dock.Top);
+            headerPanel.Background = (Brush)TryFindResource("SearchBubbleHeaderBackground");
+
+            TextBlock searchScopeTypeTextBlock = new TextBlock();
+            searchScopeTypeTextBlock.Padding = new Thickness(0);
+            searchScopeTypeTextBlock.Margin = new Thickness(0);
+            searchScopeTypeTextBlock.HorizontalAlignment = HorizontalAlignment.Left;
+            searchScopeTypeTextBlock.Text = ConvertSearchResultTypeToString(entityType);
+
+            Button scopeRemoveButton = new Button();
+            DockPanel.SetDock(scopeRemoveButton, Dock.Right);
+            scopeRemoveButton.Width = 20;
+            scopeRemoveButton.Height = 20;
+            scopeRemoveButton.Padding = new Thickness(0);
+            scopeRemoveButton.Margin = new Thickness(0);
+            scopeRemoveButton.Content = "X";
+            scopeRemoveButton.HorizontalAlignment = HorizontalAlignment.Right;
+            scopeRemoveButton.HorizontalContentAlignment = HorizontalAlignment.Center;
+            scopeRemoveButton.VerticalContentAlignment = VerticalAlignment.Center;
+            scopeRemoveButton.Tag = searchBubbleContainer;
+            scopeRemoveButton.Click += RemoveScopeButton_Click;
+
+            TextBlock searchScopeNameTextBlock = new TextBlock();
+            searchScopeNameTextBlock.Padding = new Thickness(5);
+            DockPanel.SetDock(searchScopeNameTextBlock, Dock.Bottom);
+            searchScopeNameTextBlock.Text = scopeName;
+
+            ActiveSearchScopes.Children.Add(searchBubbleContainer);
+            searchBubbleContainer.Children.Add(headerPanel);
+            headerPanel.Children.Add(searchScopeTypeTextBlock);
+            headerPanel.Children.Add(scopeRemoveButton);
+            searchBubbleContainer.Children.Add(searchScopeNameTextBlock);
+
+            _activeSearchScopes.Add(newScopeGuid);
         }
 
         private static string ConvertDocumentEidToHeaderString(GospelDocument document)

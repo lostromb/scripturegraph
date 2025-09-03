@@ -63,39 +63,30 @@ namespace ScriptureGraph.App
 
         public bool DoesDocumentExist(KnowledgeGraphNodeId entityId)
         {
-            return DoesDocumentExistWithAugmentation(entityId, out _);
+            return _documentLibrary.ContainsKey(MapEntityIdToDocument(entityId));
         }
 
-        private bool DoesDocumentExistWithAugmentation(KnowledgeGraphNodeId entityId, out KnowledgeGraphNodeId actualId)
+        private KnowledgeGraphNodeId MapEntityIdToDocument(KnowledgeGraphNodeId entityId)
         {
-            if (_documentLibrary.ContainsKey(entityId))
-            {
-                actualId = entityId;
-                return true;
-            }
-
             // Map individual verses to chapters
             if (entityId.Type == KnowledgeGraphNodeType.ScriptureVerse)
             {
-                actualId = new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
-                return _documentLibrary.ContainsKey(actualId);
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
             }
 
             // Do the same with books -> chapter 1
-            if (entityId.Type == KnowledgeGraphNodeType.ScriptureBook)
+            else if (entityId.Type == KnowledgeGraphNodeType.ScriptureBook)
             {
-                actualId = new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter, entityId.Name + "|1");
-                return _documentLibrary.ContainsKey(actualId);
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter, entityId.Name + "|1");
             }
 
-            actualId = entityId;
-            return false;
+            return entityId;
         }
 
         public async Task<GospelDocument> LoadDocument(KnowledgeGraphNodeId entityId)
         {
-            KnowledgeGraphNodeId actualEntityId;
-            if (!DoesDocumentExistWithAugmentation(entityId, out actualEntityId))
+            KnowledgeGraphNodeId actualEntityId = MapEntityIdToDocument(entityId);
+            if (!DoesDocumentExist(actualEntityId))
             {
                 throw new FileNotFoundException("Could not load document for entity " + entityId);
             }
