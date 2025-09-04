@@ -43,7 +43,7 @@ namespace ScriptureGraph.App
 
             VirtualPath smallGraphFileName = new VirtualPath("searchindex.graph");
             VirtualPath nameLookupFileName = new VirtualPath("entitynames_eng.map");
-            VirtualPath largeGraphFileName = new VirtualPath("scriptures.graph");
+            VirtualPath largeGraphFileName = new VirtualPath("all.graph");
 
             if (!(await _fileSystem.ExistsAsync(smallGraphFileName)))
             {
@@ -72,11 +72,11 @@ namespace ScriptureGraph.App
                 _entityNameLookup = EntityNameIndex.Deserialize(searchIndexIn);
             }
 
-            //using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
-            //{
-            //    _coreLogger.Log("Loading large search index");
-            //    _largeSearchIndex = KnowledgeGraph.Load(searchGraphIn);
-            //}
+            using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
+            {
+                _coreLogger.Log("Loading large search index");
+                _largeSearchIndex = KnowledgeGraph.Load(searchGraphIn);
+            }
         }
 
         public bool DoesDocumentExist(KnowledgeGraphNodeId entityId)
@@ -194,22 +194,28 @@ namespace ScriptureGraph.App
             }
         }
 
-        public IEnumerable<SlowSearchQueryResult> RunSlowSearchQuery(SlowSearchQuery query)
+        public SlowSearchQueryResult RunSlowSearchQueryFake(SlowSearchQuery query)
         {
             _coreLogger.Log("Fake querying graph");
-            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.ScriptureVerse("bofm", "ether", 12, 27) };
-            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.BibleDictionaryTopic("bishop") };
-            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.ConferenceTalkParagraph(2023, ConferencePhase.October, "26choi", 4) };
-            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.BibleDictionaryParagraph("bible", 8) };
-            yield return new SlowSearchQueryResult() { EntityId = FeatureToNodeMapping.ConferenceTalk(2021, ConferencePhase.April, "12uchtdorf") };
+            return new SlowSearchQueryResult()
+            {
+                EntityIds = new List<KnowledgeGraphNodeId>()
+                {
+                    FeatureToNodeMapping.ScriptureVerse("bofm", "ether", 12, 27),
+                    FeatureToNodeMapping.BibleDictionaryTopic("bishop"),
+                    FeatureToNodeMapping.ConferenceTalkParagraph(2023, ConferencePhase.October, "26choi", 4),
+                    FeatureToNodeMapping.BibleDictionaryParagraph("bible", 8),
+                    FeatureToNodeMapping.ConferenceTalk(2021, ConferencePhase.April, "12uchtdorf"),
+                },
+                ActivatedWords = new Dictionary<KnowledgeGraphNodeId, float>()
+            };
         }
 
-        public IEnumerable<SlowSearchQueryResult> RunSlowSearchQueryActual(SlowSearchQuery query)
+        public SlowSearchQueryResult RunSlowSearchQuery(SlowSearchQuery query)
         {
             if (_largeSearchIndex == null)
             {
-                _coreLogger.Log("Search index is not loaded", LogLevel.Err);
-                yield break;
+                throw new InvalidOperationException("Search index is not loaded");
             }
 
             _coreLogger.Log("Querying big graph");
@@ -231,13 +237,27 @@ namespace ScriptureGraph.App
             timer.Stop();
             _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, $"Search time was {0:F3} ms", timer.ElapsedMillisecondsPrecise());
 
+            SlowSearchQueryResult returnVal = new SlowSearchQueryResult()
+            {
+                EntityIds = new List<KnowledgeGraphNodeId>(),
+                ActivatedWords = new Dictionary<KnowledgeGraphNodeId, float>()
+            };
+
             float highestResultScore = 0;
             int maxResults = query.MaxResults;
             foreach (var result in results)
             {
-                if (result.Key.Type == KnowledgeGraphNodeType.NGram ||
-                    result.Key.Type == KnowledgeGraphNodeType.CharNGram ||
-                    result.Key.Type == KnowledgeGraphNodeType.Word)
+                if (result.Key.Type == KnowledgeGraphNodeType.Word)
+                {
+                    returnVal.ActivatedWords.Add(result.Key, result.Value);
+                    continue;
+                }
+
+                if (!(result.Key.Type == KnowledgeGraphNodeType.ScriptureVerse ||
+                    result.Key.Type == KnowledgeGraphNodeType.ConferenceTalk ||
+                    result.Key.Type == KnowledgeGraphNodeType.ConferenceTalkParagraph ||
+                    result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryTopic ||
+                    result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph))
                 {
                     continue;
                 }
@@ -260,18 +280,18 @@ namespace ScriptureGraph.App
                     break;
                 }
 
-                yield return new SlowSearchQueryResult()
-                {
-                    EntityId = result.Key
-                };
+                returnVal.EntityIds.Add(result.Key);
+                _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value, result.Key.ToString());
             }
+
+            return returnVal;
         }
 
         public IEnumerable<FastSearchQueryResult> RunFastSearchQuery(string queryString, int maxResults = 10)
         {
             yield return new FastSearchQueryResult()
             {
-                EntityIds = Array.Empty<KnowledgeGraphNodeId>() ,
+                EntityIds = EnglishWordFeatureExtractor.ExtractNGrams(queryString).ToArray(),
                 EntityType = SearchResultEntityType.KeywordPhrase,
                 DisplayName = queryString
             };

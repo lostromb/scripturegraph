@@ -28,7 +28,7 @@ namespace ScriptureGraph.App
 
         private string _latestSearchQuery;
 
-        private HashSet<Guid> _activeSearchScopes = new HashSet<Guid>();
+        private Dictionary<Guid, KnowledgeGraphNodeId[]> _activeSearchScopes = new Dictionary<Guid, KnowledgeGraphNodeId[]>();
         private Dictionary<Guid, ReadingPane> _currentReadingPanes = new Dictionary<Guid, ReadingPane>();
         private UIElement? _currentSearchResultsPane;
 
@@ -50,15 +50,26 @@ namespace ScriptureGraph.App
         {
             try
             {
+                if (_activeSearchScopes.Count == 0)
+                {
+                    CloseSearchResultsIfPresent();
+                    return;
+                }
+
                 await Task.Yield();
                 SlowSearchQuery query = new SlowSearchQuery()
                 {
                     SearchScopes = new List<KnowledgeGraphNodeId[]>(),
-                    MaxResults = 10
+                    MaxResults = 50
                 };
 
-                List<SlowSearchQueryResult> resultsList = _core.RunSlowSearchQuery(query).ToList();
-                List<KnowledgeGraphNodeId> resultEntityIds = resultsList.Select((s) => s.EntityId).ToList();
+                foreach (var searchScope in _activeSearchScopes)
+                {
+                    query.SearchScopes.Add(searchScope.Value);
+                }
+
+                SlowSearchQueryResult results = _core.RunSlowSearchQuery(query);
+                List<KnowledgeGraphNodeId> resultEntityIds = results.EntityIds;
                 Grid searchResultsPane = await CreateNewSearchResultsPane(resultEntityIds);
 
                 // UI THREAD
@@ -208,7 +219,7 @@ namespace ScriptureGraph.App
             {
                 FastSearchQueryResult selectedSearchResult = (FastSearchQueryResult)((FrameworkElement)sender).Tag;
                 _core.CoreLogger.Log("Selected search result " + selectedSearchResult.DisplayName);
-                CloseSearchResultsIfPresent();
+                //CloseSearchResultsIfPresent();
                 CreateNewSearchScope(selectedSearchResult.EntityType, selectedSearchResult.DisplayName, selectedSearchResult.EntityIds);
                 SearchTextBox.Text = string.Empty;
                 SearchFlyoutList.Children.Clear();
@@ -246,7 +257,7 @@ namespace ScriptureGraph.App
                 SearchTextBox.Text = string.Empty;
                 SearchFlyoutList.Children.Clear();
                 SearchFlyoutList.Visibility = Visibility.Collapsed;
-                CloseSearchResultsIfPresent();
+                //CloseSearchResultsIfPresent();
 
                 await Task.Yield();
                 FastSearchQueryResult searchResultForThisLineItem = (FastSearchQueryResult)((FrameworkElement)sender).Tag;
@@ -342,16 +353,19 @@ namespace ScriptureGraph.App
             //                </TextBlock>
             //                <Button Content="Close" Padding="5" HorizontalAlignment="Left"></Button>
             //            </Grid>
-                        //<ScrollViewer
-                        //    Name="SearchResultsScroller"
-                        //    Width="{DynamicResource ReadingPaneWidth}">
-                        //    <StackPanel Orientation="Vertical">
-                        //        <FlowDocumentScrollViewer
-                        //            VerticalScrollBarVisibility="Disabled"
-                        //            HorizontalScrollBarVisibility="Disabled">
-                        //        </FlowDocumentScrollViewer>
-                        //    </StackPanel>
-                        //</ScrollViewer>
+                        //<TextBlock
+                        //    Background="{DynamicResource SearchResultLabelBackground}"
+                        //    Text="Book of Mormon - Alma 36:20"
+                        //    IsManipulationEnabled="False"></TextBlock>
+                        //<TextBlock 
+                        //    Background="{DynamicResource DocumentReaderPageBackground}"
+                        //    FontFamily="{DynamicResource SerifFontFamily}"
+                        //    FontSize="{DynamicResource VerseFontSize}"
+                        //    TextWrapping="Wrap"
+                        //    TextAlignment="Justify"
+                        //    Padding="5"
+                        //    IsManipulationEnabled="False"
+                        //    Text="And oh, what joy, and what marvelous light I did behold; yea, my soul was filled with joy as exceeding as was my pain!"></TextBlock>
             //        </DockPanel>
             //    </Grid>
 
@@ -366,12 +380,12 @@ namespace ScriptureGraph.App
             header.TextAlignment = TextAlignment.Center;
             header.VerticalAlignment = VerticalAlignment.Stretch;
             header.Text = "Search Results";
-            //Button closeButton = new Button();
-            //closeButton.Content = "Close";
-            //closeButton.Padding = new Thickness(5);
-            //closeButton.HorizontalAlignment = HorizontalAlignment.Left;
-            //closeButton.Tag = panelId;
-            //closeButton.Click += ClosePanelButton_Click;
+            Button closeButton = new Button();
+            closeButton.Content = "Close";
+            closeButton.Padding = new Thickness(5);
+            closeButton.HorizontalAlignment = HorizontalAlignment.Left;
+            closeButton.Tag = panelId;
+            closeButton.Click += CloseSearchPanelButton_Click;
 
             ScrollViewer searchResultsScroller = new ScrollViewer();
             searchResultsScroller.Width = (double)TryFindResource("ReadingPaneWidth");
@@ -382,20 +396,13 @@ namespace ScriptureGraph.App
             // Stack the search results in here...
             foreach (var resultEntity in searchResultEntities)
             {
-                FlowDocumentScrollViewer searchResultPreviewViewer = new FlowDocumentScrollViewer()
-                {
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                };
-
-                searchResultPreviewViewer.Document = await ConvertSearchResultIntoFlowDocument(resultEntity);
-                searchResultsStacker.Children.Add(searchResultPreviewViewer);
+                await CreateUiElementsForSearchResult(resultEntity, searchResultsStacker.Children);
             }
 
             resultsPaneContainer.Children.Add(resultsPaneDocker);
             resultsPaneDocker.Children.Add(headerGrid);
             headerGrid.Children.Add(header);
-            //headerGrid.Children.Add(closeButton);
+            headerGrid.Children.Add(closeButton);
             resultsPaneDocker.Children.Add(searchResultsScroller);
             searchResultsScroller.Content = searchResultsStacker;
 
@@ -464,6 +471,18 @@ namespace ScriptureGraph.App
             }
         }
 
+        private async void CloseSearchPanelButton_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                CloseSearchResultsIfPresent();
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
         private async void RemoveScopeButton_Click(object sender, RoutedEventArgs args)
         {
             try
@@ -472,9 +491,7 @@ namespace ScriptureGraph.App
                 Guid scopeToRemove = (Guid)((FrameworkElement)elementToRemove).Tag;
                 _activeSearchScopes.Remove(scopeToRemove);
                 ActiveSearchScopes.Children.Remove(elementToRemove);
-                CloseSearchResultsIfPresent();
-
-                // TODO remove it from the core
+                //CloseSearchResultsIfPresent();
             }
             catch (Exception e)
             {
@@ -485,10 +502,7 @@ namespace ScriptureGraph.App
         private void CreateNewSearchScope(SearchResultEntityType entityType, string scopeName, params KnowledgeGraphNodeId[] nodes)
         {
             Guid newScopeGuid = Guid.NewGuid();
-            // Register it with the core
-            // TODO
 
-            // And make the UI for it
             DockPanel searchBubbleContainer = new DockPanel();
             searchBubbleContainer.Background = (Brush)TryFindResource("SearchBubbleBackground");
             searchBubbleContainer.Tag = newScopeGuid;
@@ -527,7 +541,7 @@ namespace ScriptureGraph.App
             headerPanel.Children.Add(scopeRemoveButton);
             searchBubbleContainer.Children.Add(searchScopeNameTextBlock);
 
-            _activeSearchScopes.Add(newScopeGuid);
+            _activeSearchScopes.Add(newScopeGuid, nodes);
         }
 
         private static string ConvertDocumentEidToHeaderString(GospelDocument document)
@@ -731,105 +745,261 @@ namespace ScriptureGraph.App
             return returnVal;
         }
 
-        private FlowDocument ConvertScriptureVerseResultIntoFlowDocument(KnowledgeGraphNodeId scriptureVerse, ScriptureChapterDocument chapter)
+        private async Task CreateUiElementsForSearchResult(KnowledgeGraphNodeId searchResult, UIElementCollection target)
         {
-            FontFamily bodyParaFont = (FontFamily)TryFindResource("SerifFontFamily");
-            Thickness bodyParaMargin = (Thickness)TryFindResource("ScriptureParagraphMargin");
-            double titleFontSize = (double)TryFindResource("TitleFontSize");
-            Thickness titleMargin = (Thickness)TryFindResource("TitleMargin");
-            double subtitleFontSize = (double)TryFindResource("SubtitleFontSize");
-            Thickness subtitleMargin = (Thickness)TryFindResource("SubtitleMargin");
-            double bodyParaFontSize = (double)TryFindResource("VerseFontSize");
-            double verseNumFontSize = (double)TryFindResource("VerseNumFontSize");
-            Thickness verseNumMargin = (Thickness)TryFindResource("VerseNumMargin");
-
-            ScriptureReference parsedRef = new ScriptureReference(scriptureVerse);
-            if (!parsedRef.Verse.HasValue)
+            // The header style is common to all search results so just make it here
+            TextBlock searchResultHeader = new TextBlock()
             {
-                throw new Exception("Scripture reference has no verse data " + scriptureVerse.ToString());
-            }
+                Background = (Brush)TryFindResource("SearchResultLabelBackground"),
+                IsManipulationEnabled = false,
+                Margin = new Thickness(2),
+            };
 
-            if (parsedRef.Verse.Value - 1 >= chapter.Paragraphs.Count )
-            {
-                throw new Exception("Verse reference to invalid verse " + scriptureVerse.ToString());
-            }
-
-            FlowDocument returnVal = new FlowDocument();
-            returnVal.Background = (Brush)TryFindResource("DocumentReaderPageBackground");
-            returnVal.FontFamily = bodyParaFont;
-            returnVal.FontSize = bodyParaFontSize;
-            Section section = new Section();
-            Paragraph uiParagraph = new Paragraph();
-            uiParagraph.Margin = bodyParaMargin;
-            uiParagraph.TextAlignment = TextAlignment.Justify;
-
-            Floater verseNumFloater = new Floater();
-            verseNumFloater.Padding = new Thickness(0);
-            verseNumFloater.HorizontalAlignment = HorizontalAlignment.Left;
-            verseNumFloater.FontSize = verseNumFontSize;
-            verseNumFloater.Margin = verseNumMargin;
-            Paragraph numPara = new Paragraph();
-            numPara.Inlines.Add(parsedRef.Verse.Value.ToString());
-            verseNumFloater.Blocks.Add(numPara);
-            uiParagraph.Inlines.Add(verseNumFloater);
-            uiParagraph.Inlines.Add(chapter.Paragraphs[parsedRef.Verse.Value - 1].Text);
-            section.Blocks.Add(uiParagraph);
-            returnVal.Blocks.Add(section);
-            returnVal.Tag = scriptureVerse;
-            returnVal.MouseEnter += SearchResultPreviewDocument_MouseEnter;
-            returnVal.MouseLeave += SearchResultPreviewDocument_MouseLeave;
-            returnVal.MouseDown += SearchResultPreviewDocument_Click;
-            return returnVal;
-        }
-
-        private async Task<FlowDocument?> ConvertSearchResultIntoFlowDocument(KnowledgeGraphNodeId searchResult)
-        {
             if (searchResult.Type == KnowledgeGraphNodeType.ScriptureVerse)
             {
                 GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
                 if (scriptureChapter is ScriptureChapterDocument scriptureDoc)
                 {
-                    return ConvertScriptureVerseResultIntoFlowDocument(searchResult, scriptureDoc);
+                    searchResultHeader.Text = $"{ScriptureMetadata.GetEnglishNameForBook(scriptureDoc.Book)} {scriptureDoc.Chapter}";
+                    target.Add(searchResultHeader);
+                    CreateUiElementsForScriptureVerseResult(searchResult, scriptureDoc, target);
                 }
                 else
                 {
                     throw new Exception("Invalid loaded document type: expected ScriptureChapterDocument");
                 }
             }
+            else if (searchResult.Type == KnowledgeGraphNodeType.ConferenceTalkParagraph)
+            {
+                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
+                if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
+                {
+                    string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
+                    searchResultHeader.Text = $"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title}";
+                    target.Add(searchResultHeader);
+                    CreateUiElementsForConferenceParagraphResult(searchResult, conferenceDoc, target);
+                }
+                else
+                {
+                    throw new Exception("Invalid loaded document type: expected ConferenceTalkDocument");
+                }
+            }
+            else if (searchResult.Type == KnowledgeGraphNodeType.ConferenceTalk)
+            {
+                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
+                if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
+                {
+                    string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
+                    searchResultHeader.Text = $"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title}";
+                    target.Add(searchResultHeader);
+
+                    TextBlock searchResultLabel = new TextBlock()
+                    {
+                        Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                        FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                        FontSize = (double)TryFindResource("VerseFontSize"),
+                        TextWrapping = TextWrapping.Wrap,
+                        TextAlignment = TextAlignment.Justify,
+                        Padding = new Thickness(5),
+                        IsManipulationEnabled = false,
+                        Tag = searchResult,
+                        Text = $"{conferenceDoc.Speaker} - {conferenceDoc.Title}"
+                    };
+
+                    searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                    searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                    searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+                    target.Add(searchResultLabel);
+                }
+                else
+                {
+                    throw new Exception("Invalid loaded document type: expected ConferenceTalkDocument");
+                }
+            }
+            else if (searchResult.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph)
+            {
+                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
+                if (scriptureChapter is BibleDictionaryDocument dictionaryDoc)
+                {
+                    searchResultHeader.Text = $"Bible Dictionary - {dictionaryDoc.Title}";
+                    target.Add(searchResultHeader);
+                    CreateUiElementsForBDParagraphResult(searchResult, dictionaryDoc, target);
+                }
+                else
+                {
+                    throw new Exception("Invalid loaded document type: expected BibleDictionaryDocument");
+                }
+            }
+            else if (searchResult.Type == KnowledgeGraphNodeType.BibleDictionaryTopic)
+            {
+                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
+                if (scriptureChapter is BibleDictionaryDocument dictionaryDoc)
+                {
+                    searchResultHeader.Text = $"Bible Dictionary - {dictionaryDoc.Title}";
+                    target.Add(searchResultHeader);
+
+                    TextBlock searchResultLabel = new TextBlock()
+                    {
+                        Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                        FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                        FontSize = (double)TryFindResource("VerseFontSize"),
+                        TextWrapping = TextWrapping.Wrap,
+                        TextAlignment = TextAlignment.Justify,
+                        Padding = new Thickness(5),
+                        IsManipulationEnabled = false,
+                        Tag = searchResult,
+                        Text = $"Bible Dictionary - {dictionaryDoc.Title}"
+                    };
+
+                    searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                    searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                    searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+                    target.Add(searchResultLabel);
+                }
+                else
+                {
+                    throw new Exception("Invalid loaded document type: expected BibleDictionaryDocument");
+                }
+            }
             else
             {
-                FlowDocument returnVal = new FlowDocument();
-                Section section = new Section();
-                Paragraph paragraph = new Paragraph();
-                paragraph.TextAlignment = TextAlignment.Center;
-                paragraph.Inlines.Add(searchResult.ToString());
-                section.Blocks.Add(paragraph);
-                returnVal.Blocks.Add(section);
-                returnVal.Tag = searchResult;
-                returnVal.Background = (Brush)TryFindResource("DocumentReaderPageBackground");
-                returnVal.MouseEnter += SearchResultPreviewDocument_MouseEnter;
-                returnVal.MouseLeave += SearchResultPreviewDocument_MouseLeave;
-                returnVal.MouseDown += SearchResultPreviewDocument_Click;
-                return returnVal;
+                searchResultHeader.Text = searchResult.ToString();
+                target.Add(searchResultHeader);
+
+                TextBlock placeholderSearchResult = new TextBlock()
+                {
+                    Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                    FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                    FontSize = (double)TryFindResource("VerseFontSize"),
+                    TextWrapping = TextWrapping.Wrap,
+                    TextAlignment = TextAlignment.Justify,
+                    Padding = new Thickness(5),
+                    IsManipulationEnabled = false,
+                    Tag = searchResult,
+                    Text = $"Entity type {searchResult.Type} not yet handled"
+                };
+
+                placeholderSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                placeholderSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                placeholderSearchResult.MouseDown += SearchResultPreviewDocument_Click;
+                target.Add(placeholderSearchResult);
             }
+        }
+
+        private void CreateUiElementsForScriptureVerseResult(
+            KnowledgeGraphNodeId entityId,
+            ScriptureChapterDocument chapter,
+            UIElementCollection target)
+        {
+            ScriptureReference parsedRef = new ScriptureReference(entityId);
+            if (!parsedRef.Verse.HasValue)
+            {
+                throw new Exception("Scripture reference has no verse data " + entityId.ToString());
+            }
+
+            if (parsedRef.Verse.Value - 1 >= chapter.Paragraphs.Count)
+            {
+                throw new Exception("Verse reference to invalid verse " + entityId.ToString());
+            }
+
+            TextBlock scriptureSearchResult = new TextBlock()
+            {
+                Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                FontSize = (double)TryFindResource("VerseFontSize"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Justify,
+                Padding = new Thickness(5),
+                IsManipulationEnabled = false,
+                Tag = entityId,
+                Text = $"[{parsedRef.Verse.Value}] {chapter.Paragraphs[parsedRef.Verse.Value - 1].Text}"
+            };
+
+            scriptureSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+            scriptureSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+            scriptureSearchResult.MouseDown += SearchResultPreviewDocument_Click;
+            target.Add(scriptureSearchResult);
+        }
+
+        private void CreateUiElementsForConferenceParagraphResult(
+            KnowledgeGraphNodeId entityId,
+            ConferenceTalkDocument document,
+            UIElementCollection target)
+        {
+            string[] parts = entityId.Name.Split('|');
+            int paragraph = int.Parse(parts[3]) - 1;
+
+            if (paragraph >= document.Paragraphs.Count)
+            {
+                throw new Exception("Verse reference to invalid paragraph " + entityId.ToString());
+            }
+
+            TextBlock conferenceTalkResult = new TextBlock()
+            {
+                Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                FontSize = (double)TryFindResource("VerseFontSize"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Justify,
+                Padding = new Thickness(5),
+                IsManipulationEnabled = false,
+                Tag = entityId,
+                Text = document.Paragraphs[paragraph].Text
+            };
+
+            conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+            conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+            conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
+            target.Add(conferenceTalkResult);
+        }
+
+        private void CreateUiElementsForBDParagraphResult(
+            KnowledgeGraphNodeId entityId,
+            BibleDictionaryDocument document,
+            UIElementCollection target)
+        {
+            string[] parts = entityId.Name.Split('|');
+            int paragraph = int.Parse(parts[1]) - 1;
+
+            if (paragraph >= document.Paragraphs.Count)
+            {
+                throw new Exception("Verse reference to invalid paragraph " + entityId.ToString());
+            }
+
+            TextBlock conferenceTalkResult = new TextBlock()
+            {
+                Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                FontSize = (double)TryFindResource("VerseFontSize"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Justify,
+                Padding = new Thickness(5),
+                IsManipulationEnabled = false,
+                Tag = entityId,
+                Text = document.Paragraphs[paragraph].Text
+            };
+
+            conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+            conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+            conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
+            target.Add(conferenceTalkResult);
         }
 
         private void SearchResultPreviewDocument_MouseEnter(object sender, MouseEventArgs args)
         {
-            ((FlowDocument)sender).Background = new SolidColorBrush(Color.FromArgb(255, 200, 200, 200));
+            ((TextBlock)sender).Background = new SolidColorBrush(Color.FromArgb(255, 200, 200, 200));
         }
 
         private void SearchResultPreviewDocument_MouseLeave(object sender, MouseEventArgs args)
         {
-            ((FlowDocument)sender).Background = (Brush)TryFindResource("DocumentReaderPageBackground");
+            ((TextBlock)sender).Background = (Brush)TryFindResource("DocumentReaderPageBackground");
         }
 
         private async void SearchResultPreviewDocument_Click(object sender, MouseButtonEventArgs args)
         {
             try
             {
-                CloseSearchResultsIfPresent();
-                KnowledgeGraphNodeId entityIdToLoad = (KnowledgeGraphNodeId)((FlowDocument)sender).Tag;
+                KnowledgeGraphNodeId entityIdToLoad = (KnowledgeGraphNodeId)((TextBlock)sender).Tag;
                 await LoadDocumentForEntity(entityIdToLoad);
             }
             catch (Exception e)

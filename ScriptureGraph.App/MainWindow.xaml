@@ -18,6 +18,7 @@
         <Thickness x:Key="DefaultParagraphMargin">10,0,10,20</Thickness>
         <Thickness x:Key="ScriptureParagraphMargin">10,0,10,5</Thickness>
         <SolidColorBrush x:Key="DocumentReaderPageBackground" Color="#FFF2F2F2"/>
+        <SolidColorBrush x:Key="SearchResultLabelBackground" Color="#FFA1B2D1"/>
         <Thickness x:Key="VerseNumMargin">0,0,5,0</Thickness>
         <System:Double x:Key="ReadingPaneWidth">500</System:Double>
         <SolidColorBrush x:Key="SearchBubbleBackground" Color="LightGray"/>
@@ -238,10 +239,19 @@
                             Name="SearchResultsScroller"
                             Width="{DynamicResource ReadingPaneWidth}">
                             <StackPanel Orientation="Vertical">
-                                <FlowDocumentScrollViewer
-                                    VerticalScrollBarVisibility="Disabled"
-                                    HorizontalScrollBarVisibility="Disabled">
-                                </FlowDocumentScrollViewer>
+                                <TextBlock
+                                    Background="{DynamicResource SearchResultLabelBackground}"
+                                    Text="Book of Mormon - Alma 36:20"
+                                    IsManipulationEnabled="False"></TextBlock>
+                                <TextBlock 
+                                    Background="{DynamicResource DocumentReaderPageBackground}"
+                                    FontFamily="{DynamicResource SerifFontFamily}"
+                                    FontSize="{DynamicResource VerseFontSize}"
+                                    TextWrapping="Wrap"
+                                    TextAlignment="Justify"
+                                    Padding="5"
+                                    IsManipulationEnabled="False"
+                                    Text="And oh, what joy, and what marvelous light I did behold; yea, my soul was filled with joy as exceeding as was my pain!"></TextBlock>
                             </StackPanel>
                         </ScrollViewer>
                     </DockPanel>
