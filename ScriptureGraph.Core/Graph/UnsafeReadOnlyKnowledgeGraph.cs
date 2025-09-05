@@ -1,4 +1,5 @@
 ﻿using Durandal.Common.IO;
+using Durandal.Common.IO.Crc;
 using Durandal.Common.IO.Hashing;
 using Durandal.Common.Logger;
 using Durandal.Common.MathExt;
@@ -63,7 +64,7 @@ namespace ScriptureGraph.Core.Graph
                             bytesUsedInScratch = 0;
                         }
 
-                        int thisNodeSize = UnsafeNodeId.FromSafeNodeId(initialActivation.Key, new Span<byte>(currentScratchArea, scratchChunkSize - bytesUsedInScratch));
+                        int thisNodeSize = UnsafeNodeId.FromSafeNodeId(initialActivation.Key, new Span<byte>(currentScratchArea + bytesUsedInScratch, scratchChunkSize - bytesUsedInScratch));
                         UnsafeNodeId convertedNodeId = new UnsafeNodeId(currentScratchArea + bytesUsedInScratch);
                         bytesUsedInScratch += thisNodeSize;
                         thisScopeActivation.Increment(convertedNodeId, initialActivation.Value);
@@ -77,7 +78,7 @@ namespace ScriptureGraph.Core.Graph
                     initialActivationsPerScope.Add(thisScopeArray, thisScopeActivation);
                     scopesInitialized.Add(thisScopeArray);
 
-                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope {0:x}", thisScopeArray.Data);
+                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope 0x{0:x}", thisScopeArray.Data);
                 }
 
                 // Loop for as long as we have unique activations per scope
@@ -85,7 +86,7 @@ namespace ScriptureGraph.Core.Graph
                 {
                     foreach (var scopeActivations in initialActivationsPerScope)
                     {
-                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Processing scope {0:x}", scopeActivations.Key.Data);
+                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Processing scope 0x{0:x}", scopeActivations.Key.Data);
                         // Copy activations from scope to initializer
                         thisStepActivation.Clear();
                         nextStepActivation.Clear();
@@ -118,7 +119,7 @@ namespace ScriptureGraph.Core.Graph
 
                                 scopesInitialized.Add(unionedArray);
 
-                                logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope {0:x}", unionedArray.Data);
+                                logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope 0x{0:x}", unionedArray.Data);
 
                                 // Set intersection
                                 HashSet<UnsafeNodeId> unionSet = scopeActivationsSrc.Value.ValueSet();
@@ -126,7 +127,7 @@ namespace ScriptureGraph.Core.Graph
 
                                 if (unionSet.Count > 0)
                                 {
-                                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Merging scopes {0:x} and {1:x}", scopeActivationsSrc.Key.Data, scopeActivationsDest.Key.Data);
+                                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Merging scopes 0x{0:x} and 0x{1:x}", scopeActivationsSrc.Key.Data, scopeActivationsDest.Key.Data);
                                     mergeHappened = true;
                                     Counter<UnsafeNodeId> unionedCounter = new Counter<UnsafeNodeId>();
                                     foreach (UnsafeNodeId overlappedNode in unionSet)
@@ -145,14 +146,14 @@ namespace ScriptureGraph.Core.Graph
                                     {
                                         scopesProcessed.Add(scopeActivationsSrc.Key);
                                         unionedCounter.Increment(scopeActivationsSrc.Value);
-                                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope {0:x} as processed", scopeActivationsSrc.Key.Data);
+                                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope 0x{0:x} as processed", scopeActivationsSrc.Key.Data);
                                     }
 
                                     if (!scopesProcessed.Contains(scopeActivationsDest.Key))
                                     {
                                         scopesProcessed.Add(scopeActivationsDest.Key);
                                         unionedCounter.Increment(scopeActivationsDest.Value);
-                                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope {0:x} as processed", scopeActivationsDest.Key.Data);
+                                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope 0x{0:x} as processed", scopeActivationsDest.Key.Data);
                                     }
 
                                     newInitialActivations.Add(unionedArray, unionedCounter);
@@ -533,9 +534,11 @@ namespace ScriptureGraph.Core.Graph
             {
                 // TODO don't know how to invoke the platform built-in hasher using ReadOnlySpan<byte>
                 // since I recall that was explicitly disabled in runtime
-                MurmurHash3_32 hasher = new MurmurHash3_32(5137);
-                hasher.Ingest(Name);
-                return (int)hasher.Finish();
+                // So use processor-accelerated CRC32C
+                ICRC32C crcEngine = CRC32CFactory.Create();
+                CRC32CState crc = new CRC32CState();
+                crcEngine.Slurp(ref crc, Name);
+                return (int)crc.Checksum;
             }
 
             public KnowledgeGraphNodeId ToSafeNodeId()

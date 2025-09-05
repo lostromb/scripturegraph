@@ -9,6 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="content\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="content\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Durandal.AI" Version="22.0.4670" />
     <PackageReference Include="Durandal.AI.Extensions.Compression" Version="22.0.4670" />
     <PackageReference Include="Durandal.AI.NonPortable" Version="22.0.4670" />

@@ -628,7 +628,8 @@ namespace ScriptureGraph.Core.Graph
             KnowledgeGraphQuery query,
             Counter<KnowledgeGraphNodeId> thisStepActivation,
             Counter<KnowledgeGraphNodeId> nextStepActivation,
-            Counter<KnowledgeGraphNodeId> cumulativeActivation)
+            Counter<KnowledgeGraphNodeId> cumulativeActivation,
+            ILogger logger)
         {
             Counter<KnowledgeGraphNodeId> swap = thisStepActivation;
             ValueStopwatch scopeStopwatch = ValueStopwatch.StartNew();
@@ -762,7 +763,7 @@ namespace ScriptureGraph.Core.Graph
                     nextStepActivation.Clear();
                     thisStepActivation.Increment(scopeActivations.Value);
 
-                    QuerySingleScope(query, thisStepActivation, nextStepActivation, scopeActivations.Value);
+                    QuerySingleScope(query, thisStepActivation, nextStepActivation, scopeActivations.Value, logger);
 
                     // Copy from single scope to cumulative
                     finalCumulativeResult.Increment(scopeActivations.Value);

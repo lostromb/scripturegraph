@@ -1,8 +1,10 @@
 ﻿using Durandal.Common.File;
 using Durandal.Common.Logger;
 using Durandal.Common.Time;
+using Durandal.Common.Utils;
 using Durandal.Common.Utils.NativePlatform;
 using Durandal.Extensions.Compression.Brotli;
+using Durandal.Extensions.Compression.Crc;
 using ScriptureGraph.Core;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
@@ -23,6 +25,7 @@ namespace ScriptureGraph.Console
             ILogger logger = new ConsoleLogger("Main");
 #endif
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
+            AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, logger);
 
             // Convert graphs
             //TrainingKnowledgeGraph graph;
@@ -38,15 +41,16 @@ namespace ScriptureGraph.Console
             //}
 
             using (NativeMemoryHeap graphHeap = new NativeMemoryHeap())
-            using (Stream graphIn = new FileStream(@"D:\Code\scripturegraph\runtime\all.graph", FileMode.Open, FileAccess.Read))
+            using (Stream graphIn = new FileStream(@"D:\Code\scripturegraph\runtime\searchindex.graph.br", FileMode.Open, FileAccess.Read))
             using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(graphIn))
             {
                 Stopwatch timer = Stopwatch.StartNew();
                 UnsafeReadOnlyKnowledgeGraph graph = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, graphHeap);
+                //TrainingKnowledgeGraph graph = TrainingKnowledgeGraph.Load(brotliStream);
                 timer.Stop();
                 logger.Log("Load time was " + timer.ElapsedMillisecondsPrecise());
 
-                RunGraphQuery("ether 12:27", graph, logger);
+                RunSearchQuery("hinckley", graph, logger);
             }
 
             //using (Stream graphOut = new FileStream(@"D:\Code\scripturegraph\runtime\all.graph", FileMode.Create, FileAccess.Write))

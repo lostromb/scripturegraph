@@ -10,6 +10,7 @@ namespace ScriptureGraph.App.Schemas
     internal class SlowSearchQuery
     {
         public required List<KnowledgeGraphNodeId[]> SearchScopes;
+        public required HashSet<KnowledgeGraphNodeId> IgnoredDocumentScopes;
         public int MaxResults;
     }
 }

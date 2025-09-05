@@ -56,10 +56,12 @@ namespace ScriptureGraph.App
                     return;
                 }
 
-                await Task.Yield();
+                SearchButton.IsEnabled = false;
+
                 SlowSearchQuery query = new SlowSearchQuery()
                 {
                     SearchScopes = new List<KnowledgeGraphNodeId[]>(),
+                    IgnoredDocumentScopes = new HashSet<KnowledgeGraphNodeId>(),
                     MaxResults = 50
                 };
 
@@ -68,23 +70,31 @@ namespace ScriptureGraph.App
                     query.SearchScopes.Add(searchScope.Value);
                 }
 
-                SlowSearchQueryResult results = _core.RunSlowSearchQuery(query);
-                List<KnowledgeGraphNodeId> resultEntityIds = results.EntityIds;
-                Grid searchResultsPane = await CreateNewSearchResultsPane(resultEntityIds);
-
-                // UI THREAD
-                Dispatcher.Invoke(() =>
+                // Tell the search to ignore panels we already have open
+                foreach (var readingPane in _currentReadingPanes)
                 {
-                    if (_currentSearchResultsPane != null)
+                    if (readingPane.Value.CurrentDocumentEntity.HasValue &&
+                        !query.IgnoredDocumentScopes.Contains(readingPane.Value.CurrentDocumentEntity.Value))
                     {
-                        BrowseArea.Children.Remove(_currentSearchResultsPane);
+                        query.IgnoredDocumentScopes.Add(readingPane.Value.CurrentDocumentEntity.Value);
                     }
+                }
 
-                    _currentSearchResultsPane = searchResultsPane;
-                    BrowseArea.Children.Add(searchResultsPane);
-                    BrowseArea.UpdateLayout();
-                    searchResultsPane.BringIntoView();
-                });
+                SlowSearchQueryResult searchResults = await Task.Run(() => _core.RunSlowSearchQuery(query)).ConfigureAwait(true);
+                List<KnowledgeGraphNodeId> resultEntityIds = searchResults.EntityIds;
+
+                // We're still on the UI thread so no need to dispatch
+                Grid searchResultsPane = await CreateNewSearchResultsPane(resultEntityIds).ConfigureAwait(true);
+                SearchButton.IsEnabled = true;
+                if (_currentSearchResultsPane != null)
+                {
+                    BrowseArea.Children.Remove(_currentSearchResultsPane);
+                }
+
+                _currentSearchResultsPane = searchResultsPane;
+                BrowseArea.Children.Add(searchResultsPane);
+                BrowseArea.UpdateLayout();
+                searchResultsPane.BringIntoView();
             }
             catch (Exception e)
             {
@@ -802,7 +812,12 @@ namespace ScriptureGraph.App
                         TextAlignment = TextAlignment.Justify,
                         Padding = new Thickness(5),
                         IsManipulationEnabled = false,
-                        Tag = searchResult,
+                        Tag = new FastSearchQueryResult()
+                        {
+                            DisplayName = $"{conferenceDoc.Title}",
+                            EntityType = SearchResultEntityType.ConferenceTalk,
+                            EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                        },
                         Text = $"{conferenceDoc.Speaker} - {conferenceDoc.Title}"
                     };
 
@@ -847,7 +862,12 @@ namespace ScriptureGraph.App
                         TextAlignment = TextAlignment.Justify,
                         Padding = new Thickness(5),
                         IsManipulationEnabled = false,
-                        Tag = searchResult,
+                        Tag = new FastSearchQueryResult()
+                        {
+                            DisplayName = dictionaryDoc.Title,
+                            EntityType = SearchResultEntityType.Topic,
+                            EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                        },
                         Text = $"Bible Dictionary - {dictionaryDoc.Title}"
                     };
 
@@ -875,7 +895,12 @@ namespace ScriptureGraph.App
                     TextAlignment = TextAlignment.Justify,
                     Padding = new Thickness(5),
                     IsManipulationEnabled = false,
-                    Tag = searchResult,
+                    Tag = new FastSearchQueryResult()
+                    {
+                        DisplayName = "UNKNOWN",
+                        EntityType = SearchResultEntityType.Unknown,
+                        EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                    },
                     Text = $"Entity type {searchResult.Type} not yet handled"
                 };
 
@@ -911,7 +936,12 @@ namespace ScriptureGraph.App
                 TextAlignment = TextAlignment.Justify,
                 Padding = new Thickness(5),
                 IsManipulationEnabled = false,
-                Tag = entityId,
+                Tag = new FastSearchQueryResult()
+                {
+                    DisplayName = $"{ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book)} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
+                    EntityType = SearchResultEntityType.ScriptureVerse,
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                },
                 Text = $"[{parsedRef.Verse.Value}] {chapter.Paragraphs[parsedRef.Verse.Value - 1].Text}"
             };
 
@@ -943,7 +973,12 @@ namespace ScriptureGraph.App
                 TextAlignment = TextAlignment.Justify,
                 Padding = new Thickness(5),
                 IsManipulationEnabled = false,
-                Tag = entityId,
+                Tag = new FastSearchQueryResult()
+                {
+                    DisplayName = $"{document.Title} ¶{paragraph + 1}",
+                    EntityType = SearchResultEntityType.ConferenceTalk,
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                },
                 Text = document.Paragraphs[paragraph].Text
             };
 
@@ -999,8 +1034,12 @@ namespace ScriptureGraph.App
         {
             try
             {
-                KnowledgeGraphNodeId entityIdToLoad = (KnowledgeGraphNodeId)((TextBlock)sender).Tag;
+                FastSearchQueryResult searchResult = (FastSearchQueryResult)((TextBlock)sender).Tag;
+                // When we click on a search result, load the document in a tab
+                KnowledgeGraphNodeId entityIdToLoad = searchResult.EntityIds[0];
                 await LoadDocumentForEntity(entityIdToLoad);
+                // And add it to the search bar
+                CreateNewSearchScope(searchResult.EntityType, searchResult.DisplayName, searchResult.EntityIds);
             }
             catch (Exception e)
             {

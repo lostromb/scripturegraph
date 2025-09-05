@@ -2,7 +2,9 @@
 using Durandal.Common.Logger;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
+using Durandal.Common.Utils.NativePlatform;
 using Durandal.Extensions.Compression.Brotli;
+using Durandal.Extensions.Compression.Crc;
 using Org.BouncyCastle.Crypto;
 using ScriptureGraph.App.Schemas;
 using ScriptureGraph.Core.Graph;
@@ -34,8 +36,14 @@ namespace ScriptureGraph.App
 
         public AppCore()
         {
+#if DEBUG
+            _coreLogger = new TraceLogger("GraphApp", LogLevel.All);
+#else
             _coreLogger = new TraceLogger("GraphApp");
-            _fileSystem = new RealFileSystem(_coreLogger.Clone("FileSystem"), @"D:\Code\scripturegraph\runtime");
+#endif
+            NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
+            AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, _coreLogger);
+            _fileSystem = new RealFileSystem(_coreLogger.Clone("FileSystem"), Path.Combine(Environment.CurrentDirectory, "content"));
             _documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>();
             _nativeHeap = new NativeMemoryHeap();
         }
@@ -45,9 +53,9 @@ namespace ScriptureGraph.App
             await Task.Yield();
 
             Stopwatch timer = Stopwatch.StartNew();
-            VirtualPath smallGraphFileName = new VirtualPath("searchindex.graph");
+            VirtualPath smallGraphFileName = new VirtualPath("searchindex.graph.br");
             VirtualPath nameLookupFileName = new VirtualPath("entitynames_eng.map");
-            VirtualPath largeGraphFileName = new VirtualPath("all.graph");
+            VirtualPath largeGraphFileName = new VirtualPath("all.graph.br");
 
             if (!(await _fileSystem.ExistsAsync(smallGraphFileName)))
             {
@@ -68,6 +76,7 @@ namespace ScriptureGraph.App
             using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
             {
                 _coreLogger.Log("Loading small search index");
+                //_smallSearchIndex = TrainingKnowledgeGraph.Load(brotliStream);
                 _smallSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, _nativeHeap);
             }
 
@@ -227,10 +236,24 @@ namespace ScriptureGraph.App
                 throw new InvalidOperationException("Search index is not loaded");
             }
 
+            HashSet<KnowledgeGraphNodeId> finalHiddenEntityIdSet = new HashSet<KnowledgeGraphNodeId>();
+            foreach (KnowledgeGraphNodeId ignoredScope in query.IgnoredDocumentScopes)
+            {
+                KnowledgeGraphNodeId documentId = MapEntityIdToDocument(ignoredScope);
+                if (!finalHiddenEntityIdSet.Contains(documentId))
+                {
+                    finalHiddenEntityIdSet.Add(documentId);
+                }
+            }
+
             _coreLogger.Log("Querying big graph");
 
             Stopwatch timer = Stopwatch.StartNew();
-            KnowledgeGraphQuery internalQuery = new KnowledgeGraphQuery();
+            KnowledgeGraphQuery internalQuery = new KnowledgeGraphQuery()
+            {
+                MaxSearchTime = TimeSpan.FromMilliseconds(100)
+            };
+
             int scopeId = 0;
             foreach (var queryScope in query.SearchScopes)
             {
@@ -271,7 +294,18 @@ namespace ScriptureGraph.App
                     continue;
                 }
 
-                // TODO apply filters and stuff
+                // TODO apply filters and stuff for specific canons, etc.
+
+                // Ignore documents that the caller has told us to ignore (we assume they are already opened)
+                KnowledgeGraphNodeId documentId = MapEntityIdToDocument(result.Key);
+                if (finalHiddenEntityIdSet.Contains(documentId))
+                {
+                    continue;
+                }
+
+                // This line will make it so that if there are multiple search results for the same document,
+                // only the highest scoring result per document will appear.
+                finalHiddenEntityIdSet.Add(documentId);
 
                 if (result.Value > highestResultScore)
                 {
