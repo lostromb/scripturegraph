@@ -8,9 +8,13 @@
 
         public KnowledgeGraphNodeId(KnowledgeGraphNodeType type, string name)
         {
-            if (name.Length > 256)
+            if (string.IsNullOrEmpty(name))
             {
-                throw new IndexOutOfRangeException("Graph node ID name is too long; must be 256 chars or less");
+                throw new ArgumentNullException(nameof(name));
+            }
+            if (name.Length > 255)
+            {
+                throw new IndexOutOfRangeException("Graph node ID name is too long; must be 255 chars or less");
             }
 
             Type = type;

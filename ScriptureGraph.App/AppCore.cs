@@ -24,9 +24,9 @@ namespace ScriptureGraph.App
         private readonly ILogger _coreLogger;
         private readonly IFileSystem _fileSystem;
         private Dictionary<KnowledgeGraphNodeId, VirtualPath> _documentLibrary;
-        private KnowledgeGraph? _smallSearchIndex;
+        private IKnowledgeGraph? _smallSearchIndex;
         private EntityNameIndex? _entityNameLookup;
-        private KnowledgeGraph? _largeSearchIndex;
+        private IKnowledgeGraph? _largeSearchIndex;
 
         public ILogger CoreLogger => _coreLogger;
 
@@ -63,7 +63,7 @@ namespace ScriptureGraph.App
             using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(smallGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
             {
                 _coreLogger.Log("Loading small search index");
-                _smallSearchIndex = KnowledgeGraph.Load(searchGraphIn);
+                _smallSearchIndex = TrainingKnowledgeGraph.LoadLegacyFormat(searchGraphIn);
             }
 
             using (Stream searchIndexIn = await _fileSystem.OpenStreamAsync(nameLookupFileName, FileOpenMode.Open, FileAccessMode.Read))
@@ -75,7 +75,7 @@ namespace ScriptureGraph.App
             using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
             {
                 _coreLogger.Log("Loading large search index");
-                _largeSearchIndex = KnowledgeGraph.Load(searchGraphIn);
+                _largeSearchIndex = TrainingKnowledgeGraph.LoadLegacyFormat(searchGraphIn);
             }
         }
 
@@ -140,7 +140,7 @@ namespace ScriptureGraph.App
 
             if (await _fileSystem.ExistsAsync(indexFile))
             {
-                // Load cached file
+                // LoadLegacyFormat cached file
                 _coreLogger.Log("Loading cached document index");
                 using (Stream cacheIn = await _fileSystem.OpenStreamAsync(indexFile, FileOpenMode.Open, FileAccessMode.Read))
                 {

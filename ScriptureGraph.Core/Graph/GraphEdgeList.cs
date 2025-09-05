@@ -12,15 +12,15 @@ namespace ScriptureGraph.Core.Graph
 {
     public class GraphEdgeList
     {
-        private readonly int _maxCapacity;
-        private int _currentCapacity;
-        private int _currentLength;
+        private readonly ushort _maxCapacity;
+        private ushort _currentCapacity;
+        private ushort _currentLength;
         private KnowledgeGraphEdge[] _list;
         private float _totalMass;
 
-        public GraphEdgeList(int maxCapacity)
+        public GraphEdgeList(ushort maxCapacity)
         {
-            _maxCapacity = Math.Max(4, maxCapacity);
+            _maxCapacity = Math.Max((ushort)4, maxCapacity);
             _currentCapacity = 4;
             _currentLength = 0;
             _list = new KnowledgeGraphEdge[_currentCapacity];
@@ -32,19 +32,19 @@ namespace ScriptureGraph.Core.Graph
         /// </summary>
         /// <param name="maxCapacity"></param>
         /// <param name="numEdges"></param>
-        internal GraphEdgeList(int maxCapacity, int numEdges)
+        internal GraphEdgeList(ushort maxCapacity, ushort numEdges)
         {
             _maxCapacity = maxCapacity;
-            _currentCapacity = (int)BitOperations.RoundUpToPowerOf2((uint)numEdges);
+            _currentCapacity = (ushort)BitOperations.RoundUpToPowerOf2((uint)numEdges);
             _currentLength = 0;
             _list = new KnowledgeGraphEdge[_currentCapacity];
             _totalMass = 0;
         }
 
-        public int NumEdges => _currentLength;
+        public ushort NumEdges => _currentLength;
         public float TotalMass => _totalMass;
-        public int MaxCapacity => _maxCapacity;
-        internal int CurrentCapacity => _currentCapacity;
+        public ushort MaxCapacity => _maxCapacity;
+        internal ushort CurrentCapacity => _currentCapacity;
 
         public void Increment(in KnowledgeGraphNodeId nodeRef, float massIncrease)
         {
@@ -113,7 +113,7 @@ namespace ScriptureGraph.Core.Graph
 
         private void IncreaseCapacity()
         {
-            int newCapacity = Math.Min(_maxCapacity, _currentCapacity * 2);
+            ushort newCapacity = (ushort)Math.Min(_maxCapacity, _currentCapacity * 2);
             if (newCapacity == _currentCapacity)
             {
                 // Can't expand. Prune down the existing list.
@@ -127,7 +127,7 @@ namespace ScriptureGraph.Core.Graph
                 // Technically we don't have to clear any memory, just shorten the list length
                 _list.AsSpan(_currentLength - elementsToPrune, elementsToPrune).Clear();
 #endif
-                _currentLength -= elementsToPrune;
+                _currentLength = (ushort)(_currentLength - elementsToPrune);
             }
             else
             {

@@ -1,22 +1,15 @@
 ﻿using Durandal.Common.File;
-using Durandal.Common.Instrumentation;
 using Durandal.Common.Logger;
-using Durandal.Common.Net.Http;
-using Durandal.Common.NLP.Language;
-using Durandal.Common.Tasks;
 using Durandal.Common.Time;
 using Durandal.Common.Utils.NativePlatform;
-using Org.BouncyCastle.Bcpg.Sig;
+using Durandal.Extensions.Compression.Brotli;
 using ScriptureGraph.Core;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
-using ScriptureGraph.Core.Schemas.Serializers;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System.Diagnostics;
-using System.IO;
-using System.Text.Json;
-using System.Text.RegularExpressions;
+using System.IO.Compression;
 
 namespace ScriptureGraph.Console
 {
@@ -31,6 +24,36 @@ namespace ScriptureGraph.Console
 #endif
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
 
+            // Convert graphs
+            //TrainingKnowledgeGraph graph;
+            //using (Stream graphIn = new FileStream(@"D:\Code\scripturegraph\runtime\all.graph", FileMode.Open, FileAccess.Read))
+            //{
+            //    graph = TrainingKnowledgeGraph.LoadLegacyFormat(graphIn);
+            //}
+
+            //using (Stream graphIn = new FileStream(@"D:\Code\scripturegraph\runtime\scriptures.graph", FileMode.Open, FileAccess.Read))
+            //using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(graphIn))
+            //{
+            //    graph = TrainingKnowledgeGraph.Load(brotliStream);
+            //}
+
+            using (NativeMemoryHeap graphHeap = new NativeMemoryHeap())
+            using (Stream graphIn = new FileStream(@"D:\Code\scripturegraph\runtime\all.graph", FileMode.Open, FileAccess.Read))
+            using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(graphIn))
+            {
+                Stopwatch timer = Stopwatch.StartNew();
+                UnsafeReadOnlyKnowledgeGraph graph = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, graphHeap);
+                timer.Stop();
+                System.Console.WriteLine(timer.ElapsedMillisecondsPrecise());
+            }
+
+            //using (Stream graphOut = new FileStream(@"D:\Code\scripturegraph\runtime\all.graph", FileMode.Create, FileAccess.Write))
+            //using (BrotliStream brotliStream = new BrotliStream(graphOut, CompressionLevel.SmallestSize))
+            ////using (BrotliCompressorStream brotliStream = new BrotliCompressorStream(graphOut))
+            //{
+            //    graph.Save(brotliStream);
+            //}
+
             // Decompress one page in the cache
             //VirtualPath inputFile = new VirtualPath("https___www.churchofjesuschrist.org_study_scriptures_bofm_1-ne_3_lang=eng.html.br");
             //VirtualPath outputFile = new VirtualPath("https___www.churchofjesuschrist.org_study_scriptures_bofm_1-ne_3_lang=eng.html");
@@ -41,12 +64,12 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            await BuildAndTestUniversalGraph(logger);
+            //await BuildAndTestUniversalGraph(logger);
         }
 
         private static async Task Test(ILogger logger)
         {
-            KnowledgeGraph graph;
+            TrainingKnowledgeGraph graph;
             string inModelFileName = @"D:\Code\scripturegraph\runtime\scriptures.graph";
             string outModelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
 
@@ -55,7 +78,7 @@ namespace ScriptureGraph.Console
                 logger.Log("Loading model");
                 using (FileStream testGraphIn = new FileStream(inModelFileName, FileMode.Open, FileAccess.Read))
                 {
-                    graph = KnowledgeGraph.Load(testGraphIn);
+                    graph = TrainingKnowledgeGraph.LoadLegacyFormat(testGraphIn);
                 }
 
                 IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
@@ -70,7 +93,7 @@ namespace ScriptureGraph.Console
 
         private static async Task BuildAndTestSearchIndex(ILogger logger)
         {
-            KnowledgeGraph entitySearchGraph;
+            TrainingKnowledgeGraph entitySearchGraph;
 
             string modelFileName = @"D:\Code\scripturegraph\runtime\searchindex.graph";
             string entityMapFileName = @"D:\Code\scripturegraph\runtime\entitynames_eng.map";
@@ -79,14 +102,14 @@ namespace ScriptureGraph.Console
             {
                 using (FileStream searchGraphIn = new FileStream(modelFileName, FileMode.Open, FileAccess.Read))
                 {
-                    entitySearchGraph = KnowledgeGraph.Load(searchGraphIn);
+                    entitySearchGraph = TrainingKnowledgeGraph.LoadLegacyFormat(searchGraphIn);
                 }
             }
             else
             {
                 IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
                 WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-                Tuple<KnowledgeGraph, EntityNameIndex> returnVal = await CommonTasks.BuildSearchIndex(logger, pageCache);
+                Tuple<TrainingKnowledgeGraph, EntityNameIndex> returnVal = await CommonTasks.BuildSearchIndex(logger, pageCache);
                 entitySearchGraph = returnVal.Item1;
 
                 using (FileStream searchGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
@@ -119,7 +142,7 @@ namespace ScriptureGraph.Console
             }
         }
 
-        private static void RunSearchQuery(string queryString, KnowledgeGraph graph, ILogger logger)
+        private static void RunSearchQuery(string queryString, IKnowledgeGraph graph, ILogger logger)
         {
             logger.Log("Querying " + queryString);
 
@@ -167,7 +190,7 @@ namespace ScriptureGraph.Console
 
         private static async Task BuildAndTestUniversalGraph(ILogger logger)
         {
-            KnowledgeGraph graph;
+            TrainingKnowledgeGraph graph;
 
             string modelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
 
@@ -176,14 +199,14 @@ namespace ScriptureGraph.Console
                 logger.Log("Loading model");
                 using (FileStream testGraphIn = new FileStream(modelFileName, FileMode.Open, FileAccess.Read))
                 {
-                    graph = KnowledgeGraph.Load(testGraphIn);
+                    graph = TrainingKnowledgeGraph.LoadLegacyFormat(testGraphIn);
                 }
             }
             else
             {
                 IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
                 WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-                graph = new KnowledgeGraph();
+                graph = new TrainingKnowledgeGraph();
                 await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
                 using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
                 {
@@ -262,7 +285,7 @@ namespace ScriptureGraph.Console
             }
         }
 
-        private static void RunGraphQuery(string queryString, KnowledgeGraph graph, ILogger logger)
+        private static void RunGraphQuery(string queryString, IKnowledgeGraph graph, ILogger logger)
         {
             logger.Log("Querying " + queryString);
 

@@ -1,20 +1,17 @@
-﻿using Durandal.Common.Audio.Codecs.ILBC;
+﻿using Durandal.Common.IO;
 using Durandal.Common.Logger;
 using Durandal.Common.MathExt;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
-using Microsoft.VisualBasic;
 using ScriptureGraph.Core.Training;
 using System.Collections;
-using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Diagnostics;
-using static System.Formats.Asn1.AsnWriter;
+using System.Text;
 
 #nullable disable
 namespace ScriptureGraph.Core.Graph
 {
-    public class KnowledgeGraph
+    public class TrainingKnowledgeGraph : IKnowledgeGraph
     {
         private const int BIN_LOAD_RATIO = 3; // average number of entries per bin until we consider increasing the table size
         private const int NUM_LOCKS = 128; // must be power of two
@@ -23,14 +20,19 @@ namespace ScriptureGraph.Core.Graph
         private readonly TrainingLockArray _locks;
         private HashTableLinkedListNode[] _bins;
         private volatile int _numItemsInDictionary;
-        private readonly int _edgeCapacity;
+        private readonly ushort _edgeCapacity;
 
-        public KnowledgeGraph(int edgeCapacity = 256)
+        public TrainingKnowledgeGraph(ushort edgeCapacity = 256)
         {
+            if (edgeCapacity < 2)
+            {
+                throw new ArgumentOutOfRangeException(nameof(edgeCapacity));
+            }
+
             _locks = new TrainingLockArray(NUM_LOCKS);
             _numItemsInDictionary = 0;
             _bins = new HashTableLinkedListNode[NUM_LOCKS];
-            _edgeCapacity = edgeCapacity.AssertPositive(nameof(edgeCapacity));
+            _edgeCapacity = edgeCapacity;
         }
 
         public int Count => _numItemsInDictionary;
@@ -304,14 +306,14 @@ namespace ScriptureGraph.Core.Graph
         private class KnowledgeGraphUnsafeEnumerator : IEnumerator<KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>>
         {
             private readonly HashTableLinkedListNode[] _localTableReference;
-            private readonly KnowledgeGraph _owner;
+            private readonly TrainingKnowledgeGraph _owner;
             private bool _finished;
             private uint _currentBinIdx;
             private uint _currentBinListIdx;
             private uint _beginOffset;
             private KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode> _current;
 
-            public KnowledgeGraphUnsafeEnumerator(KnowledgeGraph owner)
+            public KnowledgeGraphUnsafeEnumerator(TrainingKnowledgeGraph owner)
             {
                 _owner = owner;
                 _localTableReference = _owner._bins;
@@ -319,7 +321,7 @@ namespace ScriptureGraph.Core.Graph
                 _beginOffset = 0;
             }
 
-            public KnowledgeGraphUnsafeEnumerator(KnowledgeGraph owner, IRandom rand)
+            public KnowledgeGraphUnsafeEnumerator(TrainingKnowledgeGraph owner, IRandom rand)
             {
                 _owner = owner;
                 _localTableReference = _owner._bins;
@@ -420,10 +422,24 @@ namespace ScriptureGraph.Core.Graph
             using (BinaryWriter writer = new BinaryWriter(outStream))
             {
                 writer.Write(_edgeCapacity);
-                writer.Write(NUM_LOCKS);
                 writer.Write(_numItemsInDictionary);
 
+                // Write the pointer map at the start, this is not strictly necessary but will speed up unmanaged code loading later
+                long currentPointerPosition = 0;
                 var enumerator = GetUnsafeEnumerator();
+                while (enumerator.MoveNext())
+                {
+                    currentPointerPosition += GetSizeOf(enumerator.Current.Key);
+                    currentPointerPosition += GetSizeOf(enumerator.Current.Value.Edges);
+                    // for list index 0 this will be the byte offset that the next entry (1) begins,
+                    // which is an indirect way of saying how long the current entry is in the list,
+                    // without having to rely on Stream.Length for the last bit - this might make
+                    // things easier if e.g. we wanted to append other data to the same stream afterwards
+                    writer.Write(currentPointerPosition);
+                }
+
+                // Now write all nodes
+                enumerator = GetUnsafeEnumerator();
                 while (enumerator.MoveNext())
                 {
                     WriteNodeId(enumerator.Current.Key, writer);
@@ -435,14 +451,42 @@ namespace ScriptureGraph.Core.Graph
         private static void WriteNodeId(KnowledgeGraphNodeId nodeId, BinaryWriter writer)
         {
             writer.Write((ushort)nodeId.Type);
-            writer.Write(nodeId.Name);
+            using (PooledBuffer<byte> byteScratch = BufferPool<byte>.Rent())
+            {
+                int encodedBytes = Encoding.UTF8.GetBytes(nodeId.Name, 0, nodeId.Name.Length, byteScratch.Buffer, 0);
+                // Cheap variable length encoding scheme
+                // If the UTF8 is 254 bytes or less, just write the length as a byte.
+                // If it's over 254 bytes, then write 255 byte, followed by a two-byte extended length.
+                // Could also use 0 as a signifier since node IDs shouldn't allow empty names
+                if (encodedBytes > 254)
+                {
+                    writer.Write((byte)255);
+                    writer.Write((ushort)encodedBytes);
+                }
+                else
+                {
+                    writer.Write((byte)encodedBytes);
+                }
+
+                writer.Write(byteScratch.Buffer, 0, encodedBytes);
+            }
+        }
+
+        private static int GetSizeOf(KnowledgeGraphNodeId nodeId)
+        {
+            int nameByteCount = Encoding.UTF8.GetByteCount(nodeId.Name);
+            return
+                sizeof(KnowledgeGraphNodeType) +
+                sizeof(byte) +
+                (nameByteCount > 254 ? sizeof(ushort) : 0) +
+                nameByteCount;
         }
 
         private static void WriteEdges(GraphEdgeList edges, BinaryWriter writer)
         {
-            //writer.Write(edges.TotalMass);
+            writer.Write(edges.TotalMass);
             writer.Write(edges.NumEdges);
-            writer.Write(edges.MaxCapacity);
+            //writer.Write(edges.MaxCapacity);
             var enumerator = edges.GetEnumerator();
             while (enumerator.MoveNext())
             {
@@ -452,18 +496,49 @@ namespace ScriptureGraph.Core.Graph
             }
         }
 
-        public static KnowledgeGraph Load(Stream loadStream)
+        private static int GetSizeOf(GraphEdgeList edges)
+        {
+            int returnVal = 0;
+            returnVal +=
+                sizeof(float) + // edges.TotalMass
+                sizeof(ushort); // edges.NumEdges - edges are written in packed format so there's no need to write edges.Capacity, it won't be used
+            var enumerator = edges.GetEnumerator();
+            while (enumerator.MoveNext())
+            {
+                ref KnowledgeGraphEdge edge = ref enumerator.CurrentByRef();
+                returnVal += sizeof(float); // edge.Mass
+                returnVal += GetSizeOf(edge.Target);
+            }
+
+            return returnVal;
+        }
+
+        public static TrainingKnowledgeGraph Load(Stream loadStream)
         {
             using (BinaryReader reader = new BinaryReader(loadStream))
+            using (PooledBuffer<byte> byteScratch = BufferPool<byte>.Rent(65536))
             {
-                int edgeCapacity = reader.ReadInt32();
-                int numLocks = reader.ReadInt32();
+                ushort edgeCapacity = reader.ReadUInt16();
                 int numItemsInDictionary = reader.ReadInt32();
-                KnowledgeGraph returnVal = new KnowledgeGraph(edgeCapacity);
+                TrainingKnowledgeGraph returnVal = new TrainingKnowledgeGraph((byte)Math.Min(byte.MaxValue, edgeCapacity));
+
+                // Skip over the pointer list, we don't use it
+                int bytesToSkip = sizeof(long) * numItemsInDictionary;
+                while (bytesToSkip > 0)
+                {
+                    int skipped = reader.Read(byteScratch.Buffer, 0, Math.Min(bytesToSkip, byteScratch.Buffer.Length));
+                    if (skipped == 0)
+                    {
+                        throw new EndOfStreamException("End of stream while reading initial pointer list");
+                    }
+
+                    bytesToSkip -= skipped;
+                }
+
                 for (int nodeIdx = 0; nodeIdx < numItemsInDictionary; nodeIdx++)
                 {
-                    KnowledgeGraphNodeId thisNodeId = ReadNodeId(reader);
-                    GraphEdgeList thisNodeEdges = ReadEdgeList(reader);
+                    KnowledgeGraphNodeId thisNodeId = ReadNodeId(reader, byteScratch.Buffer);
+                    GraphEdgeList thisNodeEdges = ReadEdgeList(reader, edgeCapacity, byteScratch.Buffer);
                     KnowledgeGraphNode node = new KnowledgeGraphNode(thisNodeEdges);
                     returnVal.Add(thisNodeId, node);
                 }
@@ -472,23 +547,77 @@ namespace ScriptureGraph.Core.Graph
             }
         }
 
-        private static KnowledgeGraphNodeId ReadNodeId(BinaryReader reader)
+        private static KnowledgeGraphNodeId ReadNodeId(BinaryReader reader, byte[] scratchBuf)
+        {
+            KnowledgeGraphNodeType type = (KnowledgeGraphNodeType)reader.ReadUInt16();
+            int byteLength = reader.ReadByte();
+            if (byteLength == 255)
+            {
+                byteLength = reader.ReadUInt16();
+            }
+
+            if (reader.Read(scratchBuf, 0, byteLength) != byteLength)
+            {
+                throw new Exception("Something dumb happened");
+            }
+
+            string name = Encoding.UTF8.GetString(scratchBuf, 0, byteLength);
+            return new KnowledgeGraphNodeId(type, name);
+        }
+
+        private static GraphEdgeList ReadEdgeList(BinaryReader reader, ushort edgeCapacity, byte[] scratch)
+        {
+            float totalMass = reader.ReadSingle();
+            ushort numEdges = reader.ReadUInt16();
+            //int maxCapacity = reader.ReadInt32();
+            GraphEdgeList returnVal = new GraphEdgeList(edgeCapacity, numEdges);
+            for (int edgeIdx = 0; edgeIdx < numEdges; edgeIdx++)
+            {
+                float edgeMass = reader.ReadSingle();
+                KnowledgeGraphNodeId edgeTarget = ReadNodeId(reader, scratch);
+                returnVal.AddForDeserialization(edgeTarget, edgeMass);
+            }
+
+            return returnVal;
+        }
+
+        public static TrainingKnowledgeGraph LoadLegacyFormat(Stream loadStream)
+        {
+            using (BinaryReader reader = new BinaryReader(loadStream))
+            {
+                int edgeCapacity = reader.ReadInt32();
+                int numLocks = reader.ReadInt32();
+                int numItemsInDictionary = reader.ReadInt32();
+                TrainingKnowledgeGraph returnVal = new TrainingKnowledgeGraph((byte)Math.Min(byte.MaxValue, edgeCapacity));
+                for (int nodeIdx = 0; nodeIdx < numItemsInDictionary; nodeIdx++)
+                {
+                    KnowledgeGraphNodeId thisNodeId = ReadNodeIdLegacy(reader);
+                    GraphEdgeList thisNodeEdges = ReadEdgeListLegacy(reader);
+                    KnowledgeGraphNode node = new KnowledgeGraphNode(thisNodeEdges);
+                    returnVal.Add(thisNodeId, node);
+                }
+
+                return returnVal;
+            }
+        }
+
+        private static KnowledgeGraphNodeId ReadNodeIdLegacy(BinaryReader reader)
         {
             KnowledgeGraphNodeType type = (KnowledgeGraphNodeType)reader.ReadUInt16();
             string name = reader.ReadString();
             return new KnowledgeGraphNodeId(type, name);
         }
 
-        private static GraphEdgeList ReadEdgeList(BinaryReader reader)
+        private static GraphEdgeList ReadEdgeListLegacy(BinaryReader reader)
         {
             //float totalMass = reader.ReadSingle();
             int numEdges = reader.ReadInt32();
             int maxCapacity = reader.ReadInt32();
-            GraphEdgeList returnVal = new GraphEdgeList(maxCapacity, numEdges);
+            GraphEdgeList returnVal = new GraphEdgeList((ushort)maxCapacity, (ushort)numEdges);
             for (int edgeIdx = 0; edgeIdx < numEdges; edgeIdx++)
             {
                 float edgeMass = reader.ReadSingle();
-                KnowledgeGraphNodeId edgeTarget = ReadNodeId(reader);
+                KnowledgeGraphNodeId edgeTarget = ReadNodeIdLegacy(reader);
                 returnVal.AddForDeserialization(edgeTarget, edgeMass);
             }
 

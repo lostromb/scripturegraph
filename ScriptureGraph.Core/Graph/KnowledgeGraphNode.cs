@@ -8,7 +8,7 @@ namespace ScriptureGraph.Core.Graph
 {
     public class KnowledgeGraphNode
     {
-        public KnowledgeGraphNode(int edgeCapacity)
+        public KnowledgeGraphNode(ushort edgeCapacity)
         {
             Edges = new GraphEdgeList(edgeCapacity);
         }

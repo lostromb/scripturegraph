@@ -26,7 +26,7 @@ namespace ScriptureGraph.Core
         /// <param name="logger"></param>
         /// <param name="pageCache"></param>
         /// <returns></returns>
-        public static async Task BuildUniversalGraph(ILogger logger, KnowledgeGraph startGraph, WebPageCache pageCache)
+        public static async Task BuildUniversalGraph(ILogger logger, TrainingKnowledgeGraph startGraph, WebPageCache pageCache)
         {
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
             DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(startGraph);
@@ -45,12 +45,12 @@ namespace ScriptureGraph.Core
             private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
             private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
-            private readonly KnowledgeGraph _trainingGraph;
+            private readonly TrainingKnowledgeGraph _trainingGraph;
             private readonly IThreadPool _trainingThreadPool;
             private int _threadsStarted = 0;
             private int _threadsFinished = 0;
 
-            public DocumentProcessorForFeatureExtraction(KnowledgeGraph graph)
+            public DocumentProcessorForFeatureExtraction(TrainingKnowledgeGraph graph)
             {
                 _trainingGraph = graph;
                 _trainingThreadPool = new FixedCapacityThreadPool(
@@ -152,17 +152,17 @@ namespace ScriptureGraph.Core
         /// <param name="logger"></param>
         /// <param name="pageCache"></param>
         /// <returns></returns>
-        public static async Task<Tuple<KnowledgeGraph, EntityNameIndex>> BuildSearchIndex(ILogger logger, WebPageCache pageCache)
+        public static async Task<Tuple<TrainingKnowledgeGraph, EntityNameIndex>> BuildSearchIndex(ILogger logger, WebPageCache pageCache)
         {
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
-            KnowledgeGraph entitySearchGraph = new KnowledgeGraph();
+            TrainingKnowledgeGraph entitySearchGraph = new TrainingKnowledgeGraph();
             EntityNameIndex nameIndex = new EntityNameIndex();
             DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex);
             await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
-            return new Tuple<KnowledgeGraph, EntityNameIndex>(entitySearchGraph, nameIndex);
+            return new Tuple<TrainingKnowledgeGraph, EntityNameIndex>(entitySearchGraph, nameIndex);
         }
 
         /// <summary>
@@ -173,13 +173,13 @@ namespace ScriptureGraph.Core
             private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
             private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
-            private readonly KnowledgeGraph _trainingGraph;
+            private readonly TrainingKnowledgeGraph _trainingGraph;
             private readonly EntityNameIndex _nameIndex;
             private readonly IThreadPool _trainingThreadPool;
             private int _threadsStarted = 0;
             private int _threadsFinished = 0;
 
-            public DocumentProcessorForSearchIndex(KnowledgeGraph graph, EntityNameIndex nameIndex)
+            public DocumentProcessorForSearchIndex(TrainingKnowledgeGraph graph, EntityNameIndex nameIndex)
             {
                 _trainingGraph = graph;
                 _nameIndex = nameIndex;
