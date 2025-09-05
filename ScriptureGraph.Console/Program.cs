@@ -44,7 +44,9 @@ namespace ScriptureGraph.Console
                 Stopwatch timer = Stopwatch.StartNew();
                 UnsafeReadOnlyKnowledgeGraph graph = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, graphHeap);
                 timer.Stop();
-                System.Console.WriteLine(timer.ElapsedMillisecondsPrecise());
+                logger.Log("Load time was " + timer.ElapsedMillisecondsPrecise());
+
+                RunGraphQuery("ether 12:27", graph, logger);
             }
 
             //using (Stream graphOut = new FileStream(@"D:\Code\scripturegraph\runtime\all.graph", FileMode.Create, FileAccess.Write))
@@ -155,7 +157,7 @@ namespace ScriptureGraph.Console
 
             var results = graph.Query(query, logger.Clone("Query"));
             timer.Stop();
-            logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, $"Search time was {0:F3} ms", timer.ElapsedMillisecondsPrecise());
+            logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Search time was {0:F2} ms", timer.ElapsedMillisecondsPrecise());
 
             float highestResultScore = 0;
             int linesRemaining = 10;
@@ -319,7 +321,7 @@ namespace ScriptureGraph.Console
 
             var results = graph.Query(query, logger.Clone("Query"));
             timer.Stop();
-            logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, $"Search time was {0:F3} ms", timer.ElapsedMillisecondsPrecise());
+            logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Search time was {0:F2} ms", timer.ElapsedMillisecondsPrecise());
 
             float highestResultScore = 0;
             int linesRemaining = 30;

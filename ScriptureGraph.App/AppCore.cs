@@ -2,6 +2,7 @@
 using Durandal.Common.Logger;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
+using Durandal.Extensions.Compression.Brotli;
 using Org.BouncyCastle.Crypto;
 using ScriptureGraph.App.Schemas;
 using ScriptureGraph.Core.Graph;
@@ -27,6 +28,7 @@ namespace ScriptureGraph.App
         private IKnowledgeGraph? _smallSearchIndex;
         private EntityNameIndex? _entityNameLookup;
         private IKnowledgeGraph? _largeSearchIndex;
+        private NativeMemoryHeap _nativeHeap;
 
         public ILogger CoreLogger => _coreLogger;
 
@@ -35,12 +37,14 @@ namespace ScriptureGraph.App
             _coreLogger = new TraceLogger("GraphApp");
             _fileSystem = new RealFileSystem(_coreLogger.Clone("FileSystem"), @"D:\Code\scripturegraph\runtime");
             _documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>();
+            _nativeHeap = new NativeMemoryHeap();
         }
 
         public async Task LoadSearchIndexes()
         {
             await Task.Yield();
 
+            Stopwatch timer = Stopwatch.StartNew();
             VirtualPath smallGraphFileName = new VirtualPath("searchindex.graph");
             VirtualPath nameLookupFileName = new VirtualPath("entitynames_eng.map");
             VirtualPath largeGraphFileName = new VirtualPath("all.graph");
@@ -61,9 +65,10 @@ namespace ScriptureGraph.App
             }
 
             using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(smallGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
+            using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
             {
                 _coreLogger.Log("Loading small search index");
-                _smallSearchIndex = TrainingKnowledgeGraph.LoadLegacyFormat(searchGraphIn);
+                _smallSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, _nativeHeap);
             }
 
             using (Stream searchIndexIn = await _fileSystem.OpenStreamAsync(nameLookupFileName, FileOpenMode.Open, FileAccessMode.Read))
@@ -73,10 +78,14 @@ namespace ScriptureGraph.App
             }
 
             using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
+            using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
             {
                 _coreLogger.Log("Loading large search index");
-                _largeSearchIndex = TrainingKnowledgeGraph.LoadLegacyFormat(searchGraphIn);
+                _largeSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, _nativeHeap);
             }
+
+            timer.Stop();
+            _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Indexes loaded in {0} ms", timer.ElapsedMillisecondsPrecise());
         }
 
         public bool DoesDocumentExist(KnowledgeGraphNodeId entityId)
@@ -235,7 +244,7 @@ namespace ScriptureGraph.App
 
             var results = _largeSearchIndex.Query(internalQuery, _coreLogger.Clone("Query"));
             timer.Stop();
-            _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, $"Search time was {0:F3} ms", timer.ElapsedMillisecondsPrecise());
+            _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Search time was {0:F2} ms", timer.ElapsedMillisecondsPrecise());
 
             SlowSearchQueryResult returnVal = new SlowSearchQueryResult()
             {
@@ -350,7 +359,7 @@ namespace ScriptureGraph.App
 
             var results = _smallSearchIndex.Query(query, _coreLogger.Clone("Query"));
             timer.Stop();
-            _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, $"Search time was {0:F3} ms", timer.ElapsedMillisecondsPrecise());
+            _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Search time was {0:F2} ms", timer.ElapsedMillisecondsPrecise());
 
             Dictionary<string, List<KnowledgeGraphNodeId>> sameNameMappings = new Dictionary<string, List<KnowledgeGraphNodeId>>();
             foreach (var result in results)

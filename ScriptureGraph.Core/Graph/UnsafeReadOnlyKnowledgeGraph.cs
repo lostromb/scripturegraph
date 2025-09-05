@@ -3,12 +3,14 @@ using Durandal.Common.IO.Hashing;
 using Durandal.Common.Logger;
 using Durandal.Common.MathExt;
 using Durandal.Common.Time;
+using Durandal.Common.Utils;
 using ScriptureGraph.Core.Training;
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -19,156 +21,174 @@ namespace ScriptureGraph.Core.Graph
     {
         private FrozenDictionary<UnsafeNodeId, UnsafeNode> _nodes;
 
-        public List<KeyValuePair<KnowledgeGraphNodeId, float>> Query(KnowledgeGraphQuery query, ILogger logger)
+        public unsafe List<KeyValuePair<KnowledgeGraphNodeId, float>> Query(KnowledgeGraphQuery query, ILogger logger)
         {
-            HashSet<UnsafeNodeId> allRootNodeIds = new HashSet<UnsafeNodeId>();
-            Counter<UnsafeNodeId> finalCumulativeResult = new Counter<UnsafeNodeId>();
-            HashSet<BitVector32> scopesInitialized = new HashSet<BitVector32>();
-            HashSet<BitVector32> scopesProcessed = new HashSet<BitVector32>();
-            Dictionary<BitVector32, Counter<UnsafeNodeId>> initialActivationsPerScope = new Dictionary<BitVector32, Counter<UnsafeNodeId>>();
-
-            // temporary counters per-scope
-            Counter<UnsafeNodeId> thisStepActivation = new Counter<UnsafeNodeId>();
-            Counter<UnsafeNodeId> nextStepActivation = new Counter<UnsafeNodeId>();
-
-            // TODO: convert input ids onto temporary heap
-
-            // Built accumulators for all scopes
-            int scopeIdxNormalized = 0x1;
-            foreach (var scope in query.SearchScopes)
+            using (NativeMemoryHeap scratchHeap = new NativeMemoryHeap())
             {
-                BitVector32 thisScopeArray = new BitVector32(scopeIdxNormalized);
-                scopeIdxNormalized = scopeIdxNormalized << 1;
-                if (scopeIdxNormalized == 0x0)
+                const int scratchChunkSize = 16 * 1024;
+                byte* currentScratchArea = (byte*)scratchHeap.Allocate(scratchChunkSize);
+                int bytesUsedInScratch = 0;
+                HashSet<UnsafeNodeId> allRootNodeIds = new HashSet<UnsafeNodeId>();
+                Counter<UnsafeNodeId> finalCumulativeResult = new Counter<UnsafeNodeId>();
+                HashSet<BitVector32> scopesInitialized = new HashSet<BitVector32>();
+                HashSet<BitVector32> scopesProcessed = new HashSet<BitVector32>();
+                Dictionary<BitVector32, Counter<UnsafeNodeId>> initialActivationsPerScope = new Dictionary<BitVector32, Counter<UnsafeNodeId>>();
+
+                // temporary counters per-scope
+                Counter<UnsafeNodeId> thisStepActivation = new Counter<UnsafeNodeId>();
+                Counter<UnsafeNodeId> nextStepActivation = new Counter<UnsafeNodeId>();
+
+                // TODO: convert input ids onto temporary heap
+
+                // Built accumulators for all scopes
+                int scopeIdxNormalized = 0x1;
+                foreach (var scope in query.SearchScopes)
                 {
-                    // if we have more than 32 scopes, just dump everything into the final scope
-                    logger.Log("More than 32 input scopes in search query; some will be combined arbitrarily", LogLevel.Wrn);
-                    scopeIdxNormalized = unchecked((int)0x80000000U);
-                }
-
-                Counter<UnsafeNodeId> thisScopeActivation = new Counter<UnsafeNodeId>();
-
-                foreach (var initialActivation in query.GetRoots(scope))
-                {
-                    thisScopeActivation.Increment(initialActivation.Key, initialActivation.Value);
-
-                    if (!allRootNodeIds.Contains(initialActivation.Key))
+                    BitVector32 thisScopeArray = new BitVector32(scopeIdxNormalized);
+                    scopeIdxNormalized = scopeIdxNormalized << 1;
+                    if (scopeIdxNormalized == 0x0)
                     {
-                        allRootNodeIds.Add(initialActivation.Key);
+                        // if we have more than 32 scopes, just dump everything into the final scope
+                        logger.Log("More than 32 input scopes in search query; some will be combined arbitrarily", LogLevel.Wrn);
+                        scopeIdxNormalized = unchecked((int)0x80000000U);
                     }
-                }
 
-                initialActivationsPerScope.Add(thisScopeArray, thisScopeActivation);
-                scopesInitialized.Add(thisScopeArray);
+                    Counter<UnsafeNodeId> thisScopeActivation = new Counter<UnsafeNodeId>();
 
-                logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope {0:x}", thisScopeArray.Data);
-            }
-
-            // Loop for as long as we have unique activations per scope
-            while (initialActivationsPerScope.Count > 0)
-            {
-                foreach (var scopeActivations in initialActivationsPerScope)
-                {
-                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Processing scope {0:x}", scopeActivations.Key.Data);
-                    // Copy activations from scope to initializer
-                    thisStepActivation.Clear();
-                    nextStepActivation.Clear();
-                    thisStepActivation.Increment(scopeActivations.Value);
-
-                    QuerySingleScope(query, thisStepActivation, nextStepActivation, scopeActivations.Value);
-
-                    // Copy from single scope to cumulative
-                    finalCumulativeResult.Increment(scopeActivations.Value);
-                    scopesProcessed.Add(scopeActivations.Key);
-                }
-
-                // Check for overlaps between all permutations of scopes, and turn those into new initial sets
-                // Keep iterating for as long as we continue to find
-                bool mergeHappened;
-                do
-                {
-                    mergeHappened = false;
-                    Dictionary<BitVector32, Counter<UnsafeNodeId>> newInitialActivations = new Dictionary<BitVector32, Counter<UnsafeNodeId>>();
-
-                    foreach (var scopeActivationsSrc in initialActivationsPerScope)
+                    foreach (var initialActivation in query.GetRoots(scope))
                     {
-                        foreach (var scopeActivationsDest in initialActivationsPerScope)
+                        if (bytesUsedInScratch > scratchChunkSize - 4096) // Technically unsafe, we assume a node ID cannot exceed 4096 bytes but that's not guaranteed
                         {
-                            BitVector32 unionedArray = new BitVector32(scopeActivationsSrc.Key.Data | scopeActivationsDest.Key.Data);
-                            if (scopesInitialized.Contains(unionedArray))
-                            {
-                                continue;
-                            }
+                            currentScratchArea = (byte*)scratchHeap.Allocate(scratchChunkSize);
+                            bytesUsedInScratch = 0;
+                        }
 
-                            scopesInitialized.Add(unionedArray);
+                        int thisNodeSize = UnsafeNodeId.FromSafeNodeId(initialActivation.Key, new Span<byte>(currentScratchArea, scratchChunkSize - bytesUsedInScratch));
+                        UnsafeNodeId convertedNodeId = new UnsafeNodeId(currentScratchArea + bytesUsedInScratch);
+                        bytesUsedInScratch += thisNodeSize;
+                        thisScopeActivation.Increment(convertedNodeId, initialActivation.Value);
 
-                            logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope {0:x}", unionedArray.Data);
-
-                            // Set intersection
-                            HashSet<UnsafeNodeId> unionSet = scopeActivationsSrc.Value.ValueSet();
-                            unionSet.IntersectWith(scopeActivationsDest.Value.ValueSet()); // OPT can just enumerate the values list
-
-                            if (unionSet.Count > 0)
-                            {
-                                logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Merging scopes {0:x} and {1:x}", scopeActivationsSrc.Key.Data, scopeActivationsDest.Key.Data);
-                                mergeHappened = true;
-                                Counter<UnsafeNodeId> unionedCounter = new Counter<UnsafeNodeId>();
-                                foreach (UnsafeNodeId overlappedNode in unionSet)
-                                {
-                                    float weight = query.ScopeOverlapMultiplier *
-                                        (scopeActivationsSrc.Value.GetCount(overlappedNode) + scopeActivationsDest.Value.GetCount(overlappedNode));
-                                    unionedCounter.Increment(overlappedNode, weight);
-                                    //logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Boosting {0} with {1:F3}", overlappedNode.ToString(), weight);
-                                }
-
-                                // Handle cases where intermediate sets were created (i.e. we merged more than 2 sets into a single one
-                                // over the course of several iterations)
-                                // In this case, copy over the activations for the non-overlapped nodes that haven't
-                                // been processed yet, and mark the "intermediate" half-merged sets as being processed.
-                                if (!scopesProcessed.Contains(scopeActivationsSrc.Key))
-                                {
-                                    scopesProcessed.Add(scopeActivationsSrc.Key);
-                                    unionedCounter.Increment(scopeActivationsSrc.Value);
-                                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope {0:x} as processed", scopeActivationsSrc.Key.Data);
-                                }
-
-                                if (!scopesProcessed.Contains(scopeActivationsDest.Key))
-                                {
-                                    scopesProcessed.Add(scopeActivationsDest.Key);
-                                    unionedCounter.Increment(scopeActivationsDest.Value);
-                                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope {0:x} as processed", scopeActivationsDest.Key.Data);
-                                }
-
-                                newInitialActivations.Add(unionedArray, unionedCounter);
-                            }
+                        if (!allRootNodeIds.Contains(convertedNodeId))
+                        {
+                            allRootNodeIds.Add(convertedNodeId);
                         }
                     }
 
-                    // Scopes that are initialized but not yet processed proceed to the next round
-                    foreach (var activation in initialActivationsPerScope)
+                    initialActivationsPerScope.Add(thisScopeArray, thisScopeActivation);
+                    scopesInitialized.Add(thisScopeArray);
+
+                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope {0:x}", thisScopeArray.Data);
+                }
+
+                // Loop for as long as we have unique activations per scope
+                while (initialActivationsPerScope.Count > 0)
+                {
+                    foreach (var scopeActivations in initialActivationsPerScope)
                     {
-                        if (!scopesProcessed.Contains(activation.Key))
-                        {
-                            newInitialActivations.Add(activation.Key, activation.Value);
-                        }
+                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Processing scope {0:x}", scopeActivations.Key.Data);
+                        // Copy activations from scope to initializer
+                        thisStepActivation.Clear();
+                        nextStepActivation.Clear();
+                        thisStepActivation.Increment(scopeActivations.Value);
+
+                        QuerySingleScope(query, thisStepActivation, nextStepActivation, scopeActivations.Value, logger);
+
+                        // Copy from single scope to cumulative
+                        finalCumulativeResult.Increment(scopeActivations.Value);
+                        scopesProcessed.Add(scopeActivations.Key);
                     }
 
-                    initialActivationsPerScope.Clear();
-                    initialActivationsPerScope = newInitialActivations;
-                } while (mergeHappened);
+                    // Check for overlaps between all permutations of scopes, and turn those into new initial sets
+                    // Keep iterating for as long as we continue to find
+                    bool mergeHappened;
+                    do
+                    {
+                        mergeHappened = false;
+                        Dictionary<BitVector32, Counter<UnsafeNodeId>> newInitialActivations = new Dictionary<BitVector32, Counter<UnsafeNodeId>>();
+
+                        foreach (var scopeActivationsSrc in initialActivationsPerScope)
+                        {
+                            foreach (var scopeActivationsDest in initialActivationsPerScope)
+                            {
+                                BitVector32 unionedArray = new BitVector32(scopeActivationsSrc.Key.Data | scopeActivationsDest.Key.Data);
+                                if (scopesInitialized.Contains(unionedArray))
+                                {
+                                    continue;
+                                }
+
+                                scopesInitialized.Add(unionedArray);
+
+                                logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope {0:x}", unionedArray.Data);
+
+                                // Set intersection
+                                HashSet<UnsafeNodeId> unionSet = scopeActivationsSrc.Value.ValueSet();
+                                unionSet.IntersectWith(scopeActivationsDest.Value.ValueSet()); // OPT can just enumerate the values list
+
+                                if (unionSet.Count > 0)
+                                {
+                                    logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Merging scopes {0:x} and {1:x}", scopeActivationsSrc.Key.Data, scopeActivationsDest.Key.Data);
+                                    mergeHappened = true;
+                                    Counter<UnsafeNodeId> unionedCounter = new Counter<UnsafeNodeId>();
+                                    foreach (UnsafeNodeId overlappedNode in unionSet)
+                                    {
+                                        float weight = query.ScopeOverlapMultiplier *
+                                            (scopeActivationsSrc.Value.GetCount(overlappedNode) + scopeActivationsDest.Value.GetCount(overlappedNode));
+                                        unionedCounter.Increment(overlappedNode, weight);
+                                        //logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Boosting {0} with {1:F3}", overlappedNode.ToString(), weight);
+                                    }
+
+                                    // Handle cases where intermediate sets were created (i.e. we merged more than 2 sets into a single one
+                                    // over the course of several iterations)
+                                    // In this case, copy over the activations for the non-overlapped nodes that haven't
+                                    // been processed yet, and mark the "intermediate" half-merged sets as being processed.
+                                    if (!scopesProcessed.Contains(scopeActivationsSrc.Key))
+                                    {
+                                        scopesProcessed.Add(scopeActivationsSrc.Key);
+                                        unionedCounter.Increment(scopeActivationsSrc.Value);
+                                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope {0:x} as processed", scopeActivationsSrc.Key.Data);
+                                    }
+
+                                    if (!scopesProcessed.Contains(scopeActivationsDest.Key))
+                                    {
+                                        scopesProcessed.Add(scopeActivationsDest.Key);
+                                        unionedCounter.Increment(scopeActivationsDest.Value);
+                                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Marking intermediate scope {0:x} as processed", scopeActivationsDest.Key.Data);
+                                    }
+
+                                    newInitialActivations.Add(unionedArray, unionedCounter);
+                                }
+                            }
+                        }
+
+                        // Scopes that are initialized but not yet processed proceed to the next round
+                        foreach (var activation in initialActivationsPerScope)
+                        {
+                            if (!scopesProcessed.Contains(activation.Key))
+                            {
+                                newInitialActivations.Add(activation.Key, activation.Value);
+                            }
+                        }
+
+                        initialActivationsPerScope.Clear();
+                        initialActivationsPerScope = newInitialActivations;
+                    } while (mergeHappened);
+                }
+
+                // Remove original root nodes from the output
+                foreach (UnsafeNodeId originalNode in allRootNodeIds)
+                {
+                    finalCumulativeResult.Remove(originalNode);
+                }
+
+                // Convert results back and sort
+                List<KeyValuePair<KnowledgeGraphNodeId, float>> returnVal = new List<KeyValuePair<KnowledgeGraphNodeId, float>>(finalCumulativeResult.Select((s) =>
+                {
+                    return new KeyValuePair<KnowledgeGraphNodeId, float>(s.Key.ToSafeNodeId(), s.Value);
+                }));
+                returnVal.Sort((a, b) => b.Value.CompareTo(a.Value));
+
+                return returnVal;
             }
-
-            // Remove original root nodes from the output
-            foreach (UnsafeNodeId originalNode in allRootNodeIds)
-            {
-                finalCumulativeResult.Remove(originalNode);
-            }
-
-            List<KeyValuePair<UnsafeNodeId, float>> returnVal = new List<KeyValuePair<UnsafeNodeId, float>>(finalCumulativeResult);
-            returnVal.Sort((a, b) => b.Value.CompareTo(a.Value));
-
-            // Todo: convert results
-            return returnVal;
         }
 
         private static float NeuronActivation(float currentActivation, float edgeWeight, float edgeTotalMass, int numEdges)
@@ -180,7 +200,8 @@ namespace ScriptureGraph.Core.Graph
             KnowledgeGraphQuery query,
             Counter<UnsafeNodeId> thisStepActivation,
             Counter<UnsafeNodeId> nextStepActivation,
-            Counter<UnsafeNodeId> cumulativeActivation)
+            Counter<UnsafeNodeId> cumulativeActivation,
+            ILogger logger)
         {
             Counter<UnsafeNodeId> swap = thisStepActivation;
             ValueStopwatch scopeStopwatch = ValueStopwatch.StartNew();
@@ -205,14 +226,14 @@ namespace ScriptureGraph.Core.Graph
                         continue;
                     }
 
-                    GraphEdgeList.EdgeRefEnumerator enumerator = thisNode.Edges.GetEnumerator();
+                    UnsafeEdgeList.UnsafeEdgeListEnumerator enumerator = thisNode.Edges.GetEnumerator();
                     float normalizedActivation = currentlyActivatedNode.Value / (float)thisNode.Edges.NumEdges;
                     while (enumerator.MoveNext())
                     {
-                        ref UnsafeEdge edge = ref enumerator.CurrentByRef();
+                        UnsafeEdge edge = enumerator.Current;
                         float activation = NeuronActivation(normalizedActivation, edge.Mass, thisNode.Edges.TotalMass, thisNode.Edges.NumEdges);
                         nextStepActivation.Increment(edge.Target, activation);
-                        //logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata,
+                        //logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata,
                         //    "{0} {1:F3} activates {1} {2:F3}",
                         //    currentlyActivatedNode.Key.ToString(),
                         //    currentlyActivatedNode.Value,
@@ -287,8 +308,8 @@ namespace ScriptureGraph.Core.Graph
             {
                 while (lastAllocatedNodeIdx < numItemsInDict - 1)
                 {
-                    // 1 MB is approximately 4096 nodes
-                    int targetAllocationNodeIdx = Math.Min(numItemsInDict - 1, lastAllocatedNodeIdx + 4096);
+                    // 10 MB is approximately 40000 nodes
+                    int targetAllocationNodeIdx = Math.Min(numItemsInDict - 1, lastAllocatedNodeIdx + 40000);
                     int allocationSize = (int)(nodeOffsets[targetAllocationNodeIdx] - lastAllocationOffset);
 
                     if (scratch.Buffer.Length < allocationSize)
@@ -389,7 +410,45 @@ namespace ScriptureGraph.Core.Graph
 
             public ushort NumEdges => *(ushort*)(&_ptr[4]);
 
-            // todo implement edge enumeration
+            public UnsafeEdgeListEnumerator GetEnumerator() => new UnsafeEdgeListEnumerator(&_ptr[6], NumEdges);
+
+            public class UnsafeEdgeListEnumerator
+            {
+                private int _currentIndex;
+                private int _numEdges;
+                private byte* _ptr;
+
+                public UnsafeEdgeListEnumerator(byte* ptr, int numEdges)
+                {
+                    _ptr = ptr;
+                    _numEdges = numEdges;
+                    _currentIndex = -1;
+                }
+
+                public bool MoveNext()
+                {
+                    if (_currentIndex == _numEdges - 1)
+                    {
+                        return false;
+                    }
+
+                    _currentIndex++;
+                    if (_currentIndex > 0)
+                    {
+                        _ptr = _ptr + sizeof(float) + Current.Target.SizeOf;
+                    }
+
+                    return true;
+                }
+
+                public UnsafeEdge Current
+                {
+                    get
+                    {
+                        return new UnsafeEdge(_ptr);
+                    }
+                }
+            }
         }
 
         private unsafe struct UnsafeEdge
@@ -465,6 +524,11 @@ namespace ScriptureGraph.Core.Graph
                 return Type == other.Type && Name.SequenceEqual(other.Name);
             }
 
+            public override string? ToString()
+            {
+                return ToSafeNodeId().ToString();
+            }
+
             public override int GetHashCode()
             {
                 // TODO don't know how to invoke the platform built-in hasher using ReadOnlySpan<byte>
@@ -472,6 +536,31 @@ namespace ScriptureGraph.Core.Graph
                 MurmurHash3_32 hasher = new MurmurHash3_32(5137);
                 hasher.Ingest(Name);
                 return (int)hasher.Finish();
+            }
+
+            public KnowledgeGraphNodeId ToSafeNodeId()
+            {
+                return new KnowledgeGraphNodeId(Type, Encoding.UTF8.GetString(Name));
+            }
+
+            public static int FromSafeNodeId(KnowledgeGraphNodeId nodeId, Span<byte> targetBuffer)
+            {
+                BinaryHelpers.Int16ToByteSpanLittleEndian((short)nodeId.Type, ref targetBuffer);
+                byte[] bytes = Encoding.UTF8.GetBytes(nodeId.Name);
+                if (bytes.Length < 254)
+                {
+                    targetBuffer[2] = (byte)bytes.Length;
+                    bytes.AsSpan().CopyTo(targetBuffer.Slice(3));
+                    return 3 + bytes.Length;
+                }
+                else
+                {
+                    targetBuffer[2] = (byte)255;
+                    targetBuffer = targetBuffer.Slice(3);
+                    BinaryHelpers.Int16ToByteSpanLittleEndian((short)bytes.Length, ref targetBuffer);
+                    bytes.AsSpan().CopyTo(targetBuffer);
+                    return 5 + bytes.Length;
+                }
             }
         }
     }
