@@ -272,7 +272,7 @@ namespace ScriptureGraph.App
                 await Task.Yield();
                 FastSearchQueryResult searchResultForThisLineItem = (FastSearchQueryResult)((FrameworkElement)sender).Tag;
                 await LoadDocumentForEntity(searchResultForThisLineItem.EntityIds.First((id) => _core.DoesDocumentExist(id)));
-                CreateNewSearchScope(searchResultForThisLineItem.EntityType, searchResultForThisLineItem.DisplayName, searchResultForThisLineItem.EntityIds);
+                //CreateNewSearchScope(searchResultForThisLineItem.EntityType, searchResultForThisLineItem.DisplayName, searchResultForThisLineItem.EntityIds);
             }
             catch (Exception e)
             {
@@ -285,8 +285,8 @@ namespace ScriptureGraph.App
             try
             {
                 await Task.Yield();
-                KnowledgeGraphNodeId entityIdToLoad = (KnowledgeGraphNodeId)((FrameworkElement)sender).Tag;
-                await LoadDocumentForEntity(entityIdToLoad);
+                Tuple<KnowledgeGraphNodeId, Guid> entityIdAndPaneToLoad = (Tuple<KnowledgeGraphNodeId, Guid>)((FrameworkElement)sender).Tag;
+                await LoadDocumentIntoExistingPane(entityIdAndPaneToLoad.Item1, entityIdAndPaneToLoad.Item2);
             }
             catch (Exception e)
             {
@@ -331,6 +331,14 @@ namespace ScriptureGraph.App
             closeButton.HorizontalAlignment = HorizontalAlignment.Left;
             closeButton.Tag = panelId;
             closeButton.Click += ClosePanelButton_Click;
+
+            Button addToSearchButton = new Button();
+            addToSearchButton.Content = "Search";
+            addToSearchButton.Padding = new Thickness(5);
+            addToSearchButton.HorizontalAlignment = HorizontalAlignment.Right;
+            addToSearchButton.Tag = panelId;
+            addToSearchButton.Click += SearchFromPanelButton_Click;
+
             FlowDocumentScrollViewer documentScrollViewer = new FlowDocumentScrollViewer();
             documentScrollViewer.Width = (double)TryFindResource("ReadingPaneWidth");
 
@@ -338,6 +346,7 @@ namespace ScriptureGraph.App
             readingPaneDocker.Children.Add(headerGrid);
             headerGrid.Children.Add(header);
             headerGrid.Children.Add(closeButton);
+            headerGrid.Children.Add(addToSearchButton);
             readingPaneDocker.Children.Add(documentScrollViewer);
 
             return new ReadingPane()
@@ -345,7 +354,8 @@ namespace ScriptureGraph.App
                 PanelId = panelId,
                 Container = readingPaneContainer,
                 DocumentViewer = documentScrollViewer,
-                Header = header
+                Header = header,
+                HeaderText = "UNKNOWN",
             };
         }
 
@@ -419,13 +429,62 @@ namespace ScriptureGraph.App
             return resultsPaneContainer;
         }
 
+        private async Task LoadDocumentIntoExistingPane(KnowledgeGraphNodeId entityIdToLoad, Guid panelGuid)
+        {
+            _core.CoreLogger.Log("Loading document for entity " + entityIdToLoad + " into pane " + panelGuid);
+            GospelDocument document = await _core.LoadDocument(entityIdToLoad); // FIXME no validation of existing panel guids
+            FlowDocument readerDocument = ConvertDocumentToFlowDocument(document, panelGuid);
+            string readingPaneHeader = ConvertDocumentEidToHeaderString(document);
+            ReadingPane existingReadingPanel = _currentReadingPanes[panelGuid];
+            existingReadingPanel.HeaderText = readingPaneHeader;
+            existingReadingPanel.CurrentDocument = document;
+
+            Dispatcher.Invoke(() =>
+            {
+                // FIXME this shares a lot of code with LoadDocumentForEntity(), should probably consolidate
+                existingReadingPanel.CurrentDocumentEntity = entityIdToLoad;
+
+                existingReadingPanel.DocumentViewer.Document = readerDocument;
+                //ScrollViewer? internalScrollViewer = typeof(FlowDocumentScrollViewer)!.GetProperty("ScrollViewer", BindingFlags.Instance | BindingFlags.GetField | BindingFlags.NonPublic)!.GetValue(ReadingPane2) as ScrollViewer;
+                //internalScrollViewer.ScrollToVerticalOffset();
+                existingReadingPanel.Header.Text = readingPaneHeader;
+
+                // this is jank and may need better logic
+                existingReadingPanel.DocumentViewer.UpdateLayout();
+                readerDocument.Blocks.LastBlock?.BringIntoView();
+                existingReadingPanel.DocumentViewer.UpdateLayout();
+                bool focusedOnParagraph = false;
+
+                // If any blocks in the flow document have a tag equal to the thing we searched for, try to scroll to it immediately
+                // This is for things like linking directly to scripture verses or talk paragraphs
+                foreach (var block in readerDocument.Blocks)
+                {
+                    if (block.Tag != null && block.Tag is KnowledgeGraphNodeId paragraphEntity && entityIdToLoad.Equals(paragraphEntity))
+                    {
+                        block.Background = new SolidColorBrush(Color.FromArgb(32, 0, 255, 255));
+                        block.BringIntoView();
+                        focusedOnParagraph = true;
+                        break;
+                    }
+                }
+
+                if (!focusedOnParagraph)
+                {
+                    readerDocument.Blocks.FirstBlock?.BringIntoView();
+                    existingReadingPanel.DocumentViewer.UpdateLayout();
+                }
+            });
+        }
+
         private async Task LoadDocumentForEntity(KnowledgeGraphNodeId entityIdToLoad)
         {
             _core.CoreLogger.Log("Loading document for entity " + entityIdToLoad);
             GospelDocument document = await _core.LoadDocument(entityIdToLoad);
-            FlowDocument readerDocument = ConvertDocumentToFlowDocument(document);
-            string readingPaneHeader = ConvertDocumentEidToHeaderString(document);
             ReadingPane newUiPanels = CreateNewReadingPane();
+            FlowDocument readerDocument = ConvertDocumentToFlowDocument(document, newUiPanels.PanelId);
+            string readingPaneHeader = ConvertDocumentEidToHeaderString(document);
+            newUiPanels.HeaderText = readingPaneHeader;
+            newUiPanels.CurrentDocument = document;
 
             Dispatcher.Invoke(() =>
             {
@@ -474,6 +533,34 @@ namespace ScriptureGraph.App
                 Guid panelIdToRemove = (Guid)((FrameworkElement)sender).Tag;
                 ReadingPane panelToRemove = _currentReadingPanes[panelIdToRemove];
                 BrowseArea.Children.Remove(panelToRemove.Container);
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
+        private async void SearchFromPanelButton_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                Guid panelToAddToSearch = (Guid)((FrameworkElement)sender).Tag;
+                if (!_currentReadingPanes.ContainsKey(panelToAddToSearch))
+                {
+                    return;
+                }
+
+                ReadingPane panel = _currentReadingPanes[panelToAddToSearch];
+
+                if (panel.CurrentDocument == null || !panel.CurrentDocumentEntity.HasValue)
+                {
+                    return;
+                }
+
+                CreateNewSearchScope(
+                    AppCore.ConvertEntityTypeToSearchResponseType(panel.CurrentDocumentEntity.Value.Type),
+                    _core.GetPrettyNameForEntity(panel.CurrentDocumentEntity.Value),
+                    panel.CurrentDocumentEntity.Value);
             }
             catch (Exception e)
             {
@@ -572,7 +659,7 @@ namespace ScriptureGraph.App
             }
         }
 
-        private FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc)
+        private FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc, Guid targetPane)
         {
             FlowDocument returnVal = new FlowDocument();
             ScriptureChapterDocument? scriptureChapter = inputDoc as ScriptureChapterDocument;
@@ -731,17 +818,15 @@ namespace ScriptureGraph.App
 
                     if (scriptureChapter.Prev.HasValue)
                     {
-                        prevButton.Tag = scriptureChapter.Prev.Value;
+                        prevButton.Tag = new Tuple<KnowledgeGraphNodeId, Guid>(scriptureChapter.Prev.Value, targetPane);
                         prevButton.Click += NextPrevChapterButton_Click;
                     }
 
                     if (scriptureChapter.Next.HasValue)
                     {
-                        nextButton.Tag = scriptureChapter.Next.Value;
+                        nextButton.Tag = new Tuple<KnowledgeGraphNodeId, Guid>(scriptureChapter.Next.Value, targetPane);
                         nextButton.Click += NextPrevChapterButton_Click;
                     }
-
-                    nextButton.Click += NextPrevChapterButton_Click;
 
                     grid.Children.Add(prevButton);
                     grid.Children.Add(nextButton);
@@ -1039,7 +1124,7 @@ namespace ScriptureGraph.App
                 KnowledgeGraphNodeId entityIdToLoad = searchResult.EntityIds[0];
                 await LoadDocumentForEntity(entityIdToLoad);
                 // And add it to the search bar
-                CreateNewSearchScope(searchResult.EntityType, searchResult.DisplayName, searchResult.EntityIds);
+                //CreateNewSearchScope(searchResult.EntityType, searchResult.DisplayName, searchResult.EntityIds);
             }
             catch (Exception e)
             {

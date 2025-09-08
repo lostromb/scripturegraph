@@ -1,4 +1,5 @@
 ﻿using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,6 +16,8 @@ namespace ScriptureGraph.App.Schemas
         public required Grid Container;
         public required FlowDocumentScrollViewer DocumentViewer;
         public required TextBlock Header;
+        public required string HeaderText;
         public KnowledgeGraphNodeId? CurrentDocumentEntity;
+        public GospelDocument? CurrentDocument;
     }
 }

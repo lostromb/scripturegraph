@@ -128,6 +128,22 @@ namespace ScriptureGraph.App
             return entityId;
         }
 
+        private KnowledgeGraphNodeId MapEntityIdToDocumentPartial(KnowledgeGraphNodeId entityId)
+        {
+            if (entityId.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph)
+            {
+                // Map BD paragraph -> topic
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionaryTopic, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.ConferenceTalkParagraph)
+            {
+                // Map GC talk paragraph -> talk
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalk, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+
+            return entityId;
+        }
+
         public async Task<GospelDocument> LoadDocument(KnowledgeGraphNodeId entityId)
         {
             KnowledgeGraphNodeId actualEntityId = MapEntityIdToDocument(entityId);
@@ -275,7 +291,7 @@ namespace ScriptureGraph.App
                 ActivatedWords = new Dictionary<KnowledgeGraphNodeId, float>()
             };
 
-            float highestResultScore = 0;
+            //float highestResultScore = 0;
             int maxResults = query.MaxResults;
             foreach (var result in results)
             {
@@ -307,16 +323,16 @@ namespace ScriptureGraph.App
                 // only the highest scoring result per document will appear.
                 finalHiddenEntityIdSet.Add(documentId);
 
-                if (result.Value > highestResultScore)
-                {
-                    // assumes highest scoring result is first
-                    highestResultScore = result.Value;
-                }
-                else if (result.Value < highestResultScore * 0.25f)
-                {
-                    // too low of confidence
-                    break;
-                }
+                //if (result.Value > highestResultScore)
+                //{
+                //    // assumes highest scoring result is first
+                //    highestResultScore = result.Value;
+                //}
+                //else if (result.Value < highestResultScore * 0.25f)
+                //{
+                //    // too low of confidence
+                //    break;
+                //}
 
                 if (maxResults-- <= 0)
                 {
@@ -328,6 +344,23 @@ namespace ScriptureGraph.App
             }
 
             return returnVal;
+        }
+
+        public string GetPrettyNameForEntity(KnowledgeGraphNodeId entityId)
+        {
+            if (_entityNameLookup == null)
+            {
+                _coreLogger.Log("Fetching entity name with no index loaded", LogLevel.Wrn);
+                return "UNKNOWN_NAME";
+            }
+
+            string? prettyName;
+            if (!_entityNameLookup.Mapping.TryGetValue(MapEntityIdToDocumentPartial(entityId), out prettyName))
+            {
+                return "UNKNOWN_NAME";
+            }
+
+            return prettyName;
         }
 
         public IEnumerable<FastSearchQueryResult> RunFastSearchQuery(string queryString, int maxResults = 10)
@@ -382,7 +415,7 @@ namespace ScriptureGraph.App
                 yield break;
             }
 
-            _coreLogger.Log("Querying graph " + queryString);
+            _coreLogger.Log("Querying fast graph " + queryString);
 
             Stopwatch timer = Stopwatch.StartNew();
             KnowledgeGraphQuery query = new KnowledgeGraphQuery();
@@ -398,11 +431,7 @@ namespace ScriptureGraph.App
             Dictionary<string, List<KnowledgeGraphNodeId>> sameNameMappings = new Dictionary<string, List<KnowledgeGraphNodeId>>();
             foreach (var result in results)
             {
-                if (result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph ||
-                    result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryTopic ||
-                    result.Key.Type == KnowledgeGraphNodeType.GuideToScripturesTopic ||
-                    result.Key.Type == KnowledgeGraphNodeType.TripleIndexTopic ||
-                    result.Key.Type == KnowledgeGraphNodeType.TopicalGuideKeyword)
+                if (DoesSameNameMappingApply(result.Key.Type))
                 {
                     string? prettyName;
                     if (_entityNameLookup.Mapping.TryGetValue(result.Key, out prettyName))
@@ -457,7 +486,7 @@ namespace ScriptureGraph.App
                 }
 
                 List<KnowledgeGraphNodeId>? nodeMappings;
-                if (sameNameMappings.TryGetValue(prettyName, out nodeMappings))
+                if (DoesSameNameMappingApply(result.Key.Type) && sameNameMappings.TryGetValue(prettyName, out nodeMappings))
                 {
                     // It's a reference to one or more topics with the same name.
                     // Return all of the entities combined under a single search result, for simplicity.
@@ -485,7 +514,7 @@ namespace ScriptureGraph.App
             }
         }
 
-        private static SearchResultEntityType ConvertEntityTypeToSearchResponseType(KnowledgeGraphNodeType nodeType)
+        public static SearchResultEntityType ConvertEntityTypeToSearchResponseType(KnowledgeGraphNodeType nodeType)
         {
             switch (nodeType)
             {
@@ -509,6 +538,15 @@ namespace ScriptureGraph.App
                 default:
                     return SearchResultEntityType.Unknown;
             }
+        }
+
+        private static bool DoesSameNameMappingApply(KnowledgeGraphNodeType nodeType)
+        {
+            return nodeType == KnowledgeGraphNodeType.BibleDictionaryParagraph ||
+                nodeType == KnowledgeGraphNodeType.BibleDictionaryTopic ||
+                nodeType == KnowledgeGraphNodeType.GuideToScripturesTopic ||
+                nodeType == KnowledgeGraphNodeType.TripleIndexTopic ||
+                nodeType == KnowledgeGraphNodeType.TopicalGuideKeyword;
         }
     }
 }

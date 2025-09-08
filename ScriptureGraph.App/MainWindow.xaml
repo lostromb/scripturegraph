@@ -32,8 +32,7 @@
             DockPanel.Dock="Top"
             Panel.ZIndex="50"
             Background="{DynamicResource RibbonBackgroundColor}">
-            <DockPanel 
-                Name="Ribbon">
+            <DockPanel Name="Ribbon">
                 <Grid Name="SearchBoxAndFlyoutGrid"
                     Height="30"
                     Margin="20,10,20,10"
@@ -103,9 +102,11 @@
                     Width="50" Height="30"
                     Margin="0,0,10,0"
                     DockPanel.Dock="Left"></Button>
-                <WrapPanel Name="ActiveSearchScopes">
-                    <!-- Design time elements -->
-                    <!--<DockPanel Background="{DynamicResource SearchBubbleBackground}">
+                <Grid>
+                    <Label Content="Active Search Scopes" Padding="0" FontSize="10" HorizontalAlignment="Center"></Label>
+                    <WrapPanel Name="ActiveSearchScopes">
+                        <!-- Design time elements -->
+                        <!--<DockPanel Background="{DynamicResource SearchBubbleBackground}">
                         <DockPanel DockPanel.Dock="Top" Background="{DynamicResource SearchBubbleHeaderBackground}">
                             <TextBlock Padding="0" Margin="0" Text="Person" HorizontalAlignment="Left"></TextBlock>
                             <Button DockPanel.Dock="Right" Width="20" Height="20" Padding="0" Margin="0" Content="X" HorizontalAlignment="Right"></Button>
@@ -126,7 +127,8 @@
                         </DockPanel>
                         <TextBlock Padding="5" DockPanel.Dock="Bottom" Text="Russell M. Nelson"></TextBlock>
                     </DockPanel>-->
-                </WrapPanel>
+                    </WrapPanel>
+                </Grid>
             </DockPanel>
         </DockPanel>
         <ScrollViewer
