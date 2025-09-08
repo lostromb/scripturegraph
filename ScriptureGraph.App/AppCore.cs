@@ -355,12 +355,33 @@ namespace ScriptureGraph.App
             }
 
             string? prettyName;
-            if (!_entityNameLookup.Mapping.TryGetValue(MapEntityIdToDocumentPartial(entityId), out prettyName))
+            if (_entityNameLookup.Mapping.TryGetValue(MapEntityIdToDocumentPartial(entityId), out prettyName))
             {
-                return "UNKNOWN_NAME";
+                // todo handle paragraphs within conference talks and BD entries
+                return prettyName;
             }
 
-            return prettyName;
+            if (entityId.Type == KnowledgeGraphNodeType.ScriptureVerse ||
+                entityId.Type == KnowledgeGraphNodeType.ScriptureChapter ||
+                entityId.Type == KnowledgeGraphNodeType.ScriptureBook)
+            {
+                ScriptureReference parsedRef = new ScriptureReference(entityId);
+                string formattedBookName = ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book);
+                if (parsedRef.Chapter.HasValue && parsedRef.Verse.HasValue)
+                {
+                    return $"{formattedBookName} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}";
+                }
+                else if (parsedRef.Chapter.HasValue && !parsedRef.Verse.HasValue)
+                {
+                    return $"{formattedBookName} {parsedRef.Chapter.Value}";
+                }
+                else
+                {
+                    return formattedBookName;
+                }
+            }
+
+            return "UNKNOWN_NAME";
         }
 
         public IEnumerable<FastSearchQueryResult> RunFastSearchQuery(string queryString, int maxResults = 10)
