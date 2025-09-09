@@ -1,4 +1,5 @@
-﻿using Durandal.Common.Time;
+﻿using Durandal.Common.Logger;
+using Durandal.Common.Time;
 using Durandal.Common.Utils;
 using ScriptureGraph.App.Schemas;
 using ScriptureGraph.Core.Graph;
@@ -7,6 +8,7 @@ using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System.DirectoryServices;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -85,7 +87,6 @@ namespace ScriptureGraph.App
 
                 // We're still on the UI thread so no need to dispatch
                 Grid searchResultsPane = await CreateNewSearchResultsPane(resultEntityIds).ConfigureAwait(true);
-                SearchButton.IsEnabled = true;
                 if (_currentSearchResultsPane != null)
                 {
                     BrowseArea.Children.Remove(_currentSearchResultsPane);
@@ -99,6 +100,10 @@ namespace ScriptureGraph.App
             catch (Exception e)
             {
                 _core.CoreLogger.Log(e);
+            }
+            finally
+            {
+                SearchButton.IsEnabled = true;
             }
         }
 
@@ -137,7 +142,8 @@ namespace ScriptureGraph.App
                     {
                         Orientation = Orientation.Horizontal,
                         VerticalAlignment = VerticalAlignment.Center,
-                        Tag = searchResult
+                        Tag = searchResult,
+                        ToolTip = "Click this result to add it to the search terms",
                     };
 
                     horizontalPanel.MouseEnter += SearchFlyoutItem_MouseEnter;
@@ -159,6 +165,7 @@ namespace ScriptureGraph.App
 
                         readButton.Content = "Load";
                         readButton.Tag = searchResult;
+                        readButton.ToolTip = "Begin reading this document immediately without searching";
                         readButton.PreviewMouseDown += SearchFlyoutLoadButton_Click;
                         horizontalPanel.Children.Add(readButton);
                     }
@@ -168,7 +175,7 @@ namespace ScriptureGraph.App
                         Margin = new Thickness(10),
                         FontSize = 16,
                         VerticalAlignment = VerticalAlignment.Center,
-                        Text = searchResult.DisplayName
+                        Text = searchResult.DisplayName,
                     };
 
                     TextBlock typeBlock = new TextBlock()
@@ -177,7 +184,7 @@ namespace ScriptureGraph.App
                         FontSize = 14,
                         Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128)),
                         VerticalAlignment = VerticalAlignment.Center,
-                        Text = ConvertSearchResultTypeToString(searchResult.EntityType)
+                        Text = ConvertSearchResultTypeToString(searchResult.EntityType),
                     };
 
                     horizontalPanel.Children.Add(nameBlock);
@@ -327,27 +334,51 @@ namespace ScriptureGraph.App
             header.VerticalAlignment = VerticalAlignment.Stretch;
             Button closeButton = new Button();
             closeButton.Content = "Close";
+            closeButton.ToolTip = "Close this reading pane";
             closeButton.Padding = new Thickness(5);
             closeButton.HorizontalAlignment = HorizontalAlignment.Left;
             closeButton.Tag = panelId;
             closeButton.Click += ClosePanelButton_Click;
 
-            Button addToSearchButton = new Button();
-            addToSearchButton.Content = "Search";
-            addToSearchButton.Padding = new Thickness(5);
-            addToSearchButton.HorizontalAlignment = HorizontalAlignment.Right;
-            addToSearchButton.Tag = panelId;
-            addToSearchButton.Click += SearchFromPanelButton_Click;
+            //Button addToSearchButton = new Button();
+            //addToSearchButton.Content = "Search";
+            //addToSearchButton.Padding = new Thickness(5);
+            //addToSearchButton.HorizontalAlignment = HorizontalAlignment.Right;
+            //addToSearchButton.Tag = panelId;
+            //addToSearchButton.Click += SearchFromPanelButton_Click;
 
             FlowDocumentScrollViewer documentScrollViewer = new FlowDocumentScrollViewer();
             documentScrollViewer.Width = (double)TryFindResource("ReadingPaneWidth");
+            documentScrollViewer.Tag = panelId;
+
+            ContextMenu contextMenu = new ContextMenu();
+            contextMenu.Tag = panelId;
+            MenuItem addToSearchItem = new MenuItem()
+            {
+                Header = "Add this document to search",
+                Tag = panelId
+            };
+            MenuItem searchTextItem = new MenuItem()
+            {
+                Header = "Add selected text to search",
+                Tag = panelId
+            };
+
+            addToSearchItem.Click += AddEntireDocumentToSearchMenuItem_Click;
+            searchTextItem.Click += AddSelectionToSearchMenuItem_Click;
+
+            documentScrollViewer.ContextMenuOpening += ReadingPane_ContextMenuOpening;
+
 
             readingPaneContainer.Children.Add(readingPaneDocker);
             readingPaneDocker.Children.Add(headerGrid);
             headerGrid.Children.Add(header);
             headerGrid.Children.Add(closeButton);
-            headerGrid.Children.Add(addToSearchButton);
+            //headerGrid.Children.Add(addToSearchButton);
             readingPaneDocker.Children.Add(documentScrollViewer);
+            documentScrollViewer.ContextMenu = contextMenu;
+            contextMenu.Items.Add(addToSearchItem);
+            contextMenu.Items.Add(searchTextItem);
 
             return new ReadingPane()
             {
@@ -357,6 +388,19 @@ namespace ScriptureGraph.App
                 Header = header,
                 HeaderText = "UNKNOWN",
             };
+        }
+
+        private void ReadingPane_ContextMenuOpening(object sender, ContextMenuEventArgs args)
+        {
+            // See if the current reading pane has any currently selected text, and enable / disable menu items based on that
+            FlowDocumentScrollViewer scrollViewer = (FlowDocumentScrollViewer)sender;
+            //Guid sourcePanelId = (Guid)scrollViewer.Tag;
+            // Access the "add selection to search" menu item based on hardcoded index
+            // wish there was a better way to access this, oh well (tag is already taken by the panel guid)
+            MenuItem thisItem = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(1);
+            thisItem.IsEnabled = scrollViewer.IsSelectionActive &&
+                scrollViewer.Selection != null &&
+                !scrollViewer.Selection.IsEmpty;
         }
 
         private async Task<Grid> CreateNewSearchResultsPane(IList<KnowledgeGraphNodeId> searchResultEntities)
@@ -402,6 +446,7 @@ namespace ScriptureGraph.App
             header.Text = "Search Results";
             Button closeButton = new Button();
             closeButton.Content = "Close";
+            closeButton.ToolTip = "Close this reading pane";
             closeButton.Padding = new Thickness(5);
             closeButton.HorizontalAlignment = HorizontalAlignment.Left;
             closeButton.Tag = panelId;
@@ -540,7 +585,7 @@ namespace ScriptureGraph.App
             }
         }
 
-        private async void SearchFromPanelButton_Click(object sender, RoutedEventArgs args)
+        private async void AddEntireDocumentToSearchMenuItem_Click(object sender, RoutedEventArgs args)
         {
             try
             {
@@ -561,6 +606,108 @@ namespace ScriptureGraph.App
                     AppCore.ConvertEntityTypeToSearchResponseType(panel.CurrentDocumentEntity.Value.Type),
                     _core.GetPrettyNameForEntity(panel.CurrentDocumentEntity.Value),
                     panel.CurrentDocumentEntity.Value);
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
+        private async void AddSelectionToSearchMenuItem_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                Guid panelToAddToSearch = (Guid)((FrameworkElement)sender).Tag;
+                if (!_currentReadingPanes.ContainsKey(panelToAddToSearch))
+                {
+                    return;
+                }
+
+                ReadingPane panel = _currentReadingPanes[panelToAddToSearch];
+
+                if (panel.CurrentDocument == null || !panel.CurrentDocumentEntity.HasValue)
+                {
+                    return;
+                }
+
+                // Get the selected text from the reading pane and make sure it is non-null
+                TextSelection selection = panel.DocumentViewer.Selection;
+                string selectionRawText = selection.Text;
+                if (selection == null || selection.IsEmpty)
+                {
+                    _core.CoreLogger.Log("Text selection is empty; not adding to search");
+                    return;
+                }
+
+                // Extract features from text
+                List<KnowledgeGraphNodeId> entities = new List<KnowledgeGraphNodeId>(256);
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(selectionRawText))
+                {
+                    entities.Add(ngram);
+                }
+
+                // And get the entities for the paragraphs / verses spanned by the selection
+                TextPointer currentPointer = selection.Start;
+                KnowledgeGraphNodeId? firstParagraphEntityAdded = null;
+                KnowledgeGraphNodeId lastParagraphEntityAdded = default;
+                if (currentPointer.Paragraph != null &&
+                    currentPointer.Paragraph.Tag != null &&
+                    currentPointer.Paragraph.Tag is KnowledgeGraphNodeId paragraphTag)
+                {
+                    lastParagraphEntityAdded = paragraphTag;
+                    firstParagraphEntityAdded = paragraphTag;
+                    entities.Add(paragraphTag);
+                }
+
+                while (currentPointer.GetOffsetToPosition(selection.End) > 0)
+                {
+                    currentPointer = currentPointer.GetNextContextPosition(LogicalDirection.Forward);
+                    if (currentPointer.Paragraph != null &&
+                        currentPointer.Paragraph.Tag != null &&
+                        currentPointer.Paragraph.Tag is KnowledgeGraphNodeId paragraphTag2 &&
+                        !paragraphTag2.Equals(lastParagraphEntityAdded))
+                    {
+                        lastParagraphEntityAdded = paragraphTag2;
+                        entities.Add(paragraphTag2);
+                    }
+                }
+
+                // Build a friendly name for this search scope
+                KnowledgeGraphNodeId entityToUseForHeaders = firstParagraphEntityAdded.GetValueOrDefault(panel.CurrentDocumentEntity.Value);
+
+                string documentPrettyName = _core.GetPrettyNameForEntity(entityToUseForHeaders);
+                StringBuilder friendlyNameBuilder = new StringBuilder();
+                friendlyNameBuilder.Append("\"");
+                int lastAppendedIndex = 0;
+                int nextSpaceIndex = 0;
+                while (nextSpaceIndex >= 0 && friendlyNameBuilder.Length < 40)
+                {
+                    nextSpaceIndex = selectionRawText.IndexOf(' ', nextSpaceIndex + 1);
+                    if (nextSpaceIndex < 0)
+                    {
+                        friendlyNameBuilder.Append(selectionRawText.AsSpan(lastAppendedIndex));
+                    }
+                    else
+                    {
+                        friendlyNameBuilder.Append(selectionRawText.AsSpan(lastAppendedIndex, nextSpaceIndex - lastAppendedIndex));
+                    }
+
+                    lastAppendedIndex = nextSpaceIndex;
+                }
+
+                if (nextSpaceIndex >= 0)
+                {
+                    friendlyNameBuilder.Append("...");
+                }
+
+                friendlyNameBuilder.Append("\" (");
+                friendlyNameBuilder.Append(documentPrettyName);
+                friendlyNameBuilder.Append(")");
+
+                CreateNewSearchScope(
+                    AppCore.ConvertEntityTypeToSearchResponseType(entityToUseForHeaders.Type),
+                    friendlyNameBuilder.ToString(),
+                    entities.ToArray());
             }
             catch (Exception e)
             {
@@ -598,6 +745,44 @@ namespace ScriptureGraph.App
 
         private void CreateNewSearchScope(SearchResultEntityType entityType, string scopeName, params KnowledgeGraphNodeId[] nodes)
         {
+            // Sanity checking
+            if (string.IsNullOrEmpty(scopeName))
+            {
+                _core.CoreLogger.Log("Attempted to create search scope with empty name", LogLevel.Err);
+                return;
+            }
+
+            if (nodes.Length == 0)
+            {
+                _core.CoreLogger.Log("Attempted to create search scope with no entities", LogLevel.Err);
+                return;
+            }
+
+            // Deduplicate node ids
+            HashSet<KnowledgeGraphNodeId> nodeIdSet = new HashSet<KnowledgeGraphNodeId>();
+            foreach (var node in nodes)
+            {
+                if (nodeIdSet.Contains(node))
+                {
+                    _core.CoreLogger.Log($"Duplicate entity {node} in search set; ignoring...", LogLevel.Wrn);
+                }
+                else
+                {
+                    nodeIdSet.Add(node);
+                }
+            }
+
+            // Ensure there's not already an existing scope with the same items
+            foreach (var existingScope in _activeSearchScopes.Values)
+            {
+                if (existingScope.Length == nodeIdSet.Count &&
+                    existingScope.All(s => nodeIdSet.Contains(s)))
+                {
+                    _core.CoreLogger.Log("Attempted to create a search scope that already exists", LogLevel.Wrn);
+                    return;
+                }
+            }
+
             Guid newScopeGuid = Guid.NewGuid();
 
             DockPanel searchBubbleContainer = new DockPanel();
@@ -638,7 +823,7 @@ namespace ScriptureGraph.App
             headerPanel.Children.Add(scopeRemoveButton);
             searchBubbleContainer.Children.Add(searchScopeNameTextBlock);
 
-            _activeSearchScopes.Add(newScopeGuid, nodes);
+            _activeSearchScopes.Add(newScopeGuid, nodeIdSet.ToArray());
         }
 
         private static string ConvertDocumentEidToHeaderString(GospelDocument document)
@@ -1012,23 +1197,38 @@ namespace ScriptureGraph.App
                 throw new Exception("Verse reference to invalid verse " + entityId.ToString());
             }
 
-            TextBlock scriptureSearchResult = new TextBlock()
+            // FIXME jank, need more proper index parsing for headers and intros and such
+            string text = $"ERROR [{entityId}]";
+            if (chapter.Paragraphs.Any(s => s.ParagraphEntityId.Equals(entityId)))
             {
-                Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                FontSize = (double)TryFindResource("VerseFontSize"),
-                TextWrapping = TextWrapping.Wrap,
-                TextAlignment = TextAlignment.Justify,
-                Padding = new Thickness(5),
-                IsManipulationEnabled = false,
-                Tag = new FastSearchQueryResult()
+                text = $"[{parsedRef.Verse.Value}] {chapter.Paragraphs.First(s => s.ParagraphEntityId.Equals(entityId)).Text}";
+            }
+            else if (parsedRef.Verse.HasValue && parsedRef.Verse.Value > 0)
+            {
+                text = $"[{parsedRef.Verse.Value}] {chapter.Paragraphs[parsedRef.Verse.Value - 1].Text}";
+            }
+            else if (parsedRef.Verse.HasValue)
+            {
+                text = $"[{parsedRef.Verse.Value}] {chapter.Paragraphs[parsedRef.Verse.Value].Text}";
+            }
+
+            TextBlock scriptureSearchResult = new TextBlock()
                 {
-                    DisplayName = $"{ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book)} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
-                    EntityType = SearchResultEntityType.ScriptureVerse,
-                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
-                },
-                Text = $"[{parsedRef.Verse.Value}] {chapter.Paragraphs[parsedRef.Verse.Value - 1].Text}"
-            };
+                    Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                    FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                    FontSize = (double)TryFindResource("VerseFontSize"),
+                    TextWrapping = TextWrapping.Wrap,
+                    TextAlignment = TextAlignment.Justify,
+                    Padding = new Thickness(5),
+                    IsManipulationEnabled = false,
+                    Tag = new FastSearchQueryResult()
+                    {
+                        DisplayName = $"{ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book)} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
+                        EntityType = SearchResultEntityType.ScriptureVerse,
+                        EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                    },
+                    Text = text
+                };
 
             scriptureSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
             scriptureSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;

@@ -48,6 +48,7 @@
                         KeyUp="SearchTextBox_KeyUp"
                         GotFocus="SearchTextBox_GotFocus"
                         LostFocus="SearchTextBox_LostFocus"
+                        ToolTip="Type scripture references, keywords, or search terms here"
                         ></TextBox>
                     <Canvas
                     Name="SearchFlyout"
@@ -101,9 +102,11 @@
                     Click="SearchButton_Click"
                     Width="50" Height="30"
                     Margin="0,0,10,0"
-                    DockPanel.Dock="Left"></Button>
+                    DockPanel.Dock="Left"
+                    ToolTip="Generate or update the search results combining all search terms found on the ribbon"
+                    ></Button>
                 <Grid>
-                    <Label Content="Active Search Scopes" Padding="0" FontSize="10" HorizontalAlignment="Center"></Label>
+                    <Label Content="Active Search Terms" Padding="0" FontSize="10" HorizontalAlignment="Center"></Label>
                     <WrapPanel Name="ActiveSearchScopes">
                         <!-- Design time elements -->
                         <!--<DockPanel Background="{DynamicResource SearchBubbleBackground}">
