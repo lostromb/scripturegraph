@@ -1,7 +1,6 @@
 ## Scripture Graph Study App (todo needs better name?)
 
-<img width="2846" height="1624" alt="image" src="https://github.com/user-attachments/assets/75dc5bd8-a7c1-45c9-9e02-c92398e7ed6b" />
-
+<img width="2842" height="1620" alt="image" src="https://github.com/user-attachments/assets/12a75845-dd16-4f62-ab6a-ec585eb615dc" />
 
 This is the code for an LDS gospel study app which correlates scriptural cross-references, Conference talks, indexes to the standard works, and other sources into a connected knowledge graph that can be searched and traversed to aid in diving deep into specific topics.
 
