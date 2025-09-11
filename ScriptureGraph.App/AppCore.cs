@@ -291,11 +291,27 @@ namespace ScriptureGraph.App
                 ActivatedWords = new Dictionary<KnowledgeGraphNodeId, float>()
             };
 
-            //float highestResultScore = 0;
+            // Add root words to the activated word set
+            foreach (var scope in query.SearchScopes)
+            {
+                foreach (var ngram in scope)
+                {
+                    if ((ngram.Type == KnowledgeGraphNodeType.Word ||
+                        ngram.Type == KnowledgeGraphNodeType.NGram) &&
+                        !returnVal.ActivatedWords.ContainsKey(ngram))
+                    {
+                        returnVal.ActivatedWords.Add(ngram, 1.0f);
+                    }
+                }
+            }
+
+            float highestResultScore = 0;
             int maxResults = query.MaxResults;
             foreach (var result in results)
             {
-                if (result.Key.Type == KnowledgeGraphNodeType.Word)
+                if ((result.Key.Type == KnowledgeGraphNodeType.Word ||
+                    result.Key.Type == KnowledgeGraphNodeType.NGram) &&
+                    !returnVal.ActivatedWords.ContainsKey(result.Key))
                 {
                     returnVal.ActivatedWords.Add(result.Key, result.Value);
                     continue;
@@ -323,16 +339,16 @@ namespace ScriptureGraph.App
                 // only the highest scoring result per document will appear.
                 finalHiddenEntityIdSet.Add(documentId);
 
-                //if (result.Value > highestResultScore)
-                //{
-                //    // assumes highest scoring result is first
-                //    highestResultScore = result.Value;
-                //}
-                //else if (result.Value < highestResultScore * 0.25f)
-                //{
-                //    // too low of confidence
-                //    break;
-                //}
+                if (result.Value > highestResultScore)
+                {
+                    // assumes highest scoring result is first
+                    highestResultScore = result.Value;
+                }
+                else if (result.Value < highestResultScore * 0.01f) // very lenient confidence threshold
+                {
+                    // too low of confidence
+                    break;
+                }
 
                 if (maxResults-- <= 0)
                 {
@@ -480,6 +496,13 @@ namespace ScriptureGraph.App
                     continue;
                 }
 
+                if (result.Key.Type == KnowledgeGraphNodeType.GuideToScripturesTopic ||
+                    result.Key.Type == KnowledgeGraphNodeType.TripleIndexTopic)
+                {
+                    // These entities likely won't actually end up turning search results so ignore them
+                    continue;
+                }
+
                 if (result.Value > highestResultScore)
                 {
                     // assumes highest scoring result is first
@@ -559,6 +582,38 @@ namespace ScriptureGraph.App
                 default:
                     return SearchResultEntityType.Unknown;
             }
+        }
+
+        public static GospelParagraph? GetBestMatchParagraph(GospelDocument document, Dictionary<KnowledgeGraphNodeId, float> activatedWords)
+        {
+            GospelParagraph? returnVal = null;
+
+            if (activatedWords.Count == 0)
+            {
+                return returnVal;
+            }
+
+            float bestScore = -1;
+            foreach (GospelParagraph para in document.Paragraphs)
+            {
+                float thisParaScore = 0;
+                foreach (KnowledgeGraphNodeId ngram in EnglishWordFeatureExtractor.ExtractNGrams(para.Text))
+                {
+                    float t;
+                    if (activatedWords.TryGetValue(ngram, out t))
+                    {
+                        thisParaScore += t;
+                    }
+                }
+
+                if (thisParaScore > bestScore)
+                {
+                    bestScore = thisParaScore;
+                    returnVal = para;
+                }
+            }
+
+            return returnVal;
         }
 
         private static bool DoesSameNameMappingApply(KnowledgeGraphNodeType nodeType)

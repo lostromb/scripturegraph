@@ -83,10 +83,9 @@ namespace ScriptureGraph.App
                 }
 
                 SlowSearchQueryResult searchResults = await Task.Run(() => _core.RunSlowSearchQuery(query)).ConfigureAwait(true);
-                List<KnowledgeGraphNodeId> resultEntityIds = searchResults.EntityIds;
-
+                
                 // We're still on the UI thread so no need to dispatch
-                Grid searchResultsPane = await CreateNewSearchResultsPane(resultEntityIds).ConfigureAwait(true);
+                Grid searchResultsPane = await CreateNewSearchResultsPane(searchResults).ConfigureAwait(true);
                 if (_currentSearchResultsPane != null)
                 {
                     BrowseArea.Children.Remove(_currentSearchResultsPane);
@@ -403,7 +402,7 @@ namespace ScriptureGraph.App
                 !scrollViewer.Selection.IsEmpty;
         }
 
-        private async Task<Grid> CreateNewSearchResultsPane(IList<KnowledgeGraphNodeId> searchResultEntities)
+        private async Task<Grid> CreateNewSearchResultsPane(SlowSearchQueryResult searchResults)
         {
             //<Grid Name="ReadingPaneContainer1">
             //        <DockPanel>
@@ -417,21 +416,23 @@ namespace ScriptureGraph.App
             //                </TextBlock>
             //                <Button Content="Close" Padding="5" HorizontalAlignment="Left"></Button>
             //            </Grid>
-                        //<TextBlock
-                        //    Background="{DynamicResource SearchResultLabelBackground}"
-                        //    Text="Book of Mormon - Alma 36:20"
-                        //    IsManipulationEnabled="False"></TextBlock>
-                        //<TextBlock 
-                        //    Background="{DynamicResource DocumentReaderPageBackground}"
-                        //    FontFamily="{DynamicResource SerifFontFamily}"
-                        //    FontSize="{DynamicResource VerseFontSize}"
-                        //    TextWrapping="Wrap"
-                        //    TextAlignment="Justify"
-                        //    Padding="5"
-                        //    IsManipulationEnabled="False"
-                        //    Text="And oh, what joy, and what marvelous light I did behold; yea, my soul was filled with joy as exceeding as was my pain!"></TextBlock>
+            //<TextBlock
+            //    Background="{DynamicResource SearchResultLabelBackground}"
+            //    Text="Book of Mormon - Alma 36:20"
+            //    IsManipulationEnabled="False"></TextBlock>
+            //<TextBlock 
+            //    Background="{DynamicResource DocumentReaderPageBackground}"
+            //    FontFamily="{DynamicResource SerifFontFamily}"
+            //    FontSize="{DynamicResource VerseFontSize}"
+            //    TextWrapping="Wrap"
+            //    TextAlignment="Justify"
+            //    Padding="5"
+            //    IsManipulationEnabled="False"
+            //    Text="And oh, what joy, and what marvelous light I did behold; yea, my soul was filled with joy as exceeding as was my pain!"></TextBlock>
             //        </DockPanel>
             //    </Grid>
+
+            List<KnowledgeGraphNodeId> searchResultEntities = searchResults.EntityIds;
 
             Guid panelId = Guid.NewGuid();
             Grid resultsPaneContainer = new Grid();
@@ -461,7 +462,7 @@ namespace ScriptureGraph.App
             // Stack the search results in here...
             foreach (var resultEntity in searchResultEntities)
             {
-                await CreateUiElementsForSearchResult(resultEntity, searchResultsStacker.Children);
+                await CreateUiElementsForSearchResult(resultEntity, searchResultsStacker.Children, searchResults.ActivatedWords);
             }
 
             resultsPaneContainer.Children.Add(resultsPaneDocker);
@@ -1025,159 +1026,183 @@ namespace ScriptureGraph.App
             return returnVal;
         }
 
-        private async Task CreateUiElementsForSearchResult(KnowledgeGraphNodeId searchResult, UIElementCollection target)
+        private async Task CreateUiElementsForSearchResult(
+            KnowledgeGraphNodeId searchResult,
+            UIElementCollection target,
+            Dictionary<KnowledgeGraphNodeId, float> activatedWords)
         {
-            // The header style is common to all search results so just make it here
-            TextBlock searchResultHeader = new TextBlock()
+            try
             {
-                Background = (Brush)TryFindResource("SearchResultLabelBackground"),
-                IsManipulationEnabled = false,
-                Margin = new Thickness(2),
-            };
-
-            if (searchResult.Type == KnowledgeGraphNodeType.ScriptureVerse)
-            {
-                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
-                if (scriptureChapter is ScriptureChapterDocument scriptureDoc)
+                // The header style is common to all search results so just make it here
+                TextBlock searchResultHeader = new TextBlock()
                 {
-                    searchResultHeader.Text = $"{ScriptureMetadata.GetEnglishNameForBook(scriptureDoc.Book)} {scriptureDoc.Chapter}";
-                    target.Add(searchResultHeader);
-                    CreateUiElementsForScriptureVerseResult(searchResult, scriptureDoc, target);
-                }
-                else
-                {
-                    throw new Exception("Invalid loaded document type: expected ScriptureChapterDocument");
-                }
-            }
-            else if (searchResult.Type == KnowledgeGraphNodeType.ConferenceTalkParagraph)
-            {
-                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
-                if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
-                {
-                    string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
-                    searchResultHeader.Text = $"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title}";
-                    target.Add(searchResultHeader);
-                    CreateUiElementsForConferenceParagraphResult(searchResult, conferenceDoc, target);
-                }
-                else
-                {
-                    throw new Exception("Invalid loaded document type: expected ConferenceTalkDocument");
-                }
-            }
-            else if (searchResult.Type == KnowledgeGraphNodeType.ConferenceTalk)
-            {
-                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
-                if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
-                {
-                    string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
-                    searchResultHeader.Text = $"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title}";
-                    target.Add(searchResultHeader);
-
-                    TextBlock searchResultLabel = new TextBlock()
-                    {
-                        Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                        FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                        FontSize = (double)TryFindResource("VerseFontSize"),
-                        TextWrapping = TextWrapping.Wrap,
-                        TextAlignment = TextAlignment.Justify,
-                        Padding = new Thickness(5),
-                        IsManipulationEnabled = false,
-                        Tag = new FastSearchQueryResult()
-                        {
-                            DisplayName = $"{conferenceDoc.Title}",
-                            EntityType = SearchResultEntityType.ConferenceTalk,
-                            EntityIds = new KnowledgeGraphNodeId[] { searchResult }
-                        },
-                        Text = $"{conferenceDoc.Speaker} - {conferenceDoc.Title}"
-                    };
-
-                    searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
-                    searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
-                    searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
-                    target.Add(searchResultLabel);
-                }
-                else
-                {
-                    throw new Exception("Invalid loaded document type: expected ConferenceTalkDocument");
-                }
-            }
-            else if (searchResult.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph)
-            {
-                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
-                if (scriptureChapter is BibleDictionaryDocument dictionaryDoc)
-                {
-                    searchResultHeader.Text = $"Bible Dictionary - {dictionaryDoc.Title}";
-                    target.Add(searchResultHeader);
-                    CreateUiElementsForBDParagraphResult(searchResult, dictionaryDoc, target);
-                }
-                else
-                {
-                    throw new Exception("Invalid loaded document type: expected BibleDictionaryDocument");
-                }
-            }
-            else if (searchResult.Type == KnowledgeGraphNodeType.BibleDictionaryTopic)
-            {
-                GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
-                if (scriptureChapter is BibleDictionaryDocument dictionaryDoc)
-                {
-                    searchResultHeader.Text = $"Bible Dictionary - {dictionaryDoc.Title}";
-                    target.Add(searchResultHeader);
-
-                    TextBlock searchResultLabel = new TextBlock()
-                    {
-                        Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                        FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                        FontSize = (double)TryFindResource("VerseFontSize"),
-                        TextWrapping = TextWrapping.Wrap,
-                        TextAlignment = TextAlignment.Justify,
-                        Padding = new Thickness(5),
-                        IsManipulationEnabled = false,
-                        Tag = new FastSearchQueryResult()
-                        {
-                            DisplayName = dictionaryDoc.Title,
-                            EntityType = SearchResultEntityType.Topic,
-                            EntityIds = new KnowledgeGraphNodeId[] { searchResult }
-                        },
-                        Text = $"Bible Dictionary - {dictionaryDoc.Title}"
-                    };
-
-                    searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
-                    searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
-                    searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
-                    target.Add(searchResultLabel);
-                }
-                else
-                {
-                    throw new Exception("Invalid loaded document type: expected BibleDictionaryDocument");
-                }
-            }
-            else
-            {
-                searchResultHeader.Text = searchResult.ToString();
-                target.Add(searchResultHeader);
-
-                TextBlock placeholderSearchResult = new TextBlock()
-                {
-                    Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                    FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                    FontSize = (double)TryFindResource("VerseFontSize"),
-                    TextWrapping = TextWrapping.Wrap,
-                    TextAlignment = TextAlignment.Justify,
-                    Padding = new Thickness(5),
+                    Background = (Brush)TryFindResource("SearchResultLabelBackground"),
                     IsManipulationEnabled = false,
-                    Tag = new FastSearchQueryResult()
-                    {
-                        DisplayName = "UNKNOWN",
-                        EntityType = SearchResultEntityType.Unknown,
-                        EntityIds = new KnowledgeGraphNodeId[] { searchResult }
-                    },
-                    Text = $"Entity type {searchResult.Type} not yet handled"
+                    Margin = new Thickness(2),
                 };
 
-                placeholderSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
-                placeholderSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
-                placeholderSearchResult.MouseDown += SearchResultPreviewDocument_Click;
-                target.Add(placeholderSearchResult);
+                if (searchResult.Type == KnowledgeGraphNodeType.ScriptureVerse)
+                {
+                    GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
+                    if (scriptureChapter is ScriptureChapterDocument scriptureDoc)
+                    {
+                        searchResultHeader.Text = $"{ScriptureMetadata.GetEnglishNameForBook(scriptureDoc.Book)} {scriptureDoc.Chapter}";
+                        target.Add(searchResultHeader);
+                        CreateUiElementsForScriptureVerseResult(searchResult, scriptureDoc, target);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected ScriptureChapterDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.ConferenceTalkParagraph)
+                {
+                    GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
+                    if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
+                    {
+                        string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
+                        searchResultHeader.Text = $"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title} - {conferenceDoc.Speaker}";
+                        target.Add(searchResultHeader);
+                        CreateUiElementsForConferenceParagraphResult(searchResult, conferenceDoc, target);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected ConferenceTalkDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.ConferenceTalk)
+                {
+                    GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
+                    if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
+                    {
+                        string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
+                        searchResultHeader.Text = $"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title} - {conferenceDoc.Speaker}";
+                        target.Add(searchResultHeader);
+
+                        TextBlock searchResultLabel = new TextBlock()
+                        {
+                            Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                            FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                            FontSize = (double)TryFindResource("VerseFontSize"),
+                            TextWrapping = TextWrapping.Wrap,
+                            TextAlignment = TextAlignment.Justify,
+                            Padding = new Thickness(5),
+                            IsManipulationEnabled = false,
+                            Tag = new FastSearchQueryResult()
+                            {
+                                DisplayName = $"{conferenceDoc.Title}",
+                                EntityType = SearchResultEntityType.ConferenceTalk,
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                            },
+                            Text = $"{conferenceDoc.Speaker} - {conferenceDoc.Title}"
+                        };
+
+                        // See if there's a best match paragraph within the document based on the search query
+                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(conferenceDoc, activatedWords);
+                        if (bestPara != null)
+                        {
+                            searchResultLabel.Text = bestPara.Text;
+                        }
+
+                        searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                        searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                        searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+                        target.Add(searchResultLabel);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected ConferenceTalkDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph)
+                {
+                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
+                    if (dictionaryEntry is BibleDictionaryDocument dictionaryDoc)
+                    {
+                        searchResultHeader.Text = $"Bible Dictionary - {dictionaryDoc.Title}";
+                        target.Add(searchResultHeader);
+                        CreateUiElementsForBDParagraphResult(searchResult, dictionaryDoc, target);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected BibleDictionaryDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.BibleDictionaryTopic)
+                {
+                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
+                    if (dictionaryEntry is BibleDictionaryDocument dictionaryDoc)
+                    {
+                        searchResultHeader.Text = $"Bible Dictionary - {dictionaryDoc.Title}";
+                        target.Add(searchResultHeader);
+
+                        TextBlock searchResultLabel = new TextBlock()
+                        {
+                            Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                            FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                            FontSize = (double)TryFindResource("VerseFontSize"),
+                            TextWrapping = TextWrapping.Wrap,
+                            TextAlignment = TextAlignment.Justify,
+                            Padding = new Thickness(5),
+                            IsManipulationEnabled = false,
+                            Tag = new FastSearchQueryResult()
+                            {
+                                DisplayName = dictionaryDoc.Title,
+                                EntityType = SearchResultEntityType.Topic,
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                            },
+                            Text = $"Bible Dictionary - {dictionaryDoc.Title}"
+                        };
+
+                        // See if there's a best match paragraph within the document based on the search query
+                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(dictionaryEntry, activatedWords);
+                        if (bestPara != null)
+                        {
+                            searchResultLabel.Text = bestPara.Text;
+                        }
+
+                        searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                        searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                        searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+                        target.Add(searchResultLabel);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected BibleDictionaryDocument");
+                    }
+                }
+                else
+                {
+                    searchResultHeader.Text = searchResult.ToString();
+                    target.Add(searchResultHeader);
+
+                    TextBlock placeholderSearchResult = new TextBlock()
+                    {
+                        Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                        FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                        FontSize = (double)TryFindResource("VerseFontSize"),
+                        TextWrapping = TextWrapping.Wrap,
+                        TextAlignment = TextAlignment.Justify,
+                        Padding = new Thickness(5),
+                        IsManipulationEnabled = false,
+                        Tag = new FastSearchQueryResult()
+                        {
+                            DisplayName = "UNKNOWN",
+                            EntityType = SearchResultEntityType.Unknown,
+                            EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                        },
+                        Text = $"Entity type {searchResult.Type} not yet handled"
+                    };
+
+                    placeholderSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                    placeholderSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                    placeholderSearchResult.MouseDown += SearchResultPreviewDocument_Click;
+                    target.Add(placeholderSearchResult);
+                }
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
             }
         }
 
@@ -1295,7 +1320,12 @@ namespace ScriptureGraph.App
                 TextAlignment = TextAlignment.Justify,
                 Padding = new Thickness(5),
                 IsManipulationEnabled = false,
-                Tag = entityId,
+                Tag = new FastSearchQueryResult()
+                {
+                    DisplayName = document.Title,
+                    EntityType = SearchResultEntityType.Topic,
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                },
                 Text = document.Paragraphs[paragraph].Text
             };
 

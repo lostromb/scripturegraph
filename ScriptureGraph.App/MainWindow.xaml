@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ScriptureGraph.App"
         mc:Ignorable="d"
-        Title="ScriptureGraph" Height="600" Width="800"
+        Title="Scripture Graph Study App v0.2" Height="600" Width="800"
     xmlns:System="clr-namespace:System;assembly=System.Runtime" Loaded="Window_Loaded">
     <Window.Resources>
         <FontFamily x:Key="SerifFontFamily">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
