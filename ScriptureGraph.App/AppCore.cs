@@ -43,7 +43,13 @@ namespace ScriptureGraph.App
 #endif
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, _coreLogger);
-            _fileSystem = new RealFileSystem(_coreLogger.Clone("FileSystem"), Path.Combine(Environment.CurrentDirectory, "content"));
+            string contentPath = Path.Combine(Environment.CurrentDirectory, "content");
+            if (!Directory.Exists(contentPath))
+            {
+                throw new DirectoryNotFoundException(contentPath);
+            }
+
+            _fileSystem = new RealFileSystem(_coreLogger.Clone("FileSystem"), contentPath);
             _documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>();
             _nativeHeap = new NativeMemoryHeap();
         }
@@ -326,7 +332,11 @@ namespace ScriptureGraph.App
                     continue;
                 }
 
-                // TODO apply filters and stuff for specific canons, etc.
+                // Apply filters and stuff for specific canons, etc.
+                if (query.CategoryFilters != null && !PassesOutputFilters(result.Key, query.CategoryFilters))
+                {
+                    continue;
+                }
 
                 // Ignore documents that the caller has told us to ignore (we assume they are already opened)
                 KnowledgeGraphNodeId documentId = MapEntityIdToDocument(result.Key);
@@ -347,6 +357,7 @@ namespace ScriptureGraph.App
                 else if (result.Value < highestResultScore * 0.01f) // very lenient confidence threshold
                 {
                     // too low of confidence
+                    _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Breaking at confidence threshold {0:F3}", result.Value * 1000);
                     break;
                 }
 
@@ -356,7 +367,7 @@ namespace ScriptureGraph.App
                 }
 
                 returnVal.EntityIds.Add(result.Key);
-                _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value, result.Key.ToString());
+                _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value * 1000, result.Key.ToString());
             }
 
             return returnVal;
@@ -623,6 +634,49 @@ namespace ScriptureGraph.App
                 nodeType == KnowledgeGraphNodeType.GuideToScripturesTopic ||
                 nodeType == KnowledgeGraphNodeType.TripleIndexTopic ||
                 nodeType == KnowledgeGraphNodeType.TopicalGuideKeyword;
+        }
+
+        private bool PassesOutputFilters(KnowledgeGraphNodeId entity, ResultFilterSet filters)
+        {
+            switch (entity.Type)
+            {
+                case KnowledgeGraphNodeType.ScriptureVerse:
+                case KnowledgeGraphNodeType.ScriptureChapter:
+                case KnowledgeGraphNodeType.ScriptureBook:
+                    ScriptureReference reference = new ScriptureReference(entity);
+                    if (string.Equals("ot", reference.Canon, StringComparison.Ordinal))
+                    {
+                        return filters.Include_OldTestament;
+                    }
+                    else if (string.Equals("nt", reference.Canon, StringComparison.Ordinal))
+                    {
+                        return filters.Include_NewTestament;
+                    }
+                    else if (string.Equals("bofm", reference.Canon, StringComparison.Ordinal))
+                    {
+                        return filters.Include_BookOfMormon;
+                    }
+                    else if (string.Equals("dc-testament", reference.Canon, StringComparison.Ordinal))
+                    {
+                        return filters.Include_DC;
+                    }
+                    else if (string.Equals("pgp", reference.Canon, StringComparison.Ordinal))
+                    {
+                        return filters.Include_PearlGP;
+                    }
+                    else
+                    {
+                        return true;
+                    }
+                case KnowledgeGraphNodeType.ConferenceTalk:
+                case KnowledgeGraphNodeType.ConferenceTalkParagraph:
+                    return filters.Include_GenConference;
+                case KnowledgeGraphNodeType.BibleDictionaryTopic:
+                case KnowledgeGraphNodeType.BibleDictionaryParagraph:
+                    return filters.Include_BibleDict;
+                default:
+                    return true;
+            }
         }
     }
 }

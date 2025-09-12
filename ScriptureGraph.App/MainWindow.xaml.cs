@@ -64,7 +64,17 @@ namespace ScriptureGraph.App
                 {
                     SearchScopes = new List<KnowledgeGraphNodeId[]>(),
                     IgnoredDocumentScopes = new HashSet<KnowledgeGraphNodeId>(),
-                    MaxResults = 50
+                    MaxResults = 50,
+                    CategoryFilters = new ResultFilterSet()
+                    { 
+                        Include_OldTestament = FilterCheckBox_OT.IsChecked.GetValueOrDefault(false),
+                        Include_NewTestament = FilterCheckBox_NT.IsChecked.GetValueOrDefault(false),
+                        Include_BookOfMormon = FilterCheckBox_BOFM.IsChecked.GetValueOrDefault(false),
+                        Include_DC = FilterCheckBox_DC.IsChecked.GetValueOrDefault(false),
+                        Include_PearlGP = FilterCheckBox_PGP.IsChecked.GetValueOrDefault(false),
+                        Include_BibleDict = FilterCheckBox_BD.IsChecked.GetValueOrDefault(false),
+                        Include_GenConference = FilterCheckBox_GC.IsChecked.GetValueOrDefault(false),
+                    }
                 };
 
                 foreach (var searchScope in _activeSearchScopes)

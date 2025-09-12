@@ -11,6 +11,7 @@ namespace ScriptureGraph.App.Schemas
     {
         public required List<KnowledgeGraphNodeId[]> SearchScopes;
         public required HashSet<KnowledgeGraphNodeId> IgnoredDocumentScopes;
+        public ResultFilterSet? CategoryFilters;
         public int MaxResults;
     }
 }

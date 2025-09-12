@@ -105,6 +105,16 @@
                     DockPanel.Dock="Left"
                     ToolTip="Generate or update the search results combining all search terms found on the ribbon"
                     ></Button>
+
+                <UniformGrid Columns="2" Rows="4">
+                    <CheckBox Name="FilterCheckBox_OT" IsChecked="true" Content="O. T." Grid.Row="1" Grid.Column="1"></CheckBox>
+                    <CheckBox Name="FilterCheckBox_BOFM" IsChecked="true" Content="B of Morm." Grid.Row="1" Grid.Column="2"></CheckBox>
+                    <CheckBox Name="FilterCheckBox_NT" IsChecked="true" Content="N. T." Grid.Row="2" Grid.Column="1"></CheckBox>
+                    <CheckBox Name="FilterCheckBox_DC" IsChecked="true" Content="D &amp; C" Grid.Row="2" Grid.Column="2"></CheckBox>
+                    <CheckBox Name="FilterCheckBox_PGP" IsChecked="true" Content="Pearl G. P." Grid.Row="3" Grid.Column="1"></CheckBox>
+                    <CheckBox Name="FilterCheckBox_BD" IsChecked="true" Content="Bible Dict." Grid.Row="3" Grid.Column="2"></CheckBox>
+                    <CheckBox Name="FilterCheckBox_GC" IsChecked="true" Content="Conference" Grid.Row="3" Grid.Column="1"></CheckBox>
+                </UniformGrid>
                 <Grid>
                     <Label Content="Active Search Terms" Padding="0" FontSize="10" HorizontalAlignment="Center"></Label>
                     <WrapPanel Name="ActiveSearchScopes">
