@@ -66,7 +66,7 @@ namespace ScriptureGraph.App
                     IgnoredDocumentScopes = new HashSet<KnowledgeGraphNodeId>(),
                     MaxResults = 50,
                     CategoryFilters = new ResultFilterSet()
-                    { 
+                    {
                         Include_OldTestament = FilterCheckBox_OT.IsChecked.GetValueOrDefault(false),
                         Include_NewTestament = FilterCheckBox_NT.IsChecked.GetValueOrDefault(false),
                         Include_BookOfMormon = FilterCheckBox_BOFM.IsChecked.GetValueOrDefault(false),
@@ -93,7 +93,7 @@ namespace ScriptureGraph.App
                 }
 
                 SlowSearchQueryResult searchResults = await Task.Run(() => _core.RunSlowSearchQuery(query)).ConfigureAwait(true);
-                
+
                 // We're still on the UI thread so no need to dispatch
                 Grid searchResultsPane = await CreateNewSearchResultsPane(searchResults).ConfigureAwait(true);
                 if (_currentSearchResultsPane != null)
@@ -231,7 +231,7 @@ namespace ScriptureGraph.App
 
         private void SearchTextBox_LostFocus(object sender, RoutedEventArgs e)
         {
-            SearchFlyoutList.Visibility = Visibility.Collapsed; 
+            SearchFlyoutList.Visibility = Visibility.Collapsed;
         }
 
         private void SearchTextBox_GotFocus(object sender, RoutedEventArgs e)
@@ -1043,21 +1043,11 @@ namespace ScriptureGraph.App
         {
             try
             {
-                // The header style is common to all search results so just make it here
-                TextBlock searchResultHeader = new TextBlock()
-                {
-                    Background = (Brush)TryFindResource("SearchResultLabelBackground"),
-                    IsManipulationEnabled = false,
-                    Margin = new Thickness(2),
-                };
-
                 if (searchResult.Type == KnowledgeGraphNodeType.ScriptureVerse)
                 {
                     GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
                     if (scriptureChapter is ScriptureChapterDocument scriptureDoc)
                     {
-                        searchResultHeader.Text = $"{ScriptureMetadata.GetEnglishNameForBook(scriptureDoc.Book)} {scriptureDoc.Chapter}";
-                        target.Add(searchResultHeader);
                         CreateUiElementsForScriptureVerseResult(searchResult, scriptureDoc, target);
                     }
                     else
@@ -1070,9 +1060,6 @@ namespace ScriptureGraph.App
                     GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
                     if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
                     {
-                        string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
-                        searchResultHeader.Text = $"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title} - {conferenceDoc.Speaker}";
-                        target.Add(searchResultHeader);
                         CreateUiElementsForConferenceParagraphResult(searchResult, conferenceDoc, target);
                     }
                     else
@@ -1085,10 +1072,6 @@ namespace ScriptureGraph.App
                     GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
                     if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
                     {
-                        string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
-                        searchResultHeader.Text = $"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title} - {conferenceDoc.Speaker}";
-                        target.Add(searchResultHeader);
-
                         TextBlock searchResultLabel = new TextBlock()
                         {
                             Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
@@ -1117,6 +1100,11 @@ namespace ScriptureGraph.App
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+
+                        string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
+                        TextBlock searchResultHeader = CreateSearchResultHeader($"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title} - {conferenceDoc.Speaker}");
+
+                        target.Add(searchResultHeader);
                         target.Add(searchResultLabel);
                     }
                     else
@@ -1129,8 +1117,6 @@ namespace ScriptureGraph.App
                     GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
                     if (dictionaryEntry is BibleDictionaryDocument dictionaryDoc)
                     {
-                        searchResultHeader.Text = $"Bible Dictionary - {dictionaryDoc.Title}";
-                        target.Add(searchResultHeader);
                         CreateUiElementsForBDParagraphResult(searchResult, dictionaryDoc, target);
                     }
                     else
@@ -1143,9 +1129,6 @@ namespace ScriptureGraph.App
                     GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
                     if (dictionaryEntry is BibleDictionaryDocument dictionaryDoc)
                     {
-                        searchResultHeader.Text = $"Bible Dictionary - {dictionaryDoc.Title}";
-                        target.Add(searchResultHeader);
-
                         TextBlock searchResultLabel = new TextBlock()
                         {
                             Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
@@ -1174,6 +1157,10 @@ namespace ScriptureGraph.App
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+
+                        TextBlock searchResultHeader = CreateSearchResultHeader($"Bible Dictionary - {dictionaryDoc.Title}");
+
+                        target.Add(searchResultHeader);
                         target.Add(searchResultLabel);
                     }
                     else
@@ -1183,9 +1170,6 @@ namespace ScriptureGraph.App
                 }
                 else
                 {
-                    searchResultHeader.Text = searchResult.ToString();
-                    target.Add(searchResultHeader);
-
                     TextBlock placeholderSearchResult = new TextBlock()
                     {
                         Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
@@ -1207,6 +1191,8 @@ namespace ScriptureGraph.App
                     placeholderSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                     placeholderSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                     placeholderSearchResult.MouseDown += SearchResultPreviewDocument_Click;
+                    TextBlock searchResultHeader = CreateSearchResultHeader(searchResult.ToString() ?? "ERROR");
+                    target.Add(searchResultHeader);
                     target.Add(placeholderSearchResult);
                 }
             }
@@ -1248,26 +1234,29 @@ namespace ScriptureGraph.App
             }
 
             TextBlock scriptureSearchResult = new TextBlock()
+            {
+                Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
+                FontSize = (double)TryFindResource("VerseFontSize"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Justify,
+                Padding = new Thickness(5),
+                IsManipulationEnabled = false,
+                Tag = new FastSearchQueryResult()
                 {
-                    Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                    FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                    FontSize = (double)TryFindResource("VerseFontSize"),
-                    TextWrapping = TextWrapping.Wrap,
-                    TextAlignment = TextAlignment.Justify,
-                    Padding = new Thickness(5),
-                    IsManipulationEnabled = false,
-                    Tag = new FastSearchQueryResult()
-                    {
-                        DisplayName = $"{ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book)} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
-                        EntityType = SearchResultEntityType.ScriptureVerse,
-                        EntityIds = new KnowledgeGraphNodeId[] { entityId }
-                    },
-                    Text = text
-                };
+                    DisplayName = $"{ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book)} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
+                    EntityType = SearchResultEntityType.ScriptureVerse,
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                },
+                Text = text
+            };
 
             scriptureSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
             scriptureSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             scriptureSearchResult.MouseDown += SearchResultPreviewDocument_Click;
+
+            TextBlock searchResultHeader = CreateSearchResultHeader($"{ScriptureMetadata.GetEnglishNameForBook(chapter.Book)} {chapter.Chapter}");
+            target.Add(searchResultHeader);
             target.Add(scriptureSearchResult);
         }
 
@@ -1305,7 +1294,23 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
             conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
+
+            string month = document.Conference.Phase == ConferencePhase.April ? "April" : "October";
+            TextBlock searchResultHeader = CreateSearchResultHeader($"{month} {document.Conference.Year} General Conference - {document.Title} - {document.Speaker}");
+
+            target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);
+        }
+
+        private TextBlock CreateSearchResultHeader(string text)
+        {
+            return new TextBlock()
+            {
+                Background = (Brush)TryFindResource("SearchResultLabelBackground"),
+                IsManipulationEnabled = false,
+                Margin = new Thickness(2),
+                Text = text
+            };
         }
 
         private void CreateUiElementsForBDParagraphResult(
@@ -1342,6 +1347,10 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
             conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
+
+            TextBlock searchResultHeader = CreateSearchResultHeader($"Bible Dictionary - {document.Title}");
+
+            target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);
         }
 
