@@ -1,4 +1,5 @@
 ﻿using Durandal.Common.File;
+using Durandal.Common.IO;
 using Durandal.Common.Logger;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
@@ -12,6 +13,7 @@ using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System.Diagnostics;
 using System.IO.Compression;
+using static Durandal.Common.Audio.WebRtc.RingBuffer;
 
 namespace ScriptureGraph.Console
 {
@@ -40,25 +42,38 @@ namespace ScriptureGraph.Console
             //    graph = TrainingKnowledgeGraph.Load(brotliStream);
             //}
 
-            using (NativeMemoryHeap graphHeap = new NativeMemoryHeap())
-            using (Stream graphIn = new FileStream(@"D:\Code\scripturegraph\runtime\searchindex.graph.br", FileMode.Open, FileAccess.Read))
-            using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(graphIn))
-            {
-                Stopwatch timer = Stopwatch.StartNew();
-                UnsafeReadOnlyKnowledgeGraph graph = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, graphHeap);
-                //TrainingKnowledgeGraph graph = TrainingKnowledgeGraph.Load(brotliStream);
-                timer.Stop();
-                logger.Log("Load time was " + timer.ElapsedMillisecondsPrecise());
-
-                RunSearchQuery("hinckley", graph, logger);
-            }
-
-            //using (Stream graphOut = new FileStream(@"D:\Code\scripturegraph\runtime\all.graph", FileMode.Create, FileAccess.Write))
-            //using (BrotliStream brotliStream = new BrotliStream(graphOut, CompressionLevel.SmallestSize))
-            ////using (BrotliCompressorStream brotliStream = new BrotliCompressorStream(graphOut))
+            //using (NativeMemoryHeap graphHeap = new NativeMemoryHeap())
+            //using (Stream graphIn = new FileStream(@"D:\Code\scripturegraph\runtime\searchindex.graph.br", FileMode.Open, FileAccess.Read))
+            //using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(graphIn))
             //{
-            //    graph.Save(brotliStream);
+            //    Stopwatch timer = Stopwatch.StartNew();
+            //    UnsafeReadOnlyKnowledgeGraph graph = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, graphHeap);
+            //    //TrainingKnowledgeGraph graph = TrainingKnowledgeGraph.Load(brotliStream);
+            //    timer.Stop();
+            //    logger.Log("Load time was " + timer.ElapsedMillisecondsPrecise());
+
+            //    RunSearchQuery("hinckley", graph, logger);
             //}
+
+            // compress all documents
+            DirectoryInfo docRoot = new DirectoryInfo(@"C:\Code\scripturegraph\ScriptureGraph.App\bin\Debug\net8.0-windows\content\documents");
+            foreach (var file in docRoot.GetFiles("*", SearchOption.AllDirectories))
+            {
+                if (string.Equals(".br", file.Extension, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                System.Console.WriteLine("Compressing " + file.FullName);
+                using (Stream fileIn = new FileStream(file.FullName, FileMode.Open, FileAccess.Read))
+                using (Stream compressedFileOut = new FileStream(file.FullName +".br", FileMode.Create, FileAccess.Write))
+                using (BrotliStream brotliStream = new BrotliStream(compressedFileOut, CompressionLevel.SmallestSize))
+                {
+                    fileIn.CopyToPooled(brotliStream);
+                }
+
+                file.Delete();
+            }
 
             // Decompress one page in the cache
             //VirtualPath inputFile = new VirtualPath("https___www.churchofjesuschrist.org_study_scriptures_bofm_1-ne_3_lang=eng.html.br");

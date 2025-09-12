@@ -159,9 +159,28 @@ namespace ScriptureGraph.App
             }
 
             VirtualPath filePath = _documentLibrary[actualEntityId];
-            using (Stream docFileIn = await _fileSystem.OpenStreamAsync(filePath, FileOpenMode.Open, FileAccessMode.Read))
+            VirtualPath filePathCompressed = filePath;
+
+            // Handle potentially compressed documents
+            if (!string.Equals(".br", filePath.Extension, StringComparison.OrdinalIgnoreCase))
             {
-                return GospelDocument.ParsePolymorphic(docFileIn);
+                filePathCompressed = new VirtualPath(filePath.FullName + ".br");
+            }
+
+            if (await _fileSystem.ExistsAsync(filePathCompressed))
+            {
+                using (Stream docFileIn = await _fileSystem.OpenStreamAsync(filePathCompressed, FileOpenMode.Open, FileAccessMode.Read))
+                using (BrotliDecompressorStream decompressor = new BrotliDecompressorStream(docFileIn))
+                {
+                    return GospelDocument.ParsePolymorphic(decompressor);
+                }
+            }
+            else
+            {
+                using (Stream docFileIn = await _fileSystem.OpenStreamAsync(filePath, FileOpenMode.Open, FileAccessMode.Read))
+                {
+                    return GospelDocument.ParsePolymorphic(docFileIn);
+                }
             }
         }
 

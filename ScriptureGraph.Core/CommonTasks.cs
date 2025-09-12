@@ -11,6 +11,7 @@ using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System;
 using System.Collections.Generic;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -351,7 +352,7 @@ namespace ScriptureGraph.Core
                     }
                     else
                     {
-                        fileDestination = new VirtualPath($"{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.json");
+                        fileDestination = new VirtualPath($"{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.json.br");
                     }
                 }
                 else
@@ -368,7 +369,7 @@ namespace ScriptureGraph.Core
                         }
                         else
                         {
-                            fileDestination = new VirtualPath($"bd\\{structuredDoc.TopicId}.json");
+                            fileDestination = new VirtualPath($"bd\\{structuredDoc.TopicId}.json.br");
                         }
                     }
                     else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal) ||
@@ -390,7 +391,7 @@ namespace ScriptureGraph.Core
                             }
                             else
                             {
-                                fileDestination = new VirtualPath($"general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.json");
+                                fileDestination = new VirtualPath($"general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.json.br");
                             }
                         }
                         else
@@ -405,8 +406,9 @@ namespace ScriptureGraph.Core
                     _documentCacheFileSystem.CreateDirectory(fileDestination.Container);
 
                     using (Stream fileOut = _documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                    using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
                     {
-                        GospelDocument.SerializePolymorphic(fileOut, parsedDoc);
+                        GospelDocument.SerializePolymorphic(brotliStream, parsedDoc);
                     }
                 }
 
