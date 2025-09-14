@@ -676,6 +676,7 @@ namespace ScriptureGraph.Core.Training
             { "words of mormon", "w-of-m" },
             { "w. of mormon", "w-of-m" },
             { "w-of-m", "w-of-m" },
+            { "wmn", "w-of-m" },
             { "mosiah", "mosiah" },
             { "msh", "mosiah" },
             { "alma", "alma" },
@@ -704,11 +705,14 @@ namespace ScriptureGraph.Core.Training
             { "mni", "moro" },
             // dc-testament
             { "doctrine & covenants", "dc" },
+            { "doctrine and covenants", "dc" },
             { "d & c", "dc" },
+            { "d and c", "dc" },
             { "d&c", "dc" },
             { "d and c", "dc" },
             { "official declarations", "od" },
             { "official declaration", "od" },
+            { "declarations", "od" },
             { "declaration", "od" },
             // pgp
             { "moses", "moses" },
