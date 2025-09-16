@@ -709,7 +709,6 @@ namespace ScriptureGraph.Core.Training
             { "d & c", "dc" },
             { "d and c", "dc" },
             { "d&c", "dc" },
-            { "d and c", "dc" },
             { "official declarations", "od" },
             { "official declaration", "od" },
             { "declarations", "od" },

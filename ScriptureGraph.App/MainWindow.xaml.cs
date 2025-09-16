@@ -33,6 +33,7 @@ namespace ScriptureGraph.App
         private Dictionary<Guid, KnowledgeGraphNodeId[]> _activeSearchScopes = new Dictionary<Guid, KnowledgeGraphNodeId[]>();
         private Dictionary<Guid, ReadingPane> _currentReadingPanes = new Dictionary<Guid, ReadingPane>();
         private UIElement? _currentSearchResultsPane;
+        private KnowledgeGraphNodeId? _lastRightClickedVerse;
 
         public MainWindow()
         {
@@ -362,6 +363,11 @@ namespace ScriptureGraph.App
 
             ContextMenu contextMenu = new ContextMenu();
             contextMenu.Tag = panelId;
+            MenuItem quickFootnotesItem = new MenuItem()
+            {
+                Header = "Quick Footnotes",
+                Tag = panelId
+            };
             MenuItem addToSearchItem = new MenuItem()
             {
                 Header = "Add this document to search",
@@ -375,6 +381,7 @@ namespace ScriptureGraph.App
 
             addToSearchItem.Click += AddEntireDocumentToSearchMenuItem_Click;
             searchTextItem.Click += AddSelectionToSearchMenuItem_Click;
+            quickFootnotesItem.Click += QuickFootnotesMenuItem_Click;
 
             documentScrollViewer.ContextMenuOpening += ReadingPane_ContextMenuOpening;
 
@@ -386,6 +393,7 @@ namespace ScriptureGraph.App
             //headerGrid.Children.Add(addToSearchButton);
             readingPaneDocker.Children.Add(documentScrollViewer);
             documentScrollViewer.ContextMenu = contextMenu;
+            contextMenu.Items.Add(quickFootnotesItem);
             contextMenu.Items.Add(addToSearchItem);
             contextMenu.Items.Add(searchTextItem);
 
@@ -406,10 +414,26 @@ namespace ScriptureGraph.App
             //Guid sourcePanelId = (Guid)scrollViewer.Tag;
             // Access the "add selection to search" menu item based on hardcoded index
             // wish there was a better way to access this, oh well (tag is already taken by the panel guid)
-            MenuItem thisItem = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(1);
-            thisItem.IsEnabled = scrollViewer.IsSelectionActive &&
+            MenuItem menuItem_AddSelectionToSearch = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(2);
+            menuItem_AddSelectionToSearch.IsEnabled =
+                scrollViewer.IsSelectionActive &&
                 scrollViewer.Selection != null &&
                 !scrollViewer.Selection.IsEmpty;
+
+            // Also do a hit bounds check to allow right click -> quick footnotes search (need to figure out which paragraph was clicked though)
+            _lastRightClickedVerse = null;
+            foreach (var block in scrollViewer.Document.Blocks)
+            {
+                if (block.IsMouseOver && block.Tag != null && block.Tag is KnowledgeGraphNodeId selectedParaNodeId)
+                {
+                    _lastRightClickedVerse = selectedParaNodeId;
+                    _core.CoreLogger.Log("Detected context menu selection on entity: " + selectedParaNodeId);
+                    break;
+                }
+            }
+
+            MenuItem menuItem_QuickFootnotes = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(0);
+            menuItem_QuickFootnotes.IsEnabled = _lastRightClickedVerse.HasValue;
         }
 
         private async Task<Grid> CreateNewSearchResultsPane(SlowSearchQueryResult searchResults)
@@ -719,6 +743,73 @@ namespace ScriptureGraph.App
                     AppCore.ConvertEntityTypeToSearchResponseType(entityToUseForHeaders.Type),
                     friendlyNameBuilder.ToString(),
                     entities.ToArray());
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
+        private async void QuickFootnotesMenuItem_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                if (!_lastRightClickedVerse.HasValue)
+                {
+                    return;
+                }
+
+                Guid panelSource = (Guid)((FrameworkElement)sender).Tag;
+                if (!_currentReadingPanes.ContainsKey(panelSource))
+                {
+                    return;
+                }
+
+                ReadingPane panel = _currentReadingPanes[panelSource];
+
+
+                SlowSearchQuery query = new SlowSearchQuery()
+                {
+                    SearchScopes = new List<KnowledgeGraphNodeId[]>(),
+                    IgnoredDocumentScopes = new HashSet<KnowledgeGraphNodeId>(),
+                    MaxResults = 50,
+                    CategoryFilters = new ResultFilterSet()
+                    {
+                        Include_OldTestament = FilterCheckBox_OT.IsChecked.GetValueOrDefault(false),
+                        Include_NewTestament = FilterCheckBox_NT.IsChecked.GetValueOrDefault(false),
+                        Include_BookOfMormon = FilterCheckBox_BOFM.IsChecked.GetValueOrDefault(false),
+                        Include_DC = FilterCheckBox_DC.IsChecked.GetValueOrDefault(false),
+                        Include_PearlGP = FilterCheckBox_PGP.IsChecked.GetValueOrDefault(false),
+                        Include_BibleDict = FilterCheckBox_BD.IsChecked.GetValueOrDefault(false),
+                        Include_GenConference = FilterCheckBox_GC.IsChecked.GetValueOrDefault(false),
+                    }
+                };
+
+                query.SearchScopes.Add(new KnowledgeGraphNodeId[] { _lastRightClickedVerse.Value });
+
+                // Tell the search to ignore panels we already have open
+                foreach (var readingPane in _currentReadingPanes)
+                {
+                    if (readingPane.Value.CurrentDocumentEntity.HasValue &&
+                        !query.IgnoredDocumentScopes.Contains(readingPane.Value.CurrentDocumentEntity.Value))
+                    {
+                        query.IgnoredDocumentScopes.Add(readingPane.Value.CurrentDocumentEntity.Value);
+                    }
+                }
+
+                SlowSearchQueryResult searchResults = await Task.Run(() => _core.RunSlowSearchQuery(query)).ConfigureAwait(true);
+
+                // We're still on the UI thread so no need to dispatch
+                Grid searchResultsPane = await CreateNewSearchResultsPane(searchResults).ConfigureAwait(true);
+                if (_currentSearchResultsPane != null)
+                {
+                    BrowseArea.Children.Remove(_currentSearchResultsPane);
+                }
+
+                _currentSearchResultsPane = searchResultsPane;
+                BrowseArea.Children.Add(searchResultsPane);
+                BrowseArea.UpdateLayout();
+                searchResultsPane.BringIntoView();
             }
             catch (Exception e)
             {
