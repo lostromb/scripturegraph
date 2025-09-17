@@ -1,4 +1,6 @@
-﻿using ScriptureGraph.Core.Graph;
+﻿using Durandal.Common.Collections.Interning;
+using Durandal.Common.Parsers;
+using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Training.Extractors;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -428,11 +430,14 @@ namespace ScriptureGraph.Core.Training
             { "genesis", "gen" },
             { "gen", "gen" },
             { "exodus", "ex" },
+            { "exod", "ex" },
             { "exo", "ex" },
             { "leviticus", "lev" },
+            { "levit", "lev" },
             { "lev", "lev" },
             { "numbers", "num" },
             { "num", "num" },
+            { "nmb", "num" },
             { "numb", "num" },
             { "deuteronomy", "deut" },
             { "deu", "deut" },
@@ -675,6 +680,7 @@ namespace ScriptureGraph.Core.Training
             { "omn", "omni" },
             { "words of mormon", "w-of-m" },
             { "w. of mormon", "w-of-m" },
+            { "w of mormon", "w-of-m" },
             { "w-of-m", "w-of-m" },
             { "wmn", "w-of-m" },
             { "mosiah", "mosiah" },
@@ -682,6 +688,7 @@ namespace ScriptureGraph.Core.Training
             { "alma", "alma" },
             { "alm", "alma" },
             { "helaman", "hel" },
+            { "hela", "hel" },
             { "hel", "hel" },
             { "3 nephi", "3-ne" },
             { "3nephi", "3-ne" },
@@ -705,14 +712,21 @@ namespace ScriptureGraph.Core.Training
             { "mni", "moro" },
             // dc-testament
             { "doctrine & covenants", "dc" },
+            { "doc. & cov.", "dc" },
+            { "doc & cov.", "dc" },
+            { "doct & cov.", "dc" },
+            { "doct. & cov.", "dc" },
             { "doctrine and covenants", "dc" },
             { "d & c", "dc" },
-            { "d and c", "dc" },
             { "d&c", "dc" },
+            { "d. and c", "dc" },
+            { "d and c", "dc" },
             { "official declarations", "od" },
             { "official declaration", "od" },
             { "declarations", "od" },
             { "declaration", "od" },
+            { "o. d.", "od" },
+            { "o.d.", "od" },
             // pgp
             { "moses", "moses" },
             { "mos", "moses" },
@@ -728,46 +742,63 @@ namespace ScriptureGraph.Core.Training
             { "js-h", "js-h" },
             { "articles of faith", "a-of-f" },
             { "article of faith", "a-of-f" },
+            { "a. of faith", "a-of-f" },
+            { "a. faith", "a-of-f" },
             { "aof", "a-of-f" },
             { "aoff", "a-of-f" },
             { "a-of-f", "a-of-f" },
         };
 
-        // Baseline: ^\s*(1st nephi|1 ne|moroni|mormon|enos)(?:\s*(\d)\s*(?:\:\s*(\d))?)?$
+        // Baseline: ^\s*(1st nephi|1 ne|moroni|mormon|enos....)(?:\s*(\d)\s*(?:\:\s*(\d))?)?$
         // group 1 : book name
         // group 2 (optional) : chapter
         // group 3 (optional) : verse
         private static readonly Regex EnglishScriptureRefMatcher;
 
+        // Baseline: (1st nephi|1 ne|moroni|mormon|enos....)
+        private static readonly Regex EnglishScriptureBookNameMatcher;
+
         static ScriptureMetadata()
         {
+            // we could use internalizers for super fast scripture parsing but meh....
+            //IPrimitiveInternalizer<char> internalizer = InternalizerFactory.CreateInternalizer(new InternedKeySource<ReadOnlyMemory<char>>(),
+            //    InternalizerFeature.CaseInsensitive | InternalizerFeature.OnlyMatchesWithinSet);
+
             bool first = true;
-            StringBuilder regexBuilder = new StringBuilder();
-            regexBuilder.Append("^\\s*(");
+            StringBuilder singleRefRegexBuilder = new StringBuilder();
+            StringBuilder bookNameRegexBuilder = new StringBuilder();
+            singleRefRegexBuilder.Append("^\\s*(");
+            bookNameRegexBuilder.Append("(");
             foreach (string englishBookName in ENGLISH_BOOK_NAMES.Keys)
             {
                 if (!first)
                 {
-                    regexBuilder.Append('|');
+                    singleRefRegexBuilder.Append('|');
+                    bookNameRegexBuilder.Append('|');
                 }
 
-                regexBuilder.Append(Regex.Escape(englishBookName));
-                regexBuilder.Append("\\.?");
+                singleRefRegexBuilder.Append(Regex.Escape(englishBookName));
+                singleRefRegexBuilder.Append("\\.?");
+                bookNameRegexBuilder.Append(Regex.Escape(englishBookName));
+                bookNameRegexBuilder.Append("\\.?");
                 first = false;
             }
 
-            regexBuilder.Append(")(?:\\s*(\\d+)\\s*(?:\\:\\s*(\\d+))?)?$");
-            EnglishScriptureRefMatcher = new Regex(regexBuilder.ToString(), RegexOptions.IgnoreCase);
+            singleRefRegexBuilder.Append(")(?:\\s*(\\d+)\\s*(?:\\:\\s*(\\d+))?)?$");
+            bookNameRegexBuilder.Append(")");
+            EnglishScriptureRefMatcher = new Regex(singleRefRegexBuilder.ToString(), RegexOptions.IgnoreCase);
+            EnglishScriptureBookNameMatcher = new Regex(bookNameRegexBuilder.ToString(), RegexOptions.IgnoreCase);
         }
 
         /// <summary>
         /// Given a string like "2nd Peter 1:5", attempt to parse it into a specific scripture reference.
+        /// Only applies to single verse forms! Doesn't correctly handle things like "Matt 3:1-5" or "John 3:16, 17"
         /// </summary>
         /// <param name="reference"></param>
         /// <returns></returns>
         public static ScriptureReference? TryParseScriptureReferenceEnglish(string reference)
         {
-            Match match = EnglishScriptureRefMatcher.Match(reference.Replace('.', ' '));
+            Match match = EnglishScriptureRefMatcher.Match(reference.Replace(".", string.Empty));
             string? bookId;
             if (match.Success && ENGLISH_BOOK_NAMES.TryGetValue(match.Groups[1].Value, out bookId))
             {
@@ -794,10 +825,93 @@ namespace ScriptureGraph.Core.Training
                     }
                 }
 
+                // If the chapter matches but not the verse on a book with only one chapter, correct that
+                // (to handle edge cases like "enos 5" referring to the verse of the single chapter)
+                if (BOOK_CHAPTER_LENGTHS[bookId] == 1 && !verse.HasValue)
+                {
+                    return new ScriptureReference(canon, bookId, 1, chapter);
+                }
+
                 return new ScriptureReference(canon, bookId, chapter, verse);
             }
 
             return null;
+        }
+
+        public static IEnumerable<ScriptureReference> ParseAllReferences(string inputText, bool includeExtra = false)
+        {
+            // Start by parsing all book names, and divide those into spans of "(book name) (whatever...) (verse references or ranges within this book)"
+            // So the separated spans might be "Moro. 7:1-5", or "D & C 76:11, see also 22" or "John 17:3-5; see also verses 24, 25"
+            int lastIndex = -1;
+            int lastLength = -1;
+            foreach (Match m in EnglishScriptureBookNameMatcher.Matches(inputText))
+            {
+                if (lastIndex >= 0)
+                {
+                    foreach (ScriptureReference r in ParseSingleReference(
+                        inputText.Substring(lastIndex, lastLength),
+                        inputText.Substring(lastIndex, m.Index - lastIndex)))
+                    {
+                        yield return r;
+                    }
+                }
+
+                lastIndex = m.Index;
+                lastLength = m.Length;
+            }
+
+            if (lastIndex >= 0)
+            {
+                foreach (ScriptureReference r in ParseSingleReference(
+                        inputText.Substring(lastIndex, lastLength),
+                        inputText.Substring(lastIndex)))
+                {
+                    yield return r;
+                }
+            }
+        }
+
+        // orig. (?:(\d+)\s*\:|(\d+)(?:\s*[-–—‒]\s*(\d+))?)
+        // all groups optional
+        // group 1: chapter
+        // group 2: verse range start
+        // group 3: verse range end
+        private static readonly Regex RobustVerseNumParser = new Regex("(?:(\\d+)\\s*\\:|(\\d+)(?:\\s*[-–—‒]\\s*(\\d+))?)");
+
+        private static IEnumerable<ScriptureReference> ParseSingleReference(string book, string entireThing)
+        {
+            string bookId = ENGLISH_BOOK_NAMES[book];
+            string canonId = BOOK_TO_CANON[bookId];
+
+            int? chapter = null;
+            foreach (Match m in RobustVerseNumParser.Matches(entireThing))
+            {
+                if (m.Groups[1].Success)
+                {
+                    // Update currently contextual chapter
+                    chapter = int.Parse(m.Groups[1].Value);
+                }
+                else if (chapter.HasValue)
+                {
+                    if (m.Groups[2].Success && m.Groups[3].Success)
+                    {
+                        // It's a range
+                        int rangeStart = int.Parse(m.Groups[2].Value);
+                        int rangeEnd = int.Parse(m.Groups[3].Value);
+                        while (rangeStart <= rangeEnd)
+                        {
+                            yield return new ScriptureReference(canonId, bookId, chapter, rangeStart);
+                            rangeStart++;
+                        }
+                    }
+                    else if (m.Groups[2].Success)
+                    {
+                        // It's just a single verse
+                        int verse = int.Parse(m.Groups[2].Value);
+                        yield return new ScriptureReference(canonId, bookId, chapter, verse);
+                    }
+                }
+            }
         }
     }
 }

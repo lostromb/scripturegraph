@@ -25,7 +25,18 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         public override string? ToString()
         {
-            return $"{Canon} {Book} {Chapter}:{Verse}";
+            if (Chapter.HasValue && Verse.HasValue)
+            {
+                return $"{Canon} {Book} {Chapter}:{Verse}";
+            }
+            else if (Chapter.HasValue)
+            {
+                return $"{Canon} {Book} {Chapter}";
+            }
+            else
+            {
+                return $"{Canon} {Book}";
+            }
         }
 
         public ScriptureReference(KnowledgeGraphNodeId entityId)
