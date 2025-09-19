@@ -122,14 +122,35 @@ namespace ScriptureGraph.Tests
         [TestMethod]
         public void TestParseScriptureRefHugeSpan()
         {
+            string html = "<a class=\"scripture-ref\" href=\"/study/scriptures/ot/ex/12?lang=eng&span=12:50-13:2\">12:50–13:2</a>";
+            List<ScriptureReference> dest = new List<ScriptureReference>();
+            LdsDotOrgCommonParsers.ParseAllScriptureReferences(html, dest, DebugLogger.Default);
+            Assert.AreEqual(4, dest.Count);
+            Assert.AreEqual("ot ex 12:50", dest[0].ToString());
+            Assert.AreEqual(false, dest[0].LowEmphasis);
+            Assert.AreEqual("ot ex 12:51", dest[1].ToString());
+            Assert.AreEqual(false, dest[1].LowEmphasis);
+            Assert.AreEqual("ot ex 13:1", dest[2].ToString());
+            Assert.AreEqual(false, dest[2].LowEmphasis);
+            Assert.AreEqual("ot ex 13:2", dest[3].ToString());
+            Assert.AreEqual(false, dest[3].LowEmphasis);
+        }
+
+        [TestMethod]
+        public void TestParseScriptureRefHugeSpanWithEmphasis()
+        {
             string html = "<a class=\"scripture-ref\" href=\"/study/scriptures/ot/ex/12?lang=eng&span=12:50-13:2#p51\">12:50–13:2</a>";
             List<ScriptureReference> dest = new List<ScriptureReference>();
             LdsDotOrgCommonParsers.ParseAllScriptureReferences(html, dest, DebugLogger.Default);
-            Assert.AreEqual(2, dest.Count);
-            Assert.AreEqual("ot ex 12", dest[0].ToString());
-            Assert.AreEqual(false, dest[0].LowEmphasis);
-            Assert.AreEqual("ot ex 13", dest[1].ToString());
+            Assert.AreEqual(4, dest.Count);
+            Assert.AreEqual("ot ex 12:50", dest[0].ToString());
+            Assert.AreEqual(true, dest[0].LowEmphasis);
+            Assert.AreEqual("ot ex 12:51", dest[1].ToString());
             Assert.AreEqual(false, dest[1].LowEmphasis);
+            Assert.AreEqual("ot ex 13:1", dest[2].ToString());
+            Assert.AreEqual(true, dest[2].LowEmphasis);
+            Assert.AreEqual("ot ex 13:2", dest[3].ToString());
+            Assert.AreEqual(true, dest[3].LowEmphasis);
         }
     }
 }

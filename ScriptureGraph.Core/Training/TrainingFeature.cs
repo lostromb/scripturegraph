@@ -35,7 +35,7 @@ namespace ScriptureGraph.Core.Training
                 case TrainingFeatureType.WordAssociation:
                     return 0.1f;
                 case TrainingFeatureType.NgramAssociation:
-                    return 0.8f;
+                    return 0.7f;
                 case TrainingFeatureType.WordDesignation:
                     return 3.0f;
                 case TrainingFeatureType.ScriptureReference:

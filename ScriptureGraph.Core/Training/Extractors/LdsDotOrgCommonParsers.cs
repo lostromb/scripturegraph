@@ -34,7 +34,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         /// Capture group 4: The "paragraph" string, interpreted as the verse or verse range being referenced, in the specific HTML anchor format that must be parsed. Example: "p2", "p37-p38", "p11-p12,19"
         /// </summary>
         // class=\"scripture-ref\"\s+href=\"\/study\/scriptures\/(.+?)\/(.+?)(?:\/(\d+?))?\?lang=eng(?:&id=(.+?))?(?:#.+?)?(?:&span=(.+?)(?:#.+?))?\"
-        private static readonly Regex ScriptureRefParser = new Regex("class=\\\"scripture-ref\\\"\\s+href=\\\"\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=eng(?:&id=(.+?))?(#.+?)?(?:&span=(.+?)(#.+?))?\\\"");
+        private static readonly Regex ScriptureRefParser = new Regex("class=\\\"scripture-ref\\\"\\s+href=\\\"\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=eng(?:&id=(.+?))?(#.+?)?(?:&span=(.+?)(#.+?)?)?\\\"");
 
         private static readonly Regex IntroParser = new Regex("<p class=\\\"intro\\\".+?>(.+?)<\\/p>");
 
@@ -222,13 +222,19 @@ namespace ScriptureGraph.Core.Training.Extractors
                     }
                     else if (footnotScriptureRef.Groups[6].Success)
                     {
+                        int? emphasisVerse = null;
+                        if (footnotScriptureRef.Groups[7].Success)
+                        {
+                            emphasisVerse = int.Parse(footnotScriptureRef.Groups[7].Value.TrimStart('#').TrimStart('p'));
+                        }
+
                         // It's a very long span across chapters.
                         // Group 6 in this case is like "12:37-13:13"
-                        // We don't handle this correctly yet (at verse granularity), so we just add references to the entire chapters
                         ParseMultiChapterSpan(refBook, footnotScriptureRef.Groups[6].Value, logger,
-                            (rangeChapter) =>
+                            (chapter, verse) =>
                             {
-                                ScriptureReference newRef = new ScriptureReference(refCanon, refBook, rangeChapter);
+                                ScriptureReference newRef = new ScriptureReference(refCanon, refBook, chapter, verse);
+                                newRef.LowEmphasis = emphasisVerse.HasValue && verse != emphasisVerse.Value;
                                 destination.Add(newRef);
                             });
                     }
@@ -299,7 +305,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private static readonly Regex MultiChapterRangeParser = new Regex("(\\d+):(\\d+)-(\\d+):(\\d+)");
 
-        internal static void ParseMultiChapterSpan(string bookId, string refVerseEncoded, ILogger logger, Action<int> handler)
+        internal static void ParseMultiChapterSpan(string bookId, string refVerseEncoded, ILogger logger, Action<int, int> handler)
         {
             // Input is in the form of "12:47-13:12"
             // Need to know the name of the book we're in also so we can enumerate the correct chapter length
@@ -315,11 +321,25 @@ namespace ScriptureGraph.Core.Training.Extractors
             int chapterEnd = int.Parse(regexMatch.Groups[3].Value);
             int verseEnd = int.Parse(regexMatch.Groups[4].Value);
 
-            while (chapterStart <= chapterEnd)
+            while (chapterStart < chapterEnd)
+            {
+                int numVersesInThisChapter = ScriptureMetadata.GetNumVersesInChapter(bookId, chapterStart);
+                while (verseStart <= numVersesInThisChapter)
+                {
+                    //logger.Log($"Adding reference to verse range {refCanon} {refBook} {refChapter}:{rangeStart}-{rangeEnd}");
+                    handler(chapterStart, verseStart);
+                    verseStart++;
+                }
+
+                chapterStart++;
+                verseStart = 1;
+            }
+
+            while (verseStart <= verseEnd)
             {
                 //logger.Log($"Adding reference to verse range {refCanon} {refBook} {refChapter}:{rangeStart}-{rangeEnd}");
-                handler(chapterStart);
-                chapterStart++;
+                handler(chapterStart, verseStart);
+                verseStart++;
             }
         }
 

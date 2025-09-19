@@ -56,23 +56,34 @@ namespace ScriptureGraph.Console
             //}
 
             // compress all documents
-            DirectoryInfo docRoot = new DirectoryInfo(@"C:\Code\scripturegraph\ScriptureGraph.App\bin\Debug\net8.0-windows\content\documents");
-            foreach (var file in docRoot.GetFiles("*", SearchOption.AllDirectories))
+            //DirectoryInfo docRoot = new DirectoryInfo(@"C:\Code\scripturegraph\ScriptureGraph.App\bin\Debug\net8.0-windows\content\documents");
+            //foreach (var file in docRoot.GetFiles("*", SearchOption.AllDirectories))
+            //{
+            //    if (string.Equals(".br", file.Extension, StringComparison.OrdinalIgnoreCase))
+            //    {
+            //        continue;
+            //    }
+
+            //    System.Console.WriteLine("Compressing " + file.FullName);
+            //    using (Stream fileIn = new FileStream(file.FullName, FileMode.Open, FileAccess.Read))
+            //    using (Stream compressedFileOut = new FileStream(file.FullName +".br", FileMode.Create, FileAccess.Write))
+            //    using (BrotliStream brotliStream = new BrotliStream(compressedFileOut, CompressionLevel.SmallestSize))
+            //    {
+            //        fileIn.CopyToPooled(brotliStream);
+            //    }
+
+            //    file.Delete();
+            //}
+
+            // Read all documents
+            DirectoryInfo documentRoot = new DirectoryInfo(@"C:\Code\scripturegraph\ScriptureGraph.App\bin\Debug\net8.0-windows\content\documents");
+            foreach (FileInfo documentFileName in documentRoot.EnumerateFiles("*", SearchOption.AllDirectories))
             {
-                if (string.Equals(".br", file.Extension, StringComparison.OrdinalIgnoreCase))
+                using (Stream fileIn = new FileStream(documentFileName.FullName, FileMode.Open, FileAccess.Read))
+                using (BrotliDecompressorStream brotli = new BrotliDecompressorStream(fileIn))
                 {
-                    continue;
+                    GospelDocument document = GospelDocument.ParsePolymorphic(brotli);
                 }
-
-                System.Console.WriteLine("Compressing " + file.FullName);
-                using (Stream fileIn = new FileStream(file.FullName, FileMode.Open, FileAccess.Read))
-                using (Stream compressedFileOut = new FileStream(file.FullName +".br", FileMode.Create, FileAccess.Write))
-                using (BrotliStream brotliStream = new BrotliStream(compressedFileOut, CompressionLevel.SmallestSize))
-                {
-                    fileIn.CopyToPooled(brotliStream);
-                }
-
-                file.Delete();
             }
 
             // Decompress one page in the cache

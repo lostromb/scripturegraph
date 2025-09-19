@@ -11,7 +11,7 @@ namespace ScriptureGraph.Core.Schemas
 {
     public class GospelParagraph
     {
-        [JsonPropertyName("e")]
+        [JsonPropertyName("eid")]
         [JsonConverter(typeof(KnowledgeIdSerializer))]
         public required KnowledgeGraphNodeId ParagraphEntityId { get; set; }
 
