@@ -197,7 +197,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         trainingFeaturesOut.Add(new TrainingFeature(
                             thisVerseNode,
                             refNodeId,
-                            TrainingFeatureType.EntityReference));
+                            scriptureRef.LowEmphasis ? TrainingFeatureType.ScriptureReferenceWithoutEmphasis : TrainingFeatureType.ScriptureReference));
                         foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(word.Word))
                         {
                             trainingFeaturesOut.Add(new TrainingFeature(

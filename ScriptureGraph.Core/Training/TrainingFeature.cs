@@ -38,6 +38,10 @@ namespace ScriptureGraph.Core.Training
                     return 0.8f;
                 case TrainingFeatureType.WordDesignation:
                     return 3.0f;
+                case TrainingFeatureType.ScriptureReference:
+                    return 1.0f;
+                case TrainingFeatureType.ScriptureReferenceWithoutEmphasis:
+                    return 0.8f;
                 default:
                     return 1.0f;
             }

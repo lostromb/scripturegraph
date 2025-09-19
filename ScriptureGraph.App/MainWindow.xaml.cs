@@ -1304,25 +1304,24 @@ namespace ScriptureGraph.App
                 throw new Exception("Scripture reference has no verse data " + entityId.ToString());
             }
 
-            if (parsedRef.Verse.Value - 1 >= chapter.Paragraphs.Count)
+            string? verseLabel = parsedRef.Paragraph;
+            if (verseLabel == null && parsedRef.Verse.HasValue)
+            {
+                verseLabel = parsedRef.Verse.Value.ToString();
+            }
+
+            if (verseLabel == null)
+            {
+                throw new Exception("No verse or paragraph ref present");
+            }
+
+            if (!chapter.Paragraphs.Any(s => s.ParagraphEntityId.Equals(entityId)))
             {
                 throw new Exception("Verse reference to invalid verse " + entityId.ToString());
             }
 
-            // FIXME jank, need more proper index parsing for headers and intros and such
-            string text = $"ERROR [{entityId}]";
-            if (chapter.Paragraphs.Any(s => s.ParagraphEntityId.Equals(entityId)))
-            {
-                text = $"[{parsedRef.Verse.Value}] {chapter.Paragraphs.First(s => s.ParagraphEntityId.Equals(entityId)).Text}";
-            }
-            else if (parsedRef.Verse.HasValue && parsedRef.Verse.Value > 0)
-            {
-                text = $"[{parsedRef.Verse.Value}] {chapter.Paragraphs[parsedRef.Verse.Value - 1].Text}";
-            }
-            else if (parsedRef.Verse.HasValue)
-            {
-                text = $"[{parsedRef.Verse.Value}] {chapter.Paragraphs[parsedRef.Verse.Value].Text}";
-            }
+            GospelParagraph para = chapter.Paragraphs.First(s => s.ParagraphEntityId.Equals(entityId));
+            string text = $"[{parsedRef.Verse.Value}] {para.Text}";
 
             TextBlock scriptureSearchResult = new TextBlock()
             {
@@ -1357,12 +1356,14 @@ namespace ScriptureGraph.App
             UIElementCollection target)
         {
             string[] parts = entityId.Name.Split('|');
-            int paragraph = int.Parse(parts[3]) - 1;
+            string paragraphLabel = parts[3];
 
-            if (paragraph >= document.Paragraphs.Count)
+            if (!document.Paragraphs.Any(s => s.ParagraphEntityId.Equals(entityId)))
             {
                 throw new Exception("Verse reference to invalid paragraph " + entityId.ToString());
             }
+
+            GospelParagraph para = document.Paragraphs.Single(s => s.ParagraphEntityId.Equals(entityId));
 
             TextBlock conferenceTalkResult = new TextBlock()
             {
@@ -1375,11 +1376,11 @@ namespace ScriptureGraph.App
                 IsManipulationEnabled = false,
                 Tag = new FastSearchQueryResult()
                 {
-                    DisplayName = $"{document.Title} ¶{paragraph + 1}",
+                    DisplayName = $"{document.Title} ¶{paragraphLabel}",
                     EntityType = SearchResultEntityType.ConferenceTalk,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = document.Paragraphs[paragraph].Text
+                Text = para.Text
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;

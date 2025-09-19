@@ -11,11 +11,14 @@ namespace ScriptureGraph.Core.Schemas
 {
     public class GospelParagraph
     {
-        [JsonPropertyName("eid")]
+        [JsonPropertyName("e")]
         [JsonConverter(typeof(KnowledgeIdSerializer))]
         public required KnowledgeGraphNodeId ParagraphEntityId { get; set; }
 
         [JsonPropertyName("t")]
         public required string Text { get; set; }
+
+        [JsonPropertyName("c")]
+        public string? Class { get; set; }
     }
 }

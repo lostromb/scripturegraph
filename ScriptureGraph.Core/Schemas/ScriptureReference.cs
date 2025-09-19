@@ -15,7 +15,19 @@ namespace ScriptureGraph.Core.Training.Extractors
             Canon = canon;
             Book = book;
             Chapter = chapter;
+            Paragraph = null;
             Verse = verse;
+            LowEmphasis = false;
+        }
+
+        public ScriptureReference(string canon, string book, int chapter, string paragraph)
+        {
+            Canon = canon;
+            Book = book;
+            Chapter = chapter;
+            Paragraph = paragraph;
+            Verse = null;
+            LowEmphasis = false;
         }
 
         public string Canon;
@@ -23,9 +35,20 @@ namespace ScriptureGraph.Core.Training.Extractors
         public int? Chapter;
         public int? Verse;
 
+        // Special cases:
+        // "intro"
+        // "" - what else?
+        public string? Paragraph;
+
+        public bool LowEmphasis;
+
         public override string? ToString()
         {
-            if (Chapter.HasValue && Verse.HasValue)
+            if (Chapter.HasValue && Paragraph != null)
+            {
+                return $"{Canon} {Book} {Chapter}:{Paragraph}";
+            }
+            else if (Chapter.HasValue && Verse.HasValue)
             {
                 return $"{Canon} {Book} {Chapter}:{Verse}";
             }
@@ -47,7 +70,16 @@ namespace ScriptureGraph.Core.Training.Extractors
                 Canon = parts[0];
                 Book = parts[1];
                 Chapter = int.Parse(parts[2]);
-                Verse = int.Parse(parts[3]);
+                int verseNum;
+                if (int.TryParse(parts[3], out verseNum))
+                {
+                    Verse = verseNum;
+                }
+                else
+                {
+                    Verse = null;
+                    Paragraph = parts[3];
+                }
             }
             else if (entityId.Type == KnowledgeGraphNodeType.ScriptureChapter)
             {

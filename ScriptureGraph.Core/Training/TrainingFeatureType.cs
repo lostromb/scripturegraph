@@ -30,6 +30,16 @@ namespace ScriptureGraph.Core.Training
         WordDesignation,
 
         /// <summary>
+        /// Unique references directly linking a scripture (typically through footnote)
+        /// </summary>
+        ScriptureReference,
+
+        /// <summary>
+        /// When a scripture reference has a range of verses and one "focal" verse, the non-focal verses will use this tag
+        /// </summary>
+        ScriptureReferenceWithoutEmphasis,
+
+        /// <summary>
         /// Unique references directly between entities (in this case, like a scripture having a footnote linking to another)
         /// </summary>
         EntityReference,

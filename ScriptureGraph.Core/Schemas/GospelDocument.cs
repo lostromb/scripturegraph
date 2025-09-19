@@ -1,14 +1,8 @@
-﻿using Durandal.Common.File;
-using Durandal.Common.NLP.Language;
+﻿using Durandal.Common.NLP.Language;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas.Serializers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Schemas
 {

@@ -42,7 +42,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         trainingFeaturesOut.Add(new TrainingFeature(
                             topicalGuideNode,
                             LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef),
-                            TrainingFeatureType.EntityReference));
+                            scriptureRef.LowEmphasis ? TrainingFeatureType.ScriptureReferenceWithoutEmphasis : TrainingFeatureType.ScriptureReference));
                     }
                 }
 
@@ -70,7 +70,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         trainingFeaturesOut.Add(new TrainingFeature(
                             topicalGuideNode,
                             refNodeId,
-                            TrainingFeatureType.EntityReference));
+                            scriptureRef.LowEmphasis ? TrainingFeatureType.ScriptureReferenceWithoutEmphasis : TrainingFeatureType.ScriptureReference));
 
                         foreach (KnowledgeGraphNodeId ngram in ngrams)
                         {

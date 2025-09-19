@@ -74,11 +74,12 @@ namespace ScriptureGraph.Tests
         [TestMethod]
         [DataRow("1 nephi 3:5", false, new string[] { "bofm 1-ne 3:5" })]
         [DataRow("1 nephi 3:5-7", false, new string[] { "bofm 1-ne 3:5", "bofm 1-ne 3:6", "bofm 1-ne 3:7" })]
-        [DataRow("P. of G.P., Moses 4:1-4; see also Abraham 3:27, 28.", true, new string[] { "pgp moses 4:1", "pgp moses 4:2", "pgp moses 4:3", "pgp moses 4:4", "pgp abr 3:27", "pgp abr 3:28" })]
+        [DataRow("P. of G.P., Moses 4:1-4; see also Abraham 3:27, 28.", true,
+            new string[] { "pgp moses 4:1", "pgp moses 4:2", "pgp moses 4:3", "pgp moses 4:4", "pgp abr 3:27", "pgp abr 3:28" })]
         public void TestParseAllScriptureRefs(string input, bool includeExtra, string?[] expectedOutputs)
         {
             string?[] actualOutputs = ScriptureMetadata.ParseAllReferences(input, includeExtra).Select((s) => s == null ? null : s.ToString()).ToArray();
-            foreach (string actual in actualOutputs)
+            foreach (string? actual in actualOutputs)
             {
                 Debug.WriteLine(actual);
             }
