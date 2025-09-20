@@ -122,11 +122,23 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
                 else if (scriptureRef.Chapter.HasValue)
                 {
-                    // Reference to an entire chapter
-                    return FeatureToNodeMapping.ScriptureChapter(
-                        scriptureRef.Canon,
-                        scriptureRef.Book,
-                        scriptureRef.Chapter.Value);
+                    if (scriptureRef.Paragraph != null)
+                    {
+                        // Non-numerical paragraph
+                        return FeatureToNodeMapping.ScriptureSupplementalParagraph(
+                            scriptureRef.Canon,
+                            scriptureRef.Book,
+                            scriptureRef.Chapter.Value,
+                            scriptureRef.Paragraph);
+                    }
+                    else
+                    {
+                        // Reference to an entire chapter
+                        return FeatureToNodeMapping.ScriptureChapter(
+                            scriptureRef.Canon,
+                            scriptureRef.Book,
+                            scriptureRef.Chapter.Value);
+                    }
                 }
                 else
                 {
