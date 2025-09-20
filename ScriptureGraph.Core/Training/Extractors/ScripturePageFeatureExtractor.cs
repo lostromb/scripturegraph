@@ -1,5 +1,6 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.NLP.Language;
+using Durandal.Common.Parsers;
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
@@ -29,14 +30,15 @@ namespace ScriptureGraph.Core.Training.Extractors
                 string book = urlParse.Groups[2].Value;
                 int chapter = int.Parse(urlParse.Groups[3].Value);
 
-                Dictionary<int, StructuredVerse> verses = LdsDotOrgCommonParsers.ParseVerses(canon, book, chapter, htmlPage);
+                List<StructuredVerse> verses = LdsDotOrgCommonParsers.ParseVerses(canon, book, chapter, htmlPage);
                 Dictionary<string, StructuredFootnote> footnotes = LdsDotOrgCommonParsers.ParseFootnotesFromPage(htmlPage, logger);
 
                 // Now restructure each verse into a series of words with correlated footnotes
-                foreach (StructuredVerse verse in verses.Values.OrderBy(s => s.Verse))
+                foreach (StructuredVerse verse in verses)
                 {
                     string plainText;
                     List<SingleWordWithFootnotes> words = LdsDotOrgCommonParsers.ParseParagraphWithStudyNoteRef(verse.Text, logger, footnotes, out plainText);
+                    
                     ExtractFeaturesFromSingleVerse(verse, plainText, words, logger, returnVal);
                 }
 
@@ -79,29 +81,31 @@ namespace ScriptureGraph.Core.Training.Extractors
                     Next = ScriptureMetadata.GetNextChapter(canon, book, chapter)
                 };
 
-                Dictionary<int, StructuredVerse> verses = LdsDotOrgCommonParsers.ParseVerses(canon, book, chapter, htmlPage);
+                List<StructuredVerse> verses = LdsDotOrgCommonParsers.ParseVerses(canon, book, chapter, htmlPage);
                 
-                if (verses.ContainsKey(0))
+                foreach (var verse in verses)
                 {
-                    returnVal.ChapterHeader = new GospelParagraph()
+                    // Is this a numerical verse?
+                    int verseNum;
+                    if (verse.ParagraphId.StartsWith('p') &&
+                        int.TryParse(verse.ParagraphId.AsSpan(1), out verseNum))
                     {
-                        ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse(canon, book, chapter, 0),
-                        Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, verses[0].Text)
-                    };
-                }
-
-                foreach (var verse in verses.OrderBy(s => s.Key))
-                {
-                    if (verse.Key == 0)
-                    {
-                        continue;
+                        returnVal.Paragraphs.Add(new GospelParagraph()
+                        {
+                            ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse(canon, book, chapter, verseNum),
+                            Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, verse.Text),
+                            Class = verse.ParagraphClass,
+                        });
                     }
-
-                    returnVal.Paragraphs.Add(new GospelParagraph()
+                    else
                     {
-                        ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse(canon, book, chapter, verse.Key),
-                        Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, verse.Value.Text)
-                    });
+                        returnVal.Paragraphs.Add(new GospelParagraph()
+                        {
+                            ParagraphEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(canon, book, chapter, verse.ParagraphId),
+                            Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, verse.Text),
+                            Class = verse.ParagraphClass,
+                        });
+                    }
                 }
 
                 return returnVal;
@@ -148,42 +152,61 @@ namespace ScriptureGraph.Core.Training.Extractors
         }
 
         private static void ExtractFeaturesFromSingleVerse(
-            StructuredVerse currentVerse,
+            StructuredVerse currentParagraph,
             string rawText,
             List<SingleWordWithFootnotes> words,
             ILogger logger,
             List<TrainingFeature> trainingFeaturesOut)
         {
             // Node for this verse - we use it a lot
-            KnowledgeGraphNodeId thisVerseNode = FeatureToNodeMapping.ScriptureVerse(
-                currentVerse.Canon,
-                currentVerse.Book,
-                currentVerse.Chapter,
-                currentVerse.Verse);
+            KnowledgeGraphNodeId thisVerseNode;
 
-            // Common word and ngram level features associated with this verse entity
-            EnglishWordFeatureExtractor.ExtractTrainingFeatures(rawText, trainingFeaturesOut, thisVerseNode);
-
-            // Relationship between this verse and the previous one (if present)
-            if (currentVerse.Verse > 1)
+            // Is this paragraph an actual numerical verse?
+            int verseNum;
+            if (currentParagraph.ParagraphId.StartsWith('p') &&
+                int.TryParse(currentParagraph.ParagraphId.AsSpan(1), out verseNum))
             {
-                trainingFeaturesOut.Add(new TrainingFeature(
-                    thisVerseNode,
-                    FeatureToNodeMapping.ScriptureVerse(
-                        currentVerse.Canon,
-                        currentVerse.Book,
-                        currentVerse.Chapter,
-                        currentVerse.Verse - 1),
-                    TrainingFeatureType.ParagraphAssociation));
+                thisVerseNode = FeatureToNodeMapping.ScriptureVerse(
+                    currentParagraph.Canon,
+                    currentParagraph.Book,
+                    currentParagraph.Chapter,
+                    verseNum);
+
+                // Common word and ngram level features associated with this verse entity
+                EnglishWordFeatureExtractor.ExtractTrainingFeatures(rawText, trainingFeaturesOut, thisVerseNode);
+
+                // Relationship between this verse and the previous one (if present)
+                if (verseNum > 1)
+                {
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        thisVerseNode,
+                        FeatureToNodeMapping.ScriptureVerse(
+                            currentParagraph.Canon,
+                            currentParagraph.Book,
+                            currentParagraph.Chapter,
+                            verseNum - 1),
+                        TrainingFeatureType.ParagraphAssociation));
+                }
+            }
+            else
+            {
+                thisVerseNode = FeatureToNodeMapping.ScriptureSupplementalParagraph(
+                    currentParagraph.Canon,
+                    currentParagraph.Book,
+                    currentParagraph.Chapter,
+                    currentParagraph.ParagraphId);
+
+                // Common word and ngram level features associated with this verse entity
+                EnglishWordFeatureExtractor.ExtractTrainingFeatures(rawText, trainingFeaturesOut, thisVerseNode);
             }
 
             // Relationship between this verse and the book it's in
             trainingFeaturesOut.Add(new TrainingFeature(
                 thisVerseNode,
                 FeatureToNodeMapping.ScriptureChapter(
-                    currentVerse.Canon,
-                    currentVerse.Book,
-                    currentVerse.Chapter),
+                    currentParagraph.Canon,
+                    currentParagraph.Book,
+                    currentParagraph.Chapter),
                 TrainingFeatureType.BookAssociation));
 
             // Cross-references between this verse and other verses based on footnotes

@@ -8,19 +8,21 @@ namespace ScriptureGraph.Core.Training.Extractors
 {
     internal class StructuredVerse
     {
-        public StructuredVerse(string canon, string book, int chapter, int verse, string text)
+        public StructuredVerse(string canon, string book, int chapter, string paragraphId, string paragraphClass, string text)
         {
             Canon = canon;
             Book = book;
             Chapter = chapter;
-            Verse = verse;
+            ParagraphId = paragraphId;
+            ParagraphClass = paragraphClass;
             Text = text;
         }
 
         public string Canon;
         public string Book;
         public int Chapter;
-        public int Verse;
+        public string ParagraphId;
         public string Text;
+        public string ParagraphClass;
     }
 }

@@ -76,15 +76,15 @@ namespace ScriptureGraph.Console
             //}
 
             // Read all documents
-            DirectoryInfo documentRoot = new DirectoryInfo(@"C:\Code\scripturegraph\ScriptureGraph.App\bin\Debug\net8.0-windows\content\documents");
-            foreach (FileInfo documentFileName in documentRoot.EnumerateFiles("*", SearchOption.AllDirectories))
-            {
-                using (Stream fileIn = new FileStream(documentFileName.FullName, FileMode.Open, FileAccess.Read))
-                using (BrotliDecompressorStream brotli = new BrotliDecompressorStream(fileIn))
-                {
-                    GospelDocument document = GospelDocument.ParsePolymorphic(brotli);
-                }
-            }
+            //DirectoryInfo documentRoot = new DirectoryInfo(@"C:\Code\scripturegraph\ScriptureGraph.App\bin\Debug\net8.0-windows\content\documents");
+            //foreach (FileInfo documentFileName in documentRoot.EnumerateFiles("*", SearchOption.AllDirectories))
+            //{
+            //    using (Stream fileIn = new FileStream(documentFileName.FullName, FileMode.Open, FileAccess.Read))
+            //    using (BrotliDecompressorStream brotli = new BrotliDecompressorStream(fileIn))
+            //    {
+            //        GospelDocument document = GospelDocument.ParsePolymorphic(brotli);
+            //    }
+            //}
 
             // Decompress one page in the cache
             //VirtualPath inputFile = new VirtualPath("https___www.churchofjesuschrist.org_study_scriptures_bofm_1-ne_3_lang=eng.html.br");
@@ -96,31 +96,36 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            //await BuildAndTestUniversalGraph(logger);
+            await Test(logger);
         }
 
         private static async Task Test(ILogger logger)
         {
-            TrainingKnowledgeGraph graph;
-            string inModelFileName = @"D:\Code\scripturegraph\runtime\scriptures.graph";
-            string outModelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
+            //TrainingKnowledgeGraph graph;
+            //string inModelFileName = @"D:\Code\scripturegraph\runtime\scriptures.graph";
+            //string outModelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
 
-            if (File.Exists(inModelFileName))
-            {
-                logger.Log("Loading model");
-                using (FileStream testGraphIn = new FileStream(inModelFileName, FileMode.Open, FileAccess.Read))
-                {
-                    graph = TrainingKnowledgeGraph.LoadLegacyFormat(testGraphIn);
-                }
+            //if (File.Exists(inModelFileName))
+            //{
+            //    logger.Log("Loading model");
+            //    using (FileStream testGraphIn = new FileStream(inModelFileName, FileMode.Open, FileAccess.Read))
+            //    {
+            //        graph = TrainingKnowledgeGraph.LoadLegacyFormat(testGraphIn);
+            //    }
 
-                IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
-                WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-                await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
-                using (FileStream testGraphOut = new FileStream(outModelFileName, FileMode.Create, FileAccess.Write))
-                {
-                    graph.Save(testGraphOut);
-                }
-            }
+            //    IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
+            //    WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
+            //    await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
+            //    using (FileStream testGraphOut = new FileStream(outModelFileName, FileMode.Create, FileAccess.Write))
+            //    {
+            //        graph.Save(testGraphOut);
+            //    }
+            //}
+
+            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\runtime\cache");
+            IFileSystem documentFileSystem = new InMemoryFileSystem();
+            WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
+            await CommonTasks.ParseDocuments(logger, pageCache, documentFileSystem);
         }
 
         private static async Task BuildAndTestSearchIndex(ILogger logger)

@@ -1008,16 +1008,6 @@ namespace ScriptureGraph.App
                 }
 
                 returnVal.Blocks.Add(headerSection);
-
-                if (scriptureChapter.ChapterHeader != null)
-                {
-                    Paragraph headerParagraph = new Paragraph();
-                    headerParagraph.Tag = scriptureChapter.ChapterHeader.ParagraphEntityId;
-                    headerParagraph.Margin = bodyParaMargin;
-                    headerParagraph.TextAlignment = TextAlignment.Justify;
-                    headerParagraph.Inlines.Add(new Italic(new Run(scriptureChapter.ChapterHeader.Text)));
-                    returnVal.Blocks.Add(headerParagraph);
-                }
             }
             else if (bibleDictEntry != null)
             {
@@ -1079,6 +1069,8 @@ namespace ScriptureGraph.App
 
                 // TODO: Remove the "fancy" formatting from documents?
                 // Like nbsp and fancy quotes and stuff - they might mess up copy and pasting
+                // TODO: Add class-dependent styling for paragraphs, re-add italics, etc.
+                // headerParagraph.Inlines.Add(new Italic(new Run(scriptureChapter.ChapterHeader.Text)));
                 uiParagraph.Inlines.Add(paragraph.Text);
                 returnVal.Blocks.Add(uiParagraph);
             }

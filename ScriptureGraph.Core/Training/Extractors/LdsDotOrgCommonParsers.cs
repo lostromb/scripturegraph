@@ -36,9 +36,11 @@ namespace ScriptureGraph.Core.Training.Extractors
         // class=\"scripture-ref\"\s+href=\"\/study\/scriptures\/(.+?)\/(.+?)(?:\/(\d+?))?\?lang=eng(?:&id=(.+?))?(?:#.+?)?(?:&span=(.+?)(?:#.+?))?\"
         private static readonly Regex ScriptureRefParser = new Regex("class=\\\"scripture-ref\\\"\\s+href=\\\"\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=eng(?:&id=(.+?))?(#.+?)?(?:&span=(.+?)(#.+?)?)?\\\"");
 
-        private static readonly Regex IntroParser = new Regex("<p class=\\\"intro\\\".+?>(.+?)<\\/p>");
-
-        private static readonly Regex VerseParser = new Regex("<p class=\\\"verse\\\".+?verse-number\\\">(\\d+) <\\/span>(.+?)<\\/p>");
+        // Original: <p class=\"([^\"]+?)\".*?>(?:.+?\"verse-number\">(\d+)\s*<\/span>\s*)?(.+?)<\/p>
+        // Group 1: paragraph's class
+        // Group 2: verse number (if applicable)
+        // Group 3: paragraph text (with potential inline html footnotes, etc.)
+        private static readonly Regex ParagraphParser = new Regex("<p class=\\\"([^\\\"]+?)\\\".*?>(?:.+?\\\"verse-number\\\">(\\d+)\\s*<\\/span>\\s*)?(.+?)<\\/p>");
 
         private static readonly Regex PageBreakRemover = new Regex("<span class=\"page-break\".+?</span>");
 
@@ -61,29 +63,29 @@ namespace ScriptureGraph.Core.Training.Extractors
             return input.Replace('\u00a0', ' ');
         }
 
-        internal static Dictionary<int, StructuredVerse> ParseVerses(string canon, string book, int chapter, string scriptureHtmlPage)
+        internal static List<StructuredVerse> ParseVerses(string canon, string book, int chapter, string scriptureHtmlPage)
         {
-            Dictionary<int, StructuredVerse> verses = new Dictionary<int, StructuredVerse>();
-
-            // Parse the intro as verse 0 if present
-            Match introMatch = IntroParser.Match(scriptureHtmlPage);
-            if (introMatch.Success)
-            {
-                string introTextWithAnnotation = introMatch.Groups[1].Value;
-                verses.Add(0, new StructuredVerse(canon, book, chapter, 0, introTextWithAnnotation));
-            }
+            List<StructuredVerse> verses = new List<StructuredVerse>();
 
             // Parse each individual verse and note into structured form
-            foreach (Match verseMatch in VerseParser.Matches(scriptureHtmlPage))
+            foreach (Match verseMatch in ParagraphParser.Matches(scriptureHtmlPage))
             {
-                int verseNum = int.Parse(verseMatch.Groups[1].Value);
+                string paraClass = verseMatch.Groups[1].Value;
+                if (!string.Equals(paraClass, "intro") ||
+                    !string.Equals(paraClass, "verse") ||
+                    !string.Equals(paraClass, "study-summary"))
+                {
+                    continue;
+                }
+
+                string paraId = verseMatch.Groups[2].Value;
                 string verseTextWithAnnotation = verseMatch.Groups[2].Value;
                 //logger.Log(verseTextWithAnnotation);
 
                 // Take the time to remove page breaks and other unused HTML tags here
                 verseTextWithAnnotation = StringUtils.RegexRemove(PageBreakRemover, verseTextWithAnnotation);
 
-                verses.Add(verseNum, new StructuredVerse(canon, book, chapter, verseNum, verseTextWithAnnotation));
+                verses.Add(new StructuredVerse(canon, book, chapter, paraId, paraClass, verseTextWithAnnotation));
             }
 
             return verses;

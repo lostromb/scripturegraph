@@ -279,9 +279,9 @@ namespace ScriptureGraph.Core
         {
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
             DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem);
-            await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawler, logger);
+            //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for document parsing to finish");
             await processor.WaitForThreadsToFinish();
         }
@@ -467,11 +467,13 @@ namespace ScriptureGraph.Core
         {
             HashSet<Regex> allowedUrls =
             [
-                new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$")
+                //new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$")
+                new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/matt/1\\?lang=eng$")
             ];
 
             await crawler.Crawl(
-                new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt?lang=eng"),
+                //new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt?lang=eng"),
+                new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/matt/1?lang=eng"),
                 pageAction,
                 logger.Clone("WebCrawler-NT"),
                 allowedUrls);
@@ -507,11 +509,11 @@ namespace ScriptureGraph.Core
 
         public static async Task CrawlStandardWorks(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
-            await CrawlBookOfMormon(crawler, pageAction, logger);
-            await CrawlOldTestament(crawler, pageAction, logger);
+            //await CrawlBookOfMormon(crawler, pageAction, logger);
+            //await CrawlOldTestament(crawler, pageAction, logger);
             await CrawlNewTestament(crawler, pageAction, logger);
-            await CrawlDC(crawler, pageAction, logger);
-            await CrawlPGP(crawler, pageAction, logger);
+            //await CrawlDC(crawler, pageAction, logger);
+            //await CrawlPGP(crawler, pageAction, logger);
         }
 
         private static async Task CrawlBibleDictionary(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)

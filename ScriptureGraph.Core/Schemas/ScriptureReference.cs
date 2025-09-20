@@ -36,8 +36,8 @@ namespace ScriptureGraph.Core.Training.Extractors
         public int? Verse;
 
         // Special cases:
-        // "intro"
-        // "" - what else?
+        // "intro" - diagetic introduction
+        // "study-summary" - modern-day chapter summary
         public string? Paragraph;
 
         public bool LowEmphasis;

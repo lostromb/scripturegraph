@@ -40,6 +40,12 @@ namespace ScriptureGraph.Core.Training
                 $"{canon}|{book}|{chapter}|{verse}");
         }
 
+        public static KnowledgeGraphNodeId ScriptureSupplementalParagraph(string canon, string book, int chapter, string paragraph)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureSupplementalPara,
+                $"{canon}|{book}|{chapter}|{paragraph}");
+        }
+
         public static KnowledgeGraphNodeId ScriptureChapter(string canon, string book, int chapter)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter,
