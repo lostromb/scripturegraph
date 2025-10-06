@@ -99,7 +99,7 @@ namespace ScriptureGraph.Console
             //}
 
             IFileSystem fileSystem = new RealFileSystem(logger, @"C:\Code\scripturegraph\Books");
-            BookExtractorATGQ.ParseEpub(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
+            BookExtractorATGQ.ExtractDocuments(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
 
             //await Test(logger);
         }

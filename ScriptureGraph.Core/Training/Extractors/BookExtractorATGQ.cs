@@ -12,6 +12,9 @@ using System.Xml.XPath;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
+    /// <summary>
+    /// Parser for Answers to Gospel Questions from epub format
+    /// </summary>
     public static class BookExtractorATGQ
     {
         private static readonly string BOOK_ID = "atgq";
@@ -131,7 +134,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        public static IEnumerable<BookChapterDocument> ExtractDocumentsFromEpub(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger)
+        public static IEnumerable<BookChapterDocument> ExtractDocuments(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger)
         {
             List<BookChapterDocument> returnVal = new List<BookChapterDocument>();
             ParseEpubAndProcess(fileSystem, bookPath, logger, (Stream fileStream, int volumeNum, int chapterNum, ILogger logger) =>
@@ -258,7 +261,6 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                     string paraClassRaw = iter.Current.GetAttribute("class", string.Empty);
                     IReadOnlySet<string> paraClassSet = paraClassRaw == null ? EMPTY_STRING_SET : paraClassRaw.Split(" ").ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    string paraContent = iter.Current.InnerXml.Trim();
 
                     if (paraClassSet.Contains("Chapter"))
                     {
