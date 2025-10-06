@@ -35,7 +35,7 @@
 
         public override string? ToString()
         {
-            return $"{Enum.GetName(Type)}-{Name}";
+            return $"{Enum.GetName(Type)}|{Name}";
         }
 
         public override int GetHashCode()

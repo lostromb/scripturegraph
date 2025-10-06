@@ -12,5 +12,7 @@ namespace ScriptureGraph.Core.Schemas
         ScriptureChapter,
         BibleDictionaryEntry,
         GeneralConferenceTalk,
+        GospelBookChapter,
+        ByuSpeech
     }
 }

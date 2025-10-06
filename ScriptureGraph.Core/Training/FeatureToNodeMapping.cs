@@ -110,5 +110,15 @@ namespace ScriptureGraph.Core.Training
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.CharNGram, $"{ch1}{ch2}{ch3}");
         }
+
+        public static KnowledgeGraphNodeId BookChapter(string bookName, string chapter)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookChapter, $"{bookName}|{chapter}");
+        }
+
+        public static KnowledgeGraphNodeId BookChapterParagraph(string bookName, string chapter, string paragraph)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookParagraph, $"{bookName}|{chapter}|{paragraph}");
+        }
     }
 }

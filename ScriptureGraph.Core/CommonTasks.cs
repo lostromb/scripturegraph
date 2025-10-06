@@ -467,13 +467,13 @@ namespace ScriptureGraph.Core
         {
             HashSet<Regex> allowedUrls =
             [
-                //new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$")
-                new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/matt/1\\?lang=eng$")
+                new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/.+?/\\d+\\?lang=eng$")
+                //new Regex("^https://www.churchofjesuschrist.org/study/scriptures/nt/matt/1\\?lang=eng$")
             ];
 
             await crawler.Crawl(
-                //new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt?lang=eng"),
-                new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/matt/1?lang=eng"),
+                new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt?lang=eng"),
+                //new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/matt/1?lang=eng"),
                 pageAction,
                 logger.Clone("WebCrawler-NT"),
                 allowedUrls);
@@ -509,11 +509,11 @@ namespace ScriptureGraph.Core
 
         public static async Task CrawlStandardWorks(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
-            //await CrawlBookOfMormon(crawler, pageAction, logger);
-            //await CrawlOldTestament(crawler, pageAction, logger);
+            await CrawlBookOfMormon(crawler, pageAction, logger);
+            await CrawlOldTestament(crawler, pageAction, logger);
             await CrawlNewTestament(crawler, pageAction, logger);
-            //await CrawlDC(crawler, pageAction, logger);
-            //await CrawlPGP(crawler, pageAction, logger);
+            await CrawlDC(crawler, pageAction, logger);
+            await CrawlPGP(crawler, pageAction, logger);
         }
 
         private static async Task CrawlBibleDictionary(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)

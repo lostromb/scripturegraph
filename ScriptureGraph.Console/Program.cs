@@ -1,6 +1,8 @@
 ﻿using Durandal.Common.File;
 using Durandal.Common.IO;
 using Durandal.Common.Logger;
+using Durandal.Common.MathExt;
+using Durandal.Common.NLP.Language;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
 using Durandal.Common.Utils.NativePlatform;
@@ -96,36 +98,83 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            await Test(logger);
+            IFileSystem fileSystem = new RealFileSystem(logger, @"C:\Code\scripturegraph\Books");
+            BookExtractorATGQ.ParseEpub(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
+
+            //await Test(logger);
         }
 
         private static async Task Test(ILogger logger)
         {
-            //TrainingKnowledgeGraph graph;
-            //string inModelFileName = @"D:\Code\scripturegraph\runtime\scriptures.graph";
-            //string outModelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
+            TrainingKnowledgeGraph graph;
+            string inModelFileName = @"C:\Program Files\ScriptureGraph\content\all.graph.br";
 
-            //if (File.Exists(inModelFileName))
-            //{
-            //    logger.Log("Loading model");
-            //    using (FileStream testGraphIn = new FileStream(inModelFileName, FileMode.Open, FileAccess.Read))
-            //    {
-            //        graph = TrainingKnowledgeGraph.LoadLegacyFormat(testGraphIn);
-            //    }
+            if (File.Exists(inModelFileName))
+            {
+                logger.Log("Loading model");
+                using (FileStream testGraphIn = new FileStream(inModelFileName, FileMode.Open, FileAccess.Read))
+                using (Stream brotli = new BrotliDecompressorStream(testGraphIn))
+                {
+                    graph = TrainingKnowledgeGraph.Load(brotli);
+                }
 
-            //    IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
-            //    WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-            //    await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
-            //    using (FileStream testGraphOut = new FileStream(outModelFileName, FileMode.Create, FileAccess.Write))
-            //    {
-            //        graph.Save(testGraphOut);
-            //    }
-            //}
+                StatisticalSet stats = new StatisticalSet();
+                int longListCount = 3;
+                int shortListCount = 5;
+                var enumerator = graph.GetUnsafeEnumerator();
+                while (enumerator.MoveNext())
+                {
+                    int edgeCount = enumerator.Current.Value.Edges.NumEdges;
+                    stats.Add(edgeCount);
 
-            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\runtime\cache");
-            IFileSystem documentFileSystem = new InMemoryFileSystem();
-            WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-            await CommonTasks.ParseDocuments(logger, pageCache, documentFileSystem);
+                    if (longListCount > 0 && edgeCount > 140)
+                    {
+                        logger.Log("   ");
+                        logger.Log($"Edges from the node \"{enumerator.Current.Key.ToString()}\"");
+                        var edgeEnum = enumerator.Current.Value.Edges.GetEnumerator();
+                        int edge = 1;
+                        while (edgeEnum.MoveNext())
+                        {
+                            logger.Log($"{edge++} {edgeEnum.Current().Mass:F3} -> {edgeEnum.Current().Target.ToString()}");
+                        }
+
+                        longListCount--;
+                    }
+
+                    if (shortListCount > 0 && edgeCount > 4 && edgeCount < 10)
+                    {
+                        logger.Log("   ");
+                        logger.Log($"Edges from the node \"{enumerator.Current.Key.ToString()}\"");
+                        var edgeEnum = enumerator.Current.Value.Edges.GetEnumerator();
+                        while (edgeEnum.MoveNext())
+                        {
+                            logger.Log($"{edgeEnum.Current().Mass:F3} -> {edgeEnum.Current().Target.ToString()}");
+                        }
+
+                        shortListCount--;
+                    }
+                }
+
+                for (int percentile = 1; percentile <= 99; percentile++)
+                {
+                    logger.Log($"Percentile {percentile} NumEdges {stats.Percentile((double)percentile / 100.0)}");
+                }
+
+                logger.Log($"Num nodes: {stats.SampleCount}");
+
+                //IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
+                //WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
+                //await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
+                //using (FileStream testGraphOut = new FileStream(outModelFileName, FileMode.Create, FileAccess.Write))
+                //{
+                //    graph.Save(testGraphOut);
+                //}
+            }
+
+            //IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\runtime\cache");
+            //IFileSystem documentFileSystem = new InMemoryFileSystem();
+            //WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
+            //await CommonTasks.ParseDocuments(logger, pageCache, documentFileSystem);
         }
 
         private static async Task BuildAndTestSearchIndex(ILogger logger)

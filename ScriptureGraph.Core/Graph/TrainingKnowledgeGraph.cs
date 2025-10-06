@@ -22,7 +22,7 @@ namespace ScriptureGraph.Core.Graph
         private volatile int _numItemsInDictionary;
         private readonly ushort _edgeCapacity;
 
-        public TrainingKnowledgeGraph(ushort edgeCapacity = 256)
+        public TrainingKnowledgeGraph(ushort edgeCapacity = 96)
         {
             if (edgeCapacity < 2)
             {

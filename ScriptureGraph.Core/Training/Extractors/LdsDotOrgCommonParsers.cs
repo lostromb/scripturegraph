@@ -53,14 +53,71 @@ namespace ScriptureGraph.Core.Training.Extractors
         // Used to remove all HTML tags from text
         public static readonly Regex HtmlTagRemover = new Regex("<\\/?[a-z]+(?: [\\w\\W]+?)?>");
 
+        private static readonly Regex ItalicBoldMatcher = new Regex("<(\\/?[ib])(?: [\\w\\W]+?)?>");
+
+        private static readonly Regex StashedItalicBoldMatcher = new Regex("\\[(\\/?[ib])\\]");
+
+        private static readonly Regex LineBreakMatcher = new Regex("<\\s*\\/?\\s*br\\s*\\/?\\s*>");
+
         internal static string RemovePageBreakTags(string input)
         {
             return StringUtils.RegexRemove(PageBreakRemover, input);
         }
 
+        internal static string ReplaceBrWithNewlines(string input)
+        {
+            return StringUtils.RegexReplace(LineBreakMatcher, input, "\r\n");
+        }
+
         internal static string RemoveNbsp(string input)
         {
             return input.Replace('\u00a0', ' ');
+        }
+
+        internal static string StripAllButBoldAndItalics(string input)
+        {
+            // First, stash all tags we want to keep as [i], [/b]...
+            input = RegexGroupReplace(ItalicBoldMatcher, input, (groups) => $"[{groups[1]}]");
+
+            // Remove all other HTML
+            input = StringUtils.RegexRemove(HtmlTagRemover, input);
+
+            // And restore the simplified i and b tags to regular <i>, <b>
+            input = RegexGroupReplace(StashedItalicBoldMatcher, input, (groups) => $"<{groups[1]}>");
+            return input;
+        }
+
+        public static string RegexGroupReplace(Regex expression, string input, Func<IReadOnlyList<string>, string> replacementDelegate, int maxReplacements = -1)
+        {
+            if (string.IsNullOrEmpty(input))
+            {
+                return string.Empty;
+            }
+
+            List<string> groups = new List<string>();
+            MatchCollection matchCollection = expression.Matches(input);
+            string text = string.Empty;
+            int num = 0;
+            int num2 = 0;
+            foreach (Match item in matchCollection)
+            {
+                groups.Clear();
+                for (int group = 0; group < item.Groups.Count; group++)
+                {
+                    groups.Add(item.Groups[group].Value);
+                }
+
+                text += input.Substring(num, item.Index - num);
+                num = item.Index + item.Length;
+                text += replacementDelegate(groups);
+                num2++;
+                if (maxReplacements > 0 && num2 >= maxReplacements)
+                {
+                    break;
+                }
+            }
+
+            return text + input.Substring(num);
         }
 
         internal static List<StructuredVerse> ParseVerses(string canon, string book, int chapter, string scriptureHtmlPage)

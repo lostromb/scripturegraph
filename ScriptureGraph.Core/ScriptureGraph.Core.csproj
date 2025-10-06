@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Durandal.AI" Version="22.0.4670" />
     <PackageReference Include="Durandal.AI.Extensions.Compression" Version="22.0.4670" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
   </ItemGroup>
 
 </Project>

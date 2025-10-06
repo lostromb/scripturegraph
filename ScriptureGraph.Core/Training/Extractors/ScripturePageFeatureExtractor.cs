@@ -94,7 +94,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         {
                             ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse(canon, book, chapter, verseNum),
                             Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, verse.Text),
-                            Class = verse.ParagraphClass,
+                            Class = GospelParagraphClass.Verse
                         });
                     }
                     else
@@ -103,7 +103,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         {
                             ParagraphEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(canon, book, chapter, verse.ParagraphId),
                             Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, verse.Text),
-                            Class = verse.ParagraphClass,
+                            Class = GospelParagraphClass.Verse
                         });
                     }
                 }

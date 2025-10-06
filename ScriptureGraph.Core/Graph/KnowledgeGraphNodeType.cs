@@ -93,6 +93,10 @@ namespace ScriptureGraph.Core.Graph
         /// A paragraph in scripture that does not have a verse number. This includes study summary headers,
         /// introductions (common in D&C), and in-text editorial notes ("The commandments of Alma to his son Shiblon...");
         /// </summary>
-        ScriptureSupplementalPara
+        ScriptureSupplementalPara,
+
+        BookChapter,
+
+        BookParagraph
     }
 }

@@ -436,7 +436,7 @@ namespace ScriptureGraph.App
             menuItem_QuickFootnotes.IsEnabled = _lastRightClickedVerse.HasValue;
         }
 
-        private async Task<Grid> CreateNewSearchResultsPane(SlowSearchQueryResult searchResults)
+        private async Task<Grid> CreateNewSearchResultsPane(SlowSearchQueryResult searchResults, string? title = null)
         {
             //<Grid Name="ReadingPaneContainer1">
             //        <DockPanel>
@@ -478,7 +478,7 @@ namespace ScriptureGraph.App
             header.Padding = new Thickness(0, 5, 0, 5);
             header.TextAlignment = TextAlignment.Center;
             header.VerticalAlignment = VerticalAlignment.Stretch;
-            header.Text = "Search Results";
+            header.Text = title ?? "Search Results";
             Button closeButton = new Button();
             closeButton.Content = "Close";
             closeButton.ToolTip = "Close this reading pane";
@@ -799,8 +799,16 @@ namespace ScriptureGraph.App
 
                 SlowSearchQueryResult searchResults = await Task.Run(() => _core.RunSlowSearchQuery(query)).ConfigureAwait(true);
 
+                string title = _lastRightClickedVerse.Value.ToString() ?? "NULL";
+                if (_lastRightClickedVerse.Value.Type == KnowledgeGraphNodeType.ScriptureVerse)
+                {
+                    title = new ScriptureReference(_lastRightClickedVerse.Value).ToString() ?? "NULL";
+                }
+
+                // todo: better formatting of conference talks, etc.
+
                 // We're still on the UI thread so no need to dispatch
-                Grid searchResultsPane = await CreateNewSearchResultsPane(searchResults).ConfigureAwait(true);
+                Grid searchResultsPane = await CreateNewSearchResultsPane(searchResults, $"Footnotes: {title}").ConfigureAwait(true);
                 if (_currentSearchResultsPane != null)
                 {
                     BrowseArea.Children.Remove(_currentSearchResultsPane);
