@@ -1,4 +1,5 @@
 ﻿using Durandal.Common.Logger;
+using Durandal.Common.NLP.Language;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
 using ScriptureGraph.App.Schemas;
@@ -948,7 +949,7 @@ namespace ScriptureGraph.App
                     return $"General Conference - {month} {conferenceDocument.Conference.Year} - {conferenceDocument.Speaker}";
                 case GospelDocumentType.ScriptureChapter:
                     ScriptureChapterDocument scriptureDocument = (ScriptureChapterDocument)document;
-                    return $"{ScriptureMetadata.GetEnglishNameForCanon(scriptureDocument.Canon)} - {ScriptureMetadata.GetEnglishNameForBook(scriptureDocument.Book)} - {scriptureDocument.Chapter}";
+                    return $"{ScriptureMetadata.GetNameForCanon(scriptureDocument.Canon, LanguageCode.ENGLISH)} - {ScriptureMetadata.GetNameForBook(scriptureDocument.Book, LanguageCode.ENGLISH)} - {scriptureDocument.Chapter}";
                 default:
                     return "UNKNOWN_DOCUMENT";
             }
@@ -993,7 +994,7 @@ namespace ScriptureGraph.App
                 bookTitle.TextAlignment = TextAlignment.Center;
                 bookTitle.Margin = titleMargin;
                 bookTitle.FontSize = titleFontSize;
-                bookTitle.Inlines.Add(ScriptureMetadata.GetEnglishNameForBook(scriptureChapter.Book));
+                bookTitle.Inlines.Add(ScriptureMetadata.GetNameForBook(scriptureChapter.Book, LanguageCode.ENGLISH));
                 headerSection.Blocks.Add(bookTitle);
 
                 if (ScriptureMetadata.GetNumChaptersInBook(scriptureChapter.Book) > 1)
@@ -1334,7 +1335,7 @@ namespace ScriptureGraph.App
                 IsManipulationEnabled = false,
                 Tag = new FastSearchQueryResult()
                 {
-                    DisplayName = $"{ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book)} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
+                    DisplayName = $"{ScriptureMetadata.GetNameForBook(parsedRef.Book, LanguageCode.ENGLISH)} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
                     EntityType = SearchResultEntityType.ScriptureVerse,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
@@ -1345,7 +1346,7 @@ namespace ScriptureGraph.App
             scriptureSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             scriptureSearchResult.MouseDown += SearchResultPreviewDocument_Click;
 
-            TextBlock searchResultHeader = CreateSearchResultHeader($"{ScriptureMetadata.GetEnglishNameForBook(chapter.Book)} {chapter.Chapter}");
+            TextBlock searchResultHeader = CreateSearchResultHeader($"{ScriptureMetadata.GetNameForBook(chapter.Book, LanguageCode.ENGLISH)} {chapter.Chapter}");
             target.Add(searchResultHeader);
             target.Add(scriptureSearchResult);
         }

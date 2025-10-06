@@ -378,7 +378,7 @@ namespace ScriptureGraph.Console
             Stopwatch timer = Stopwatch.StartNew();
             KnowledgeGraphQuery query = new KnowledgeGraphQuery();
 
-            ScriptureReference? parsedRef = ScriptureMetadata.TryParseScriptureReferenceEnglish(queryString);
+            ScriptureReference? parsedRef = ScriptureMetadataEnglish.TryParseScriptureReference(queryString);
             if (parsedRef != null)
             {
                 logger.Log("Parsed query as " + parsedRef);

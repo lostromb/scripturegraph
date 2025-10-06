@@ -75,7 +75,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                                 EnglishWordFeatureExtractor.ExtractTrainingFeatures(thisSentenceWordBreakerText, trainingFeaturesOut, paraId);
 
                                 // Parse all scripture references (in plaintext) and turn them into entity links
-                                foreach (ScriptureReference scriptureRef in ScriptureMetadata.ParseAllReferences(thisSentenceWordBreakerText))
+                                foreach (ScriptureReference scriptureRef in ScriptureMetadata.ParseAllReferences(thisSentenceWordBreakerText, LanguageCode.ENGLISH))
                                 {
                                     KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
                                     // Entity reference between this talk paragraph and the scripture ref

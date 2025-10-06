@@ -16,57 +16,57 @@ namespace ScriptureGraph.Tests
         public void TestParseScriptureRef()
         {
             ScriptureReference? reference;
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("not a book 2:3");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("not a book 2:3");
             Assert.IsNull(reference);
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("stone cold 3:16");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("stone cold 3:16");
             Assert.IsNull(reference);
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("1 Nephi 3:5");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("1 Nephi 3:5");
             Assert.IsNotNull(reference);
             Assert.AreEqual("bofm 1-ne 3:5", reference.ToString());
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne3:5");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("1ne3:5");
             Assert.IsNotNull(reference);
             Assert.AreEqual("bofm 1-ne 3:5", reference.ToString());
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 3:5");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("1ne 3:5");
             Assert.IsNotNull(reference);
             Assert.AreEqual("bofm 1-ne 3:5", reference.ToString());
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("moroni");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("moroni");
             Assert.IsNotNull(reference);
             Assert.AreEqual("bofm moro", reference.ToString());
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("Genesis 39");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("Genesis 39");
             Assert.IsNotNull(reference);
             Assert.AreEqual("ot gen 39", reference.ToString());
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("Gal. 5:19");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("Gal. 5:19");
             Assert.IsNotNull(reference);
             Assert.AreEqual("nt gal 5:19", reference.ToString());
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("D&C 110:12");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("D&C 110:12");
             Assert.IsNotNull(reference);
             Assert.AreEqual("dc-testament dc 110:12", reference.ToString());
 
             // currently don't parse ranges
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("Moroni 10:3-5");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("Moroni 10:3-5");
             Assert.IsNull(reference);
 
             // And don't parse invalid values
-            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne -3:5"));
-            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 0:5"));
-            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 3:0"));
-            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 3:-1"));
-            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 3:205"));
-            Assert.IsNull(ScriptureMetadata.TryParseScriptureReferenceEnglish("1ne 670:25"));
+            Assert.IsNull(ScriptureMetadataEnglish.TryParseScriptureReference("1ne -3:5"));
+            Assert.IsNull(ScriptureMetadataEnglish.TryParseScriptureReference("1ne 0:5"));
+            Assert.IsNull(ScriptureMetadataEnglish.TryParseScriptureReference("1ne 3:0"));
+            Assert.IsNull(ScriptureMetadataEnglish.TryParseScriptureReference("1ne 3:-1"));
+            Assert.IsNull(ScriptureMetadataEnglish.TryParseScriptureReference("1ne 3:205"));
+            Assert.IsNull(ScriptureMetadataEnglish.TryParseScriptureReference("1ne 670:25"));
 
             // Catch edge cases for single-chapter books
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("enos 5");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("enos 5");
             Assert.IsNotNull(reference);
             Assert.AreEqual("bofm enos 1:5", reference.ToString());
 
-            reference = ScriptureMetadata.TryParseScriptureReferenceEnglish("enos 1:5");
+            reference = ScriptureMetadataEnglish.TryParseScriptureReference("enos 1:5");
             Assert.IsNotNull(reference);
             Assert.AreEqual("bofm enos 1:5", reference.ToString());
         }
@@ -78,7 +78,7 @@ namespace ScriptureGraph.Tests
             new string[] { "pgp moses 4:1", "pgp moses 4:2", "pgp moses 4:3", "pgp moses 4:4", "pgp abr 3:27", "pgp abr 3:28" })]
         public void TestParseAllScriptureRefs(string input, bool includeExtra, string?[] expectedOutputs)
         {
-            string?[] actualOutputs = ScriptureMetadata.ParseAllReferences(input, includeExtra).Select((s) => s == null ? null : s.ToString()).ToArray();
+            string?[] actualOutputs = ScriptureMetadataEnglish.ParseAllReferences(input, includeExtra).Select((s) => s == null ? null : s.ToString()).ToArray();
             foreach (string? actual in actualOutputs)
             {
                 Debug.WriteLine(actual);

@@ -1,5 +1,6 @@
 ﻿using Durandal.Common.File;
 using Durandal.Common.Logger;
+using Durandal.Common.NLP.Language;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
 using Durandal.Common.Utils.NativePlatform;
@@ -412,7 +413,7 @@ namespace ScriptureGraph.App
                 entityId.Type == KnowledgeGraphNodeType.ScriptureBook)
             {
                 ScriptureReference parsedRef = new ScriptureReference(entityId);
-                string formattedBookName = ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book);
+                string formattedBookName = ScriptureMetadata.GetNameForBook(parsedRef.Book, LanguageCode.ENGLISH);
                 if (parsedRef.Chapter.HasValue && parsedRef.Verse.HasValue)
                 {
                     return $"{formattedBookName} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}";
@@ -446,11 +447,11 @@ namespace ScriptureGraph.App
             }
 
             // Check for scripture references
-            ScriptureReference? parsedRef = ScriptureMetadata.TryParseScriptureReferenceEnglish(queryString);
+            ScriptureReference? parsedRef = ScriptureMetadataEnglish.TryParseScriptureReference(queryString);
             if (parsedRef != null)
             {
                 _coreLogger.Log("Parsed scripture ref " + parsedRef);
-                string formattedBookName = ScriptureMetadata.GetEnglishNameForBook(parsedRef.Book);
+                string formattedBookName = ScriptureMetadata.GetNameForBook(parsedRef.Book, LanguageCode.ENGLISH);
                 if (parsedRef.Chapter.HasValue && parsedRef.Verse.HasValue)
                 {
                     yield return new FastSearchQueryResult()
