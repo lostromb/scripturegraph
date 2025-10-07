@@ -95,15 +95,16 @@ namespace ScriptureGraph.Core.Training.Extractors
         }
 
         public static void ExtractSearchIndexFeatures(
-            IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, List<TrainingFeature> trainingFeaturesOut, EntityNameIndex nameIndex)
+            IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, Action<TrainingFeature> trainingFeatureHandler, EntityNameIndex nameIndex)
         {
             try
             {
                 ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
                 {
+                    nameIndex.Mapping[chapter.DocumentEntityId] = chapter.Title;
                     foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(chapter.Title))
                     {
-                        trainingFeaturesOut.Add(new TrainingFeature(
+                        trainingFeatureHandler(new TrainingFeature(
                             chapter.DocumentEntityId,
                             ngram,
                             TrainingFeatureType.WordDesignation));
@@ -129,6 +130,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     Paragraphs = new List<GospelParagraph>(),
                     DocumentEntityId = chapter.DocumentEntityId,
                     ChapterId = chapter.ChapterId,
+                    ChapterName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, chapter.Title),
                 };
 
                 parsedChapter.Paragraphs.Insert(0, new GospelParagraph()

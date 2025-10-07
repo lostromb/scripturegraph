@@ -16,6 +16,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using static Durandal.Common.Audio.WebRtc.RingBuffer;
 
 namespace ScriptureGraph.Core
 {
@@ -153,16 +154,19 @@ namespace ScriptureGraph.Core
         /// <param name="logger"></param>
         /// <param name="pageCache"></param>
         /// <returns></returns>
-        public static async Task<Tuple<TrainingKnowledgeGraph, EntityNameIndex>> BuildSearchIndex(ILogger logger, WebPageCache pageCache)
+        public static async Task<Tuple<TrainingKnowledgeGraph, EntityNameIndex>> BuildSearchIndex(ILogger logger, WebPageCache pageCache, IFileSystem epubFileSystem)
         {
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
             TrainingKnowledgeGraph entitySearchGraph = new TrainingKnowledgeGraph();
             EntityNameIndex nameIndex = new EntityNameIndex();
             DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex);
-            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
+            BookExtractorATGQ.ExtractSearchIndexFeatures(
+                epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
+
             return new Tuple<TrainingKnowledgeGraph, EntityNameIndex>(entitySearchGraph, nameIndex);
         }
 
@@ -288,7 +292,6 @@ namespace ScriptureGraph.Core
             await processor.WaitForThreadsToFinish();
             logger.Log("Processing documents from local sources");
             Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
-            //await Book_ATGQ_ExtractDocumentsThreaded(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, threadPool);
         }
 
         /// <summary>
@@ -420,68 +423,6 @@ namespace ScriptureGraph.Core
                 return Task.FromResult<bool>(true);
             }
         }
-
-        private static void Book_ATGQ_ExtractDocuments(
-            IFileSystem documentCacheFileSystem,
-            IFileSystem epubFileSystem,
-            VirtualPath epubPath,
-            ILogger logger)
-        {
-            documentCacheFileSystem.CreateDirectory(new VirtualPath("atgq"));
-            foreach (BookChapterDocument bookChapter in BookExtractorATGQ.ExtractDocuments(epubFileSystem, epubPath, logger))
-            {
-                VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json");
-                using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
-                {
-                    GospelDocument.SerializePolymorphic(fileOut, bookChapter);
-                }
-
-                //VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json.br");
-                //using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
-                //using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
-                //{
-                //    GospelDocument.SerializePolymorphic(brotliStream, bookChapter);
-                //}
-            }
-        }
-
-        private static async Task Book_ATGQ_ExtractDocumentsThreaded(
-            IFileSystem documentCacheFileSystem,
-            IFileSystem epubFileSystem,
-            VirtualPath epubPath,
-            ILogger logger,
-            IThreadPool threadPool)
-        {
-            int threadsStarted = 0;
-            int threadsFinished = 0;
-            documentCacheFileSystem.CreateDirectory(new VirtualPath("atgq"));
-            foreach (BookChapterDocument bookChapter in BookExtractorATGQ.ExtractDocuments(epubFileSystem, epubPath, logger))
-            {
-                threadsStarted++;
-                threadPool.EnqueueUserWorkItem(() =>
-                {
-                    try
-                    {
-                        VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json.br");
-                        using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
-                        using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
-                        {
-                            GospelDocument.SerializePolymorphic(brotliStream, bookChapter);
-                        }
-                    }
-                    finally
-                    {
-                        Interlocked.Increment(ref threadsFinished);
-                    }
-                });
-            }
-
-            while (threadsStarted < threadsFinished)
-            {
-                await Task.Delay(1000).ConfigureAwait(false);
-            }
-        }
-
 
         private static async Task CrawlGeneralConference(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
@@ -638,12 +579,36 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
-        public static async Task CrawlReferenceMaterials(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        private static async Task CrawlReferenceMaterials(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             await CrawlTopicalGuide(crawler, pageAction, logger);
             await CrawlTripleIndex(crawler, pageAction, logger);
             await CrawlGuideToScriptures(crawler, pageAction, logger);
             await CrawlBibleDictionary(crawler, pageAction, logger);
+        }
+
+        private static void Book_ATGQ_ExtractDocuments(
+            IFileSystem documentCacheFileSystem,
+            IFileSystem epubFileSystem,
+            VirtualPath epubPath,
+            ILogger logger)
+        {
+            documentCacheFileSystem.CreateDirectory(new VirtualPath("atgq"));
+            foreach (BookChapterDocument bookChapter in BookExtractorATGQ.ExtractDocuments(epubFileSystem, epubPath, logger))
+            {
+                //VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json");
+                //using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                //{
+                //    GospelDocument.SerializePolymorphic(fileOut, bookChapter);
+                //}
+
+                VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json.br");
+                using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
+                {
+                    GospelDocument.SerializePolymorphic(brotliStream, bookChapter);
+                }
+            }
         }
     }
 }

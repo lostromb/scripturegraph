@@ -20,6 +20,11 @@ namespace ScriptureGraph.Console
 {
     internal static class Program
     {
+        private static IFileSystem _runtimeFileSystem = NullFileSystem.Singleton;
+        private static IFileSystem _webCacheFileSystem = NullFileSystem.Singleton;
+        private static IFileSystem _documentCacheFileSystem = NullFileSystem.Singleton;
+        private static IFileSystem _epubFileSystem = NullFileSystem.Singleton;
+
         public static async Task Main(string[] args)
         {
 #if DEBUG
@@ -29,6 +34,12 @@ namespace ScriptureGraph.Console
 #endif
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, logger);
+
+            string rootDirectory = @"C:\Code\scripturegraph";
+            _runtimeFileSystem = new RealFileSystem(logger.Clone("RuntimeFS"), rootDirectory + @"\runtime");
+            _webCacheFileSystem = new RealFileSystem(logger.Clone("WebCacheFS"), rootDirectory + @"\runtime\cache");
+            _documentCacheFileSystem = new RealFileSystem(logger.Clone("DocumentFS"), rootDirectory + @"\runtime\documents");
+            _epubFileSystem = new RealFileSystem(logger.Clone("EpubFS"), rootDirectory + @"\Books");
 
             // Convert graphs
             //TrainingKnowledgeGraph graph;
@@ -97,11 +108,11 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            //IFileSystem fileSystem = new RealFileSystem(logger, @"C:\Code\scripturegraph\Books");
             //BookExtractorATGQ.ExtractDocuments(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
 
             //await Test(logger);
             await ParseDocuments(logger);
+            await BuildAndTestSearchIndex(logger);
         }
 
         private static async Task Test(ILogger logger)
@@ -162,7 +173,6 @@ namespace ScriptureGraph.Console
 
                 logger.Log($"Num nodes: {stats.SampleCount}");
 
-                //IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
                 //WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
                 //await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
                 //using (FileStream testGraphOut = new FileStream(outModelFileName, FileMode.Create, FileAccess.Write))
@@ -171,7 +181,6 @@ namespace ScriptureGraph.Console
                 //}
             }
 
-            //IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\runtime\cache");
             //IFileSystem documentFileSystem = new InMemoryFileSystem();
             //WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
             //await CommonTasks.ParseDocuments(logger, pageCache, documentFileSystem);
@@ -181,29 +190,28 @@ namespace ScriptureGraph.Console
         {
             TrainingKnowledgeGraph entitySearchGraph;
 
-            string modelFileName = @"D:\Code\scripturegraph\runtime\searchindex.graph";
-            string entityMapFileName = @"D:\Code\scripturegraph\runtime\entitynames_eng.map";
+            VirtualPath modelFileName = new VirtualPath("searchindex.graph");
+            VirtualPath entityMapFileName = new VirtualPath("entitynames_eng.map");
 
-            if (File.Exists(modelFileName))
+            if (_runtimeFileSystem.Exists(modelFileName))
             {
-                using (FileStream searchGraphIn = new FileStream(modelFileName, FileMode.Open, FileAccess.Read))
+                using (Stream searchGraphIn = _runtimeFileSystem.OpenStream(modelFileName, FileOpenMode.Open, FileAccessMode.Read))
                 {
                     entitySearchGraph = TrainingKnowledgeGraph.LoadLegacyFormat(searchGraphIn);
                 }
             }
             else
             {
-                IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
-                WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-                Tuple<TrainingKnowledgeGraph, EntityNameIndex> returnVal = await CommonTasks.BuildSearchIndex(logger, pageCache);
+                WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
+                Tuple<TrainingKnowledgeGraph, EntityNameIndex> returnVal = await CommonTasks.BuildSearchIndex(logger, pageCache, _epubFileSystem);
                 entitySearchGraph = returnVal.Item1;
 
-                using (FileStream searchGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
+                using (Stream searchGraphOut = _runtimeFileSystem.OpenStream(modelFileName, FileOpenMode.Create, FileAccessMode.Write))
                 {
                     entitySearchGraph.Save(searchGraphOut);
                 }
 
-                using (FileStream nameMappingOut = new FileStream(entityMapFileName, FileMode.Create, FileAccess.Write))
+                using (Stream nameMappingOut = _runtimeFileSystem.OpenStream(entityMapFileName, FileOpenMode.Create, FileAccessMode.Write))
                 {
                     returnVal.Item2.Serialize(nameMappingOut);
                 }
@@ -277,24 +285,22 @@ namespace ScriptureGraph.Console
         private static async Task BuildAndTestUniversalGraph(ILogger logger)
         {
             TrainingKnowledgeGraph graph;
+            VirtualPath modelFileIn = new VirtualPath("all.graph");
 
-            string modelFileName = @"D:\Code\scripturegraph\runtime\all.graph";
-
-            if (File.Exists(modelFileName))
+            if (_runtimeFileSystem.Exists(modelFileIn))
             {
                 logger.Log("Loading model");
-                using (FileStream testGraphIn = new FileStream(modelFileName, FileMode.Open, FileAccess.Read))
+                using (Stream testGraphIn = _runtimeFileSystem.OpenStream(modelFileIn, FileOpenMode.Open, FileAccessMode.Read))
                 {
                     graph = TrainingKnowledgeGraph.LoadLegacyFormat(testGraphIn);
                 }
             }
             else
             {
-                IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
-                WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
+                WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
                 graph = new TrainingKnowledgeGraph();
                 await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
-                using (FileStream testGraphOut = new FileStream(modelFileName, FileMode.Create, FileAccess.Write))
+                using (Stream testGraphOut = _runtimeFileSystem.OpenStream(modelFileIn, FileOpenMode.Create, FileAccessMode.Write))
                 {
                     graph.Save(testGraphOut);
                 }
@@ -444,11 +450,9 @@ namespace ScriptureGraph.Console
 
         private static async Task ParseDocuments(ILogger logger)
         {
-            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\runtime\cache");
-            IFileSystem documentCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\runtime\documents");
-            IFileSystem epubFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\Books");
-            WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-            await CommonTasks.ParseDocuments(logger, pageCache, documentCacheFileSystem, epubFileSystem);
+            
+            WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
+            await CommonTasks.ParseDocuments(logger, pageCache, _documentCacheFileSystem, _epubFileSystem);
         }
     }
 }
