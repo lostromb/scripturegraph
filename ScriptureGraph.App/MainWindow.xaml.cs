@@ -181,9 +181,14 @@ namespace ScriptureGraph.App
                         horizontalPanel.Children.Add(readButton);
                     }
 
+                    StackPanel verticalPanel = new StackPanel()
+                    {
+                        Orientation = Orientation.Vertical,
+                    };
+
                     TextBlock nameBlock = new TextBlock()
                     {
-                        Margin = new Thickness(10),
+                        Margin = new Thickness(10, 0, 0, 0),
                         FontSize = 16,
                         VerticalAlignment = VerticalAlignment.Center,
                         Text = searchResult.DisplayName,
@@ -191,15 +196,16 @@ namespace ScriptureGraph.App
 
                     TextBlock typeBlock = new TextBlock()
                     {
-                        Margin = new Thickness(10),
+                        Margin = new Thickness(10, 0, 0, 0),
                         FontSize = 14,
                         Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128)),
                         VerticalAlignment = VerticalAlignment.Center,
                         Text = ConvertSearchResultTypeToString(searchResult.EntityType),
                     };
 
-                    horizontalPanel.Children.Add(nameBlock);
-                    horizontalPanel.Children.Add(typeBlock);
+                    verticalPanel.Children.Add(nameBlock);
+                    verticalPanel.Children.Add(typeBlock);
+                    horizontalPanel.Children.Add(verticalPanel);
 
                     SearchFlyoutList.Children.Add(horizontalPanel);
                 }
@@ -226,6 +232,8 @@ namespace ScriptureGraph.App
                     return "General Conference Address";
                 case SearchResultEntityType.Topic:
                     return "Topic";
+                case SearchResultEntityType.Book_ATGQ:
+                    return "Answers to Gospel Questions";
                 default:
                     return "UNKNOWN_TYPE";
             }
@@ -639,7 +647,7 @@ namespace ScriptureGraph.App
                 }
 
                 CreateNewSearchScope(
-                    AppCore.ConvertEntityTypeToSearchResponseType(panel.CurrentDocumentEntity.Value.Type),
+                    AppCore.ConvertEntityTypeToSearchResponseType(panel.CurrentDocumentEntity.Value),
                     _core.GetPrettyNameForEntity(panel.CurrentDocumentEntity.Value),
                     panel.CurrentDocumentEntity.Value);
             }
@@ -741,7 +749,7 @@ namespace ScriptureGraph.App
                 friendlyNameBuilder.Append(")");
 
                 CreateNewSearchScope(
-                    AppCore.ConvertEntityTypeToSearchResponseType(entityToUseForHeaders.Type),
+                    AppCore.ConvertEntityTypeToSearchResponseType(entityToUseForHeaders),
                     friendlyNameBuilder.ToString(),
                     entities.ToArray());
             }

@@ -40,6 +40,8 @@ namespace ScriptureGraph.Core.Training.Extractors
         // "study-summary" - modern-day chapter summary
         public string? Paragraph;
 
+        // Usually indicates that this reference was part of a long range of verses, e.g. "Isaiah 53:1-11", and
+        // this is not the verse that is the "main" verse within that range.
         public bool LowEmphasis;
 
         public override string? ToString()
@@ -67,33 +69,32 @@ namespace ScriptureGraph.Core.Training.Extractors
             if (entityId.Type == KnowledgeGraphNodeType.ScriptureVerse)
             {
                 string[] parts = entityId.Name.Split('|');
-                Canon = parts[0];
-                Book = parts[1];
-                Chapter = int.Parse(parts[2]);
+                Book = parts[0];
+                Canon = ScriptureMetadata.GetCanonForBook(Book);
+                Chapter = int.Parse(parts[1]);
                 int verseNum;
-                if (int.TryParse(parts[3], out verseNum))
+                if (int.TryParse(parts[2], out verseNum))
                 {
                     Verse = verseNum;
                 }
                 else
                 {
                     Verse = null;
-                    Paragraph = parts[3];
+                    Paragraph = parts[2];
                 }
             }
             else if (entityId.Type == KnowledgeGraphNodeType.ScriptureChapter)
             {
                 string[] parts = entityId.Name.Split('|');
-                Canon = parts[0];
-                Book = parts[1];
-                Chapter = int.Parse(parts[2]);
+                Book = parts[0];
+                Canon = ScriptureMetadata.GetCanonForBook(Book);
+                Chapter = int.Parse(parts[1]);
                 Verse = null;
             }
             else if (entityId.Type == KnowledgeGraphNodeType.ScriptureBook)
             {
-                string[] parts = entityId.Name.Split('|');
-                Canon = parts[0];
-                Book = parts[1];
+                Book = entityId.Name;
+                Canon = ScriptureMetadata.GetCanonForBook(Book);
                 Chapter = null;
                 Verse = null;
             }

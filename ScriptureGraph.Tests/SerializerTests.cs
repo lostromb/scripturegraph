@@ -114,18 +114,18 @@ namespace ScriptureGraph.Tests
                 Book = "1-ne",
                 Chapter = 1,
                 Paragraphs = new List<GospelParagraph>(),
-                DocumentEntityId = FeatureToNodeMapping.ScriptureChapter("bofm", "1-ne", 1),
+                DocumentEntityId = FeatureToNodeMapping.ScriptureChapter("1-ne", 1),
             };
 
             document.Paragraphs.Add(new GospelParagraph()
             {
-                ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse("bofm", "1-ne", 1, 1),
+                ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse("1-ne", 1, 1),
                 Text = "Verse 1 goes here",
             });
 
             document.Paragraphs.Add(new GospelParagraph()
             {
-                ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse("bofm", "1-ne", 1, 2),
+                ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse("1-ne", 1, 2),
                 Text = "Verse 2 goes here",
             });
 

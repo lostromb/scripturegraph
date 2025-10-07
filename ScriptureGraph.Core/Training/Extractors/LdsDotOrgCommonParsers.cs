@@ -172,7 +172,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     // Regular scripture ref
                     return FeatureToNodeMapping.ScriptureVerse(
-                        scriptureRef.Canon,
                         scriptureRef.Book,
                         scriptureRef.Chapter.Value,
                         scriptureRef.Verse.Value);
@@ -183,7 +182,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         // Non-numerical paragraph
                         return FeatureToNodeMapping.ScriptureSupplementalParagraph(
-                            scriptureRef.Canon,
                             scriptureRef.Book,
                             scriptureRef.Chapter.Value,
                             scriptureRef.Paragraph);
@@ -192,7 +190,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         // Reference to an entire chapter
                         return FeatureToNodeMapping.ScriptureChapter(
-                            scriptureRef.Canon,
                             scriptureRef.Book,
                             scriptureRef.Chapter.Value);
                     }
@@ -201,7 +198,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     // Reference to an entire book
                     return FeatureToNodeMapping.ScriptureBook(
-                        scriptureRef.Canon,
                         scriptureRef.Book);
                 }
             }

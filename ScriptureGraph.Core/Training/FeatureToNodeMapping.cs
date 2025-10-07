@@ -34,28 +34,28 @@ namespace ScriptureGraph.Core.Training
                 $"{word1}|{word2}|{word3}|{lang.ToBcp47Alpha3String()}");
         }
 
-        public static KnowledgeGraphNodeId ScriptureVerse(string canon, string book, int chapter, int verse)
+        public static KnowledgeGraphNodeId ScriptureVerse(string book, int chapter, int verse)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureVerse,
-                $"{canon}|{book}|{chapter}|{verse}");
+                $"{book}|{chapter}|{verse}");
         }
 
-        public static KnowledgeGraphNodeId ScriptureSupplementalParagraph(string canon, string book, int chapter, string paragraph)
+        public static KnowledgeGraphNodeId ScriptureSupplementalParagraph(string book, int chapter, string paragraph)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureSupplementalPara,
-                $"{canon}|{book}|{chapter}|{paragraph}");
+                $"{book}|{chapter}|{paragraph}");
         }
 
-        public static KnowledgeGraphNodeId ScriptureChapter(string canon, string book, int chapter)
+        public static KnowledgeGraphNodeId ScriptureChapter(string book, int chapter)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter,
-                $"{canon}|{book}|{chapter}");
+                $"{book}|{chapter}");
         }
 
-        public static KnowledgeGraphNodeId ScriptureBook(string canon, string book)
+        public static KnowledgeGraphNodeId ScriptureBook(string book)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureBook,
-                $"{canon}|{book}");
+                $"{book}");
         }
 
         public static KnowledgeGraphNodeId TopicalGuideKeyword(string keyword)

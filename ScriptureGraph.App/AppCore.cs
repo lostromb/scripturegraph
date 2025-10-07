@@ -44,11 +44,16 @@ namespace ScriptureGraph.App
 #endif
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, _coreLogger);
+
+#if DEBUG
+            string contentPath = @"C:\Code\scripturegraph\runtime";
+#else
             string contentPath = Path.Combine(Environment.CurrentDirectory, "content");
             if (!Directory.Exists(contentPath))
             {
                 throw new DirectoryNotFoundException(contentPath);
             }
+#endif
 
             _fileSystem = new RealFileSystem(_coreLogger.Clone("FileSystem"), contentPath);
             _documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>();
@@ -74,10 +79,10 @@ namespace ScriptureGraph.App
                 throw new Exception("Can't find name index file");
             }
 
-            if (!(await _fileSystem.ExistsAsync(largeGraphFileName)))
-            {
-                throw new Exception("Can't find main search graph file");
-            }
+            //if (!(await _fileSystem.ExistsAsync(largeGraphFileName)))
+            //{
+            //    throw new Exception("Can't find main search graph file");
+            //}
 
             using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(smallGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
             using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
@@ -93,12 +98,12 @@ namespace ScriptureGraph.App
                 _entityNameLookup = EntityNameIndex.Deserialize(searchIndexIn);
             }
 
-            using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
-            using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
-            {
-                _coreLogger.Log("Loading large search index");
-                _largeSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, _nativeHeap);
-            }
+            //using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
+            //using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
+            //{
+            //    _coreLogger.Log("Loading large search index");
+            //    _largeSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, _nativeHeap);
+            //}
 
             timer.Stop();
             _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Indexes loaded in {0} ms", timer.ElapsedMillisecondsPrecise());
@@ -242,8 +247,9 @@ namespace ScriptureGraph.App
             {
                 _coreLogger.Log("Indexing document " + file);
                 using (Stream docFileIn = await _fileSystem.OpenStreamAsync(file, FileOpenMode.Open, FileAccessMode.Read))
+                using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(docFileIn))
                 {
-                    GospelDocumentMeta metadata = GospelDocumentMeta.ParseHeader(docFileIn);
+                    GospelDocumentMeta metadata = GospelDocumentMeta.ParseHeader(brotliStream);
                     documentLibrary[metadata.DocumentEntityId] = file;
                 }
             }
@@ -261,7 +267,7 @@ namespace ScriptureGraph.App
             {
                 EntityIds = new List<KnowledgeGraphNodeId>()
                 {
-                    FeatureToNodeMapping.ScriptureVerse("bofm", "ether", 12, 27),
+                    FeatureToNodeMapping.ScriptureVerse("ether", 12, 27),
                     FeatureToNodeMapping.BibleDictionaryTopic("bishop"),
                     FeatureToNodeMapping.ConferenceTalkParagraph(2023, ConferencePhase.October, "26choi", 4),
                     FeatureToNodeMapping.BibleDictionaryParagraph("bible", 8),
@@ -456,7 +462,7 @@ namespace ScriptureGraph.App
                 {
                     yield return new FastSearchQueryResult()
                     {
-                        EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureVerse(parsedRef.Canon, parsedRef.Book, parsedRef.Chapter.Value, parsedRef.Verse.Value) },
+                        EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureVerse(parsedRef.Book, parsedRef.Chapter.Value, parsedRef.Verse.Value) },
                         EntityType = SearchResultEntityType.ScriptureVerse,
                         DisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}"
                     };
@@ -465,7 +471,7 @@ namespace ScriptureGraph.App
                 {
                     yield return new FastSearchQueryResult()
                     {
-                        EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureChapter(parsedRef.Canon, parsedRef.Book, parsedRef.Chapter.Value) },
+                        EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureChapter(parsedRef.Book, parsedRef.Chapter.Value) },
                         EntityType = SearchResultEntityType.ScriptureChapter,
                         DisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}"
                     };
@@ -474,7 +480,7 @@ namespace ScriptureGraph.App
                 {
                     yield return new FastSearchQueryResult()
                     {
-                        EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureBook(parsedRef.Canon, parsedRef.Book) },
+                        EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureBook(parsedRef.Book) },
                         EntityType = SearchResultEntityType.ScriptureBook,
                         DisplayName = formattedBookName
                     };
@@ -572,7 +578,7 @@ namespace ScriptureGraph.App
                     {
                         EntityIds = nodeMappings.ToArray(),
                         DisplayName = prettyName,
-                        EntityType = ConvertEntityTypeToSearchResponseType(result.Key.Type),
+                        EntityType = ConvertEntityTypeToSearchResponseType(result.Key),
                     };
 
                     displayedStrings.Add(prettyName);
@@ -583,15 +589,15 @@ namespace ScriptureGraph.App
                     {
                         EntityIds = new KnowledgeGraphNodeId[] { result.Key },
                         DisplayName = prettyName,
-                        EntityType = ConvertEntityTypeToSearchResponseType(result.Key.Type),
+                        EntityType = ConvertEntityTypeToSearchResponseType(result.Key),
                     };
                 }
             }
         }
 
-        public static SearchResultEntityType ConvertEntityTypeToSearchResponseType(KnowledgeGraphNodeType nodeType)
+        public static SearchResultEntityType ConvertEntityTypeToSearchResponseType(KnowledgeGraphNodeId nodeId)
         {
-            switch (nodeType)
+            switch (nodeId.Type)
             {
                 case KnowledgeGraphNodeType.ScriptureBook:
                     return SearchResultEntityType.ScriptureBook;
@@ -610,6 +616,11 @@ namespace ScriptureGraph.App
                 case KnowledgeGraphNodeType.TripleIndexTopic:
                 case KnowledgeGraphNodeType.GuideToScripturesTopic:
                     return SearchResultEntityType.Topic;
+                case KnowledgeGraphNodeType.BookChapter:
+                    if (nodeId.Name.StartsWith("atgq|"))
+                        return SearchResultEntityType.Book_ATGQ;
+                    else
+                        return SearchResultEntityType.Unknown;
                 default:
                     return SearchResultEntityType.Unknown;
             }

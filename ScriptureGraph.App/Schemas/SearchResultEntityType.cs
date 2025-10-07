@@ -16,5 +16,6 @@ namespace ScriptureGraph.App.Schemas
         Person,
         ConferenceTalk,
         Topic,
+        Book_ATGQ
     }
 }

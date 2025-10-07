@@ -76,9 +76,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                     Chapter = chapter,
                     Language = LanguageCode.ENGLISH,
                     Paragraphs = new List<GospelParagraph>(),
-                    DocumentEntityId = FeatureToNodeMapping.ScriptureChapter(canon, book, chapter),
-                    Prev = ScriptureMetadata.GetPrevChapter(canon, book, chapter),
-                    Next = ScriptureMetadata.GetNextChapter(canon, book, chapter)
+                    DocumentEntityId = FeatureToNodeMapping.ScriptureChapter(book, chapter),
+                    Prev = ScriptureMetadata.GetPrevChapter(book, chapter),
+                    Next = ScriptureMetadata.GetNextChapter(book, chapter)
                 };
 
                 List<StructuredVerse> verses = LdsDotOrgCommonParsers.ParseVerses(canon, book, chapter, htmlPage);
@@ -92,7 +92,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         returnVal.Paragraphs.Add(new GospelParagraph()
                         {
-                            ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse(canon, book, chapter, verseNum),
+                            ParagraphEntityId = FeatureToNodeMapping.ScriptureVerse(book, chapter, verseNum),
                             Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, verse.Text),
                             Class = GospelParagraphClass.Verse
                         });
@@ -101,7 +101,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         returnVal.Paragraphs.Add(new GospelParagraph()
                         {
-                            ParagraphEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(canon, book, chapter, verse.ParagraphId),
+                            ParagraphEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, verse.ParagraphId),
                             Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, verse.Text),
                             Class = GospelParagraphClass.Verse
                         });
@@ -127,10 +127,8 @@ namespace ScriptureGraph.Core.Training.Extractors
             // Relationship between this scripture book and the chapters in it
             trainingFeaturesOut.Add(new TrainingFeature(
                 FeatureToNodeMapping.ScriptureBook(
-                    canon,
                     book),
                 FeatureToNodeMapping.ScriptureChapter(
-                    canon,
                     book,
                     chapter),
                 TrainingFeatureType.BookAssociation));
@@ -140,11 +138,9 @@ namespace ScriptureGraph.Core.Training.Extractors
             {
                 trainingFeaturesOut.Add(new TrainingFeature(
                     FeatureToNodeMapping.ScriptureChapter(
-                        canon,
                         book,
                         chapter),
                     FeatureToNodeMapping.ScriptureChapter(
-                        canon,
                         book,
                         chapter - 1),
                     TrainingFeatureType.BookAssociation));
@@ -167,7 +163,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                 int.TryParse(currentParagraph.ParagraphId.AsSpan(1), out verseNum))
             {
                 thisVerseNode = FeatureToNodeMapping.ScriptureVerse(
-                    currentParagraph.Canon,
                     currentParagraph.Book,
                     currentParagraph.Chapter,
                     verseNum);
@@ -181,7 +176,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                     trainingFeaturesOut.Add(new TrainingFeature(
                         thisVerseNode,
                         FeatureToNodeMapping.ScriptureVerse(
-                            currentParagraph.Canon,
                             currentParagraph.Book,
                             currentParagraph.Chapter,
                             verseNum - 1),
@@ -191,7 +185,6 @@ namespace ScriptureGraph.Core.Training.Extractors
             else
             {
                 thisVerseNode = FeatureToNodeMapping.ScriptureSupplementalParagraph(
-                    currentParagraph.Canon,
                     currentParagraph.Book,
                     currentParagraph.Chapter,
                     currentParagraph.ParagraphId);
@@ -204,7 +197,6 @@ namespace ScriptureGraph.Core.Training.Extractors
             trainingFeaturesOut.Add(new TrainingFeature(
                 thisVerseNode,
                 FeatureToNodeMapping.ScriptureChapter(
-                    currentParagraph.Canon,
                     currentParagraph.Book,
                     currentParagraph.Chapter),
                 TrainingFeatureType.BookAssociation));

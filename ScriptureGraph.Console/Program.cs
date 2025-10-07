@@ -190,14 +190,15 @@ namespace ScriptureGraph.Console
         {
             TrainingKnowledgeGraph entitySearchGraph;
 
-            VirtualPath modelFileName = new VirtualPath("searchindex.graph");
+            VirtualPath modelFileName = new VirtualPath("searchindex.graph.br");
             VirtualPath entityMapFileName = new VirtualPath("entitynames_eng.map");
 
             if (_runtimeFileSystem.Exists(modelFileName))
             {
                 using (Stream searchGraphIn = _runtimeFileSystem.OpenStream(modelFileName, FileOpenMode.Open, FileAccessMode.Read))
+                using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
                 {
-                    entitySearchGraph = TrainingKnowledgeGraph.LoadLegacyFormat(searchGraphIn);
+                    entitySearchGraph = TrainingKnowledgeGraph.Load(brotliStream);
                 }
             }
             else
@@ -207,8 +208,9 @@ namespace ScriptureGraph.Console
                 entitySearchGraph = returnVal.Item1;
 
                 using (Stream searchGraphOut = _runtimeFileSystem.OpenStream(modelFileName, FileOpenMode.Create, FileAccessMode.Write))
+                using (BrotliStream brotliStream = new BrotliStream(searchGraphOut, CompressionLevel.SmallestSize))
                 {
-                    entitySearchGraph.Save(searchGraphOut);
+                    entitySearchGraph.Save(brotliStream);
                 }
 
                 using (Stream nameMappingOut = _runtimeFileSystem.OpenStream(entityMapFileName, FileOpenMode.Create, FileAccessMode.Write))
@@ -390,15 +392,15 @@ namespace ScriptureGraph.Console
                 logger.Log("Parsed query as " + parsedRef);
                 if (!parsedRef.Chapter.HasValue)
                 {
-                    query.AddRootNode(FeatureToNodeMapping.ScriptureBook(parsedRef.Canon, parsedRef.Book), 0);
+                    query.AddRootNode(FeatureToNodeMapping.ScriptureBook(parsedRef.Book), 0);
                 }
                 else if (!parsedRef.Verse.HasValue)
                 {
-                    query.AddRootNode(FeatureToNodeMapping.ScriptureChapter(parsedRef.Canon, parsedRef.Book, parsedRef.Chapter.Value), 0);
+                    query.AddRootNode(FeatureToNodeMapping.ScriptureChapter(parsedRef.Book, parsedRef.Chapter.Value), 0);
                 }
                 else
                 {
-                    query.AddRootNode(FeatureToNodeMapping.ScriptureVerse(parsedRef.Canon, parsedRef.Book, parsedRef.Chapter.Value, parsedRef.Verse.Value), 0);
+                    query.AddRootNode(FeatureToNodeMapping.ScriptureVerse(parsedRef.Book, parsedRef.Chapter.Value, parsedRef.Verse.Value), 0);
                 }
             }
             else

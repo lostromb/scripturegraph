@@ -16,7 +16,7 @@ namespace ScriptureGraph.Tests
         public void TestTrainingGraphBasic()
         {
             TrainingKnowledgeGraph graph = new TrainingKnowledgeGraph(128);
-            KnowledgeGraphNodeId rootNode = FeatureToNodeMapping.ScriptureVerse("bofm", "1-ne", 1, 1);
+            KnowledgeGraphNodeId rootNode = FeatureToNodeMapping.ScriptureVerse("1-ne", 1, 1);
             for (int c = 0; c < 10; c++)
             {
                 graph.Train(rootNode, FeatureToNodeMapping.Word(c.ToString(), LanguageCode.ENGLISH), 1.0f + (c * 0.1f));

@@ -228,11 +228,11 @@ namespace ScriptureGraph.Core.Training
 
         #endregion
 
-        internal static KnowledgeGraphNodeId? GetPrevChapter(string canon, string book, int chapter)
+        internal static KnowledgeGraphNodeId? GetPrevChapter(string book, int chapter)
         {
             if (chapter > 1)
             {
-                return FeatureToNodeMapping.ScriptureChapter(canon, book, chapter - 1);
+                return FeatureToNodeMapping.ScriptureChapter(book, chapter - 1);
             }
             else
             {
@@ -243,18 +243,17 @@ namespace ScriptureGraph.Core.Training
                 }
 
                 string prevBookName = BOOKS_IN_ORDER[thisBookIndex - 1];
-                string prevBookCanon = BOOK_TO_CANON[prevBookName];
                 int prevBookChapter = GetNumChaptersInBook(prevBookName);
-                return FeatureToNodeMapping.ScriptureChapter(prevBookCanon, prevBookName, prevBookChapter);
+                return FeatureToNodeMapping.ScriptureChapter(prevBookName, prevBookChapter);
             }
         }
 
-        internal static KnowledgeGraphNodeId? GetNextChapter(string canon, string book, int chapter)
+        internal static KnowledgeGraphNodeId? GetNextChapter(string book, int chapter)
         {
             int thisBookLength = GetNumChaptersInBook(book);
             if (chapter < thisBookLength)
             {
-                return FeatureToNodeMapping.ScriptureChapter(canon, book, chapter + 1);
+                return FeatureToNodeMapping.ScriptureChapter(book, chapter + 1);
             }
             else
             {
@@ -265,8 +264,7 @@ namespace ScriptureGraph.Core.Training
                 }
 
                 string nextBookName = BOOKS_IN_ORDER[thisBookIndex + 1];
-                string nextBookCanon = BOOK_TO_CANON[nextBookName];
-                return FeatureToNodeMapping.ScriptureChapter(nextBookCanon, nextBookName, 1);
+                return FeatureToNodeMapping.ScriptureChapter(nextBookName, 1);
             }
         }
 
