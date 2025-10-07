@@ -1,4 +1,4 @@
-## Scripture Graph Study App (todo needs better name?)
+## Scripture Roots
 
 <img width="2842" height="1620" alt="image" src="https://github.com/user-attachments/assets/12a75845-dd16-4f62-ab6a-ec585eb615dc" />
 
