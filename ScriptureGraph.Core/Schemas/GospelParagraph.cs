@@ -1,12 +1,6 @@
-﻿using Newtonsoft.Json.Converters;
-using ScriptureGraph.Core.Graph;
+﻿using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas.Serializers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Schemas
 {
@@ -20,7 +14,7 @@ namespace ScriptureGraph.Core.Schemas
         public required string Text { get; set; }
 
         [JsonPropertyName("c")]
-        [JsonConverter(typeof(StringEnumConverter))]
+        [JsonConverter(typeof(JsonNumberEnumConverter<GospelParagraphClass>))]
         public GospelParagraphClass Class { get; set; }
     }
 }

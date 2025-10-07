@@ -15,7 +15,6 @@ using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System.Diagnostics;
 using System.IO.Compression;
-using static Durandal.Common.Audio.WebRtc.RingBuffer;
 
 namespace ScriptureGraph.Console
 {
@@ -98,10 +97,11 @@ namespace ScriptureGraph.Console
             //    brotli.CopyToPooled(fileOut);
             //}
 
-            IFileSystem fileSystem = new RealFileSystem(logger, @"C:\Code\scripturegraph\Books");
-            BookExtractorATGQ.ExtractDocuments(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
+            //IFileSystem fileSystem = new RealFileSystem(logger, @"C:\Code\scripturegraph\Books");
+            //BookExtractorATGQ.ExtractDocuments(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
 
             //await Test(logger);
+            await ParseDocuments(logger);
         }
 
         private static async Task Test(ILogger logger)
@@ -444,10 +444,11 @@ namespace ScriptureGraph.Console
 
         private static async Task ParseDocuments(ILogger logger)
         {
-            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\cache");
-            IFileSystem documentCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"D:\Code\scripturegraph\runtime\documents");
+            IFileSystem webCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\runtime\cache");
+            IFileSystem documentCacheFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\runtime\documents");
+            IFileSystem epubFileSystem = new RealFileSystem(logger.Clone("CacheFS"), @"C:\Code\scripturegraph\Books");
             WebPageCache pageCache = new WebPageCache(webCacheFileSystem);
-            await CommonTasks.ParseDocuments(logger, pageCache, documentCacheFileSystem);
+            await CommonTasks.ParseDocuments(logger, pageCache, documentCacheFileSystem, epubFileSystem);
         }
     }
 }

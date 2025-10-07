@@ -11,31 +11,31 @@ namespace ScriptureGraph.Core.Schemas
         /// <summary>
         /// Default style applied
         /// </summary>
-        Default,
+        Default = 0,
 
         /// <summary>
         /// H1 header at the top of the document
         /// </summary>
-        Header,
+        Header = 1,
 
         /// <summary>
         /// H2 header, usually in the middle of documents
         /// </summary>
-        SubHeader,
+        SubHeader = 2,
 
         /// <summary>
         /// Study summary given above scripture verses
         /// </summary>
-        StudySummary,
+        StudySummary = 3,
 
         /// <summary>
         /// A scripture verse
         /// </summary>
-        Verse,
+        Verse = 4,
 
         /// <summary>
         /// A line of quotation (used also for poems, songs, etc.)
         /// </summary>
-        Quotation,
+        Quotation = 5,
     }
 }

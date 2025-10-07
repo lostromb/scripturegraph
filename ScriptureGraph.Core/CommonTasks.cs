@@ -275,15 +275,20 @@ namespace ScriptureGraph.Core
         /// <param name="logger"></param>
         /// <param name="pageCache"></param>
         /// <returns></returns>
-        public static async Task ParseDocuments(ILogger logger, WebPageCache pageCache, IFileSystem documentFileSystem)
+        public static async Task ParseDocuments(ILogger logger, WebPageCache pageCache, IFileSystem documentFileSystem, IFileSystem epubFileSystem)
         {
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
-            DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem);
-            await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawler, logger);
+            IThreadPool threadPool = new TaskThreadPool();
+            DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
+            logger.Log("Processing documents from webcrawler sources");
+            //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawler, logger);
             //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            logger.Log("Waiting for document parsing to finish");
+            logger.Log("Waiting for webcrawler parsing to finish");
             await processor.WaitForThreadsToFinish();
+            logger.Log("Processing documents from local sources");
+            Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
+            //await Book_ATGQ_ExtractDocumentsThreaded(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, threadPool);
         }
 
         /// <summary>
@@ -299,11 +304,11 @@ namespace ScriptureGraph.Core
             private int _threadsStarted = 0;
             private int _threadsFinished = 0;
 
-            public DocumentProcessorForDocumentParsing(IFileSystem documentCacheFileSystem)
+            public DocumentProcessorForDocumentParsing(IFileSystem documentCacheFileSystem, IThreadPool threadPool)
             {
                 _documentCacheFileSystem = documentCacheFileSystem;
                 _trainingThreadPool = new FixedCapacityThreadPool(
-                    new TaskThreadPool(),
+                    threadPool,
                     NullLogger.Singleton,
                     NullMetricCollector.Singleton,
                     DimensionSet.Empty,
@@ -352,7 +357,7 @@ namespace ScriptureGraph.Core
                     }
                     else
                     {
-                        fileDestination = new VirtualPath($"{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.json.br");
+                        fileDestination = new VirtualPath($"{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.{structuredDoc.Language.ToBcp47Alpha3String()}.json.br");
                     }
                 }
                 else
@@ -369,7 +374,7 @@ namespace ScriptureGraph.Core
                         }
                         else
                         {
-                            fileDestination = new VirtualPath($"bd\\{structuredDoc.TopicId}.json.br");
+                            fileDestination = new VirtualPath($"bd\\{structuredDoc.TopicId}.{structuredDoc.Language.ToBcp47Alpha3String()}.json.br");
                         }
                     }
                     else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal) ||
@@ -391,7 +396,7 @@ namespace ScriptureGraph.Core
                             }
                             else
                             {
-                                fileDestination = new VirtualPath($"general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.json.br");
+                                fileDestination = new VirtualPath($"general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.{structuredDoc.Language.ToBcp47Alpha3String()}.json.br");
                             }
                         }
                         else
@@ -413,6 +418,67 @@ namespace ScriptureGraph.Core
                 }
 
                 return Task.FromResult<bool>(true);
+            }
+        }
+
+        private static void Book_ATGQ_ExtractDocuments(
+            IFileSystem documentCacheFileSystem,
+            IFileSystem epubFileSystem,
+            VirtualPath epubPath,
+            ILogger logger)
+        {
+            documentCacheFileSystem.CreateDirectory(new VirtualPath("atgq"));
+            foreach (BookChapterDocument bookChapter in BookExtractorATGQ.ExtractDocuments(epubFileSystem, epubPath, logger))
+            {
+                VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json");
+                using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                {
+                    GospelDocument.SerializePolymorphic(fileOut, bookChapter);
+                }
+
+                //VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json.br");
+                //using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                //using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
+                //{
+                //    GospelDocument.SerializePolymorphic(brotliStream, bookChapter);
+                //}
+            }
+        }
+
+        private static async Task Book_ATGQ_ExtractDocumentsThreaded(
+            IFileSystem documentCacheFileSystem,
+            IFileSystem epubFileSystem,
+            VirtualPath epubPath,
+            ILogger logger,
+            IThreadPool threadPool)
+        {
+            int threadsStarted = 0;
+            int threadsFinished = 0;
+            documentCacheFileSystem.CreateDirectory(new VirtualPath("atgq"));
+            foreach (BookChapterDocument bookChapter in BookExtractorATGQ.ExtractDocuments(epubFileSystem, epubPath, logger))
+            {
+                threadsStarted++;
+                threadPool.EnqueueUserWorkItem(() =>
+                {
+                    try
+                    {
+                        VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json.br");
+                        using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                        using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
+                        {
+                            GospelDocument.SerializePolymorphic(brotliStream, bookChapter);
+                        }
+                    }
+                    finally
+                    {
+                        Interlocked.Increment(ref threadsFinished);
+                    }
+                });
+            }
+
+            while (threadsStarted < threadsFinished)
+            {
+                await Task.Delay(1000).ConfigureAwait(false);
             }
         }
 

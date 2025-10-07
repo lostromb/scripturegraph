@@ -120,5 +120,15 @@ namespace ScriptureGraph.Core.Training
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookParagraph, $"{bookName}|{chapter}|{paragraph}");
         }
+
+        public static KnowledgeGraphNodeId BookChapterParagraph(KnowledgeGraphNodeId documentId, string paragraph)
+        {
+            if (documentId.Type != KnowledgeGraphNodeType.BookChapter)
+            {
+                throw new ArgumentException("Parent document ID must be a book chapter");
+            }
+
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookParagraph, $"{documentId.Name}|{paragraph}");
+        }
     }
 }

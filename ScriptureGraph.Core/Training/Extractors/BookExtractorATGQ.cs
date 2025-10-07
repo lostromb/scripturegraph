@@ -25,76 +25,67 @@ namespace ScriptureGraph.Core.Training.Extractors
         {
             try
             {
-                ParseEpubAndProcess(fileSystem, bookPath, logger, (Stream fileStream, int volumeNum, int chapterNum, ILogger logger) =>
+                ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
                 {
-                    string bookChapterString = $"{volumeNum}.{chapterNum}";
-                    KnowledgeGraphNodeId overallDocumentId = FeatureToNodeMapping.BookChapter(BOOK_ID, bookChapterString);
-                    ParseSingleChapter(fileStream, volumeNum, chapterNum, logger,
-                        (KnowledgeGraphNodeId documentId) =>
+                    // High-level features
+                    // Title of the question -> Question
+                    foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(chapter.Title))
+                    {
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            chapter.DocumentEntityId,
+                            ngram,
+                            TrainingFeatureType.WordDesignation));
+                    }
+
+                    foreach (ParsedBodyParagraph para in chapter.BodyParagraphs)
+                    {
+                        // Associate this paragraph with the entire question
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            chapter.DocumentEntityId,
+                            para.ParaEntityId,
+                            TrainingFeatureType.BookAssociation));
+
+                        // And with the previous paragraph
+                        if (para.ParagraphNum > 1)
                         {
-                            overallDocumentId = documentId;
-                        },
-                        (KnowledgeGraphNodeId paraId, string title) =>
-                        {
-                            // High-level features
-                            // Title of the question -> Question
-                            foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(title))
-                            {
-                                trainingFeaturesOut.Add(new TrainingFeature(
-                                    overallDocumentId,
-                                    ngram,
-                                    TrainingFeatureType.WordDesignation));
-                            }
-                        },
-                        (KnowledgeGraphNodeId paraId, string body, int paragraphNum, IReadOnlySet<string> paraClassSet) =>
-                        {
-                            // Associate this paragraph with the entire question
                             trainingFeaturesOut.Add(new TrainingFeature(
-                                overallDocumentId,
-                                paraId,
-                                TrainingFeatureType.BookAssociation));
+                                para.ParaEntityId,
+                                FeatureToNodeMapping.BookChapterParagraph(chapter.DocumentEntityId, (para.ParagraphNum - 1).ToString()),
+                                TrainingFeatureType.ParagraphAssociation));
+                        }
 
-                            // And with the previous paragraph
-                            if (paragraphNum > 1)
+                        // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
+                        // doing 9x permutations between every single word in the paragraph)
+                        List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
+
+                        foreach (string sentence in sentences)
+                        {
+                            string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
+
+                            // Common word and ngram level features associated with this paragraph entity
+                            EnglishWordFeatureExtractor.ExtractTrainingFeatures(thisSentenceWordBreakerText, trainingFeaturesOut, para.ParaEntityId);
+
+                            // Parse all scripture references (in plaintext) and turn them into entity links
+                            foreach (ScriptureReference scriptureRef in ScriptureMetadata.ParseAllReferences(thisSentenceWordBreakerText, LanguageCode.ENGLISH))
                             {
+                                KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
+                                // Entity reference between this talk paragraph and the scripture ref
                                 trainingFeaturesOut.Add(new TrainingFeature(
-                                    paraId,
-                                    FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, bookChapterString, (paragraphNum - 1).ToString()),
-                                    TrainingFeatureType.ParagraphAssociation));
-                            }
+                                    para.ParaEntityId,
+                                    refNodeId,
+                                    TrainingFeatureType.EntityReference));
 
-                            // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
-                            // doing 9x permutations between every single word in the paragraph)
-                            List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(body).ToList();
-
-                            foreach (string sentence in sentences)
-                            {
-                                string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
-
-                                // Common word and ngram level features associated with this paragraph entity
-                                EnglishWordFeatureExtractor.ExtractTrainingFeatures(thisSentenceWordBreakerText, trainingFeaturesOut, paraId);
-
-                                // Parse all scripture references (in plaintext) and turn them into entity links
-                                foreach (ScriptureReference scriptureRef in ScriptureMetadata.ParseAllReferences(thisSentenceWordBreakerText, LanguageCode.ENGLISH))
+                                // And association between all words spoken in this sentence and the scripture ref
+                                foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(thisSentenceWordBreakerText))
                                 {
-                                    KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
-                                    // Entity reference between this talk paragraph and the scripture ref
                                     trainingFeaturesOut.Add(new TrainingFeature(
-                                        paraId,
+                                        ngram,
                                         refNodeId,
-                                        TrainingFeatureType.EntityReference));
-
-                                    // And association between all words spoken in this sentence and the scripture ref
-                                    foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(thisSentenceWordBreakerText))
-                                    {
-                                        trainingFeaturesOut.Add(new TrainingFeature(
-                                            ngram,
-                                            refNodeId,
-                                            TrainingFeatureType.WordAssociation));
-                                    }
+                                        TrainingFeatureType.WordAssociation));
                                 }
                             }
-                        });
+                        }
+                    }
                 });
             }
             catch (Exception e)
@@ -103,29 +94,20 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        public static void ExtractSearchIndexFeatures(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, List<TrainingFeature> trainingFeaturesOut, EntityNameIndex nameIndex)
+        public static void ExtractSearchIndexFeatures(
+            IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, List<TrainingFeature> trainingFeaturesOut, EntityNameIndex nameIndex)
         {
             try
             {
-                ParseEpubAndProcess(fileSystem, bookPath, logger, (Stream fileStream, int volumeNum, int chapterNum, ILogger logger) =>
+                ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
                 {
-                    KnowledgeGraphNodeId overallDocumentId = FeatureToNodeMapping.BookChapter(BOOK_ID, $"{volumeNum}.{chapterNum}");
-                    ParseSingleChapter(fileStream, volumeNum, chapterNum, logger,
-                        (KnowledgeGraphNodeId documentId) =>
-                        {
-                            overallDocumentId = documentId;
-                        },
-                        (KnowledgeGraphNodeId paraId, string title) =>
-                        {
-                            foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(title))
-                            {
-                                trainingFeaturesOut.Add(new TrainingFeature(
-                                    overallDocumentId,
-                                    ngram,
-                                    TrainingFeatureType.WordDesignation));
-                            }
-                        },
-                        (KnowledgeGraphNodeId paraId, string body, int paragraphNum, IReadOnlySet<string> paraClassSet) => { });
+                    foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(chapter.Title))
+                    {
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            chapter.DocumentEntityId,
+                            ngram,
+                            TrainingFeatureType.WordDesignation));
+                    }
                 });
             }
             catch (Exception e)
@@ -137,7 +119,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         public static IEnumerable<BookChapterDocument> ExtractDocuments(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger)
         {
             List<BookChapterDocument> returnVal = new List<BookChapterDocument>();
-            ParseEpubAndProcess(fileSystem, bookPath, logger, (Stream fileStream, int volumeNum, int chapterNum, ILogger logger) =>
+            ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
             {
                 BookChapterDocument parsedChapter = new BookChapterDocument()
                 {
@@ -145,59 +127,48 @@ namespace ScriptureGraph.Core.Training.Extractors
                     DocumentType = GospelDocumentType.GospelBookChapter,
                     Language = LanguageCode.ENGLISH,
                     Paragraphs = new List<GospelParagraph>(),
-                    DocumentEntityId = new KnowledgeGraphNodeId(),
+                    DocumentEntityId = chapter.DocumentEntityId,
+                    ChapterId = chapter.ChapterId,
                 };
 
-                bool success = ParseSingleChapter(fileStream, volumeNum, chapterNum, logger,
-                    (KnowledgeGraphNodeId documentId) =>
-                    {
-                        parsedChapter.DocumentEntityId = documentId;
-                    },
-                    (KnowledgeGraphNodeId paraId, string title) =>
-                    {
-                        parsedChapter.Paragraphs.Insert(0, new GospelParagraph()
-                        {
-                            ParagraphEntityId = paraId,
-                            Text = title,
-                            Class = GospelParagraphClass.Header
-                        });
-                    },
-                    (KnowledgeGraphNodeId paraId, string body, int paragraphNum, IReadOnlySet<string> paraClassSet) =>
-                    {
-                        GospelParagraphClass paraClassTyped = GospelParagraphClass.Default;
-                        if (paraClassSet.Contains("Sub1"))
-                        {
-                            paraClassTyped = GospelParagraphClass.SubHeader;
-                        }
-                        else if (paraClassSet.Contains("Quote") || paraClassSet.Contains("Poem"))
-                        {
-                            paraClassTyped = GospelParagraphClass.Quotation;
-                        }
-                        else if (paraClassSet.Contains("Scripture"))
-                        {
-                            paraClassTyped = GospelParagraphClass.Verse;
-                        }
-
-                        parsedChapter.Paragraphs.Add(new GospelParagraph()
-                        {
-                            ParagraphEntityId = paraId,
-                            Text = body,
-                            Class = paraClassTyped
-                        });
-                    });
-
-
-                if (success)
+                parsedChapter.Paragraphs.Insert(0, new GospelParagraph()
                 {
-                    returnVal.Add(parsedChapter);
+                    ParagraphEntityId = chapter.TitleParaEntityId,
+                    Text = chapter.Title,
+                    Class = GospelParagraphClass.Header
+                });
+
+                foreach (ParsedBodyParagraph para in chapter.BodyParagraphs)
+                {
+                    GospelParagraphClass paraClassTyped = GospelParagraphClass.Default;
+                    if (para.ClassSet.Contains("Sub1"))
+                    {
+                        paraClassTyped = GospelParagraphClass.SubHeader;
+                    }
+                    else if (para.ClassSet.Contains("Quote") || para.ClassSet.Contains("Poem"))
+                    {
+                        paraClassTyped = GospelParagraphClass.Quotation;
+                    }
+                    else if (para.ClassSet.Contains("Scripture"))
+                    {
+                        paraClassTyped = GospelParagraphClass.Verse;
+                    }
+
+                    parsedChapter.Paragraphs.Add(new GospelParagraph()
+                    {
+                        ParagraphEntityId = para.ParaEntityId,
+                        Text = para.Text,
+                        Class = paraClassTyped
+                    });
                 }
+
+                returnVal.Add(parsedChapter);
             });
 
             return returnVal;
         }
 
-
-        private static void ParseEpubAndProcess(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, Action<Stream, int, int, ILogger> parseHandler)
+        private static void ParseEpubAndProcess(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, Action<ParsedChapter, ILogger> parseHandler)
         {
             if (!fileSystem.Exists(bookPath))
             {
@@ -225,20 +196,22 @@ namespace ScriptureGraph.Core.Training.Extractors
                         logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Parsing file \"{0}\"", file.FullName);
                         int volumeNum = int.Parse(fileNameMatch.Groups[1].Value);
                         int chapterNum = int.Parse(fileNameMatch.Groups[2].Value);
-                        parseHandler(fileStream, volumeNum, chapterNum, logger);
+                        ParsedChapter? chap = ParseSingleChapter(fileStream, volumeNum, chapterNum, logger);
+
+                        if (chap != null)
+                        {
+                            parseHandler(chap.Value, logger);
+                        }
                     }
                 }
             }
         }
 
-        private static bool ParseSingleChapter(
+        private static ParsedChapter? ParseSingleChapter(
             Stream htmlStream,
             int volume,
             int chapter,
-            ILogger logger,
-            Action<KnowledgeGraphNodeId> entireDocumentDelegate,
-            Action<KnowledgeGraphNodeId, string> titleDelegate,
-            Action<KnowledgeGraphNodeId, string, int, IReadOnlySet<string>> bodyParagraphDelegate)
+            ILogger logger)
         {
             try
             {
@@ -275,10 +248,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                 if (!hasChapterNum || !hasChapterTitle)
                 {
                     logger.Log("This page does not appear to be a chapter", LogLevel.Wrn);
-                    return false;
+                    return null;
                 }
 
-                entireDocumentDelegate(FeatureToNodeMapping.BookChapter(BOOK_ID, bookChapterString));
+                KnowledgeGraphNodeId documentEntityId = FeatureToNodeMapping.BookChapter(BOOK_ID, bookChapterString);
+                KnowledgeGraphNodeId? titleParaEntityId = null;
+                string? title = null;
+                List<ParsedBodyParagraph> bodyParagraphs = new List<ParsedBodyParagraph>();
 
                 int paragraph = 1;
                 iter = html.CreateNavigator().Select("/html/body/p");
@@ -302,7 +278,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                         paragraphContent = WebUtility.HtmlDecode(paragraphContent);
                         paragraphContent = WebUtility.HtmlDecode(paragraphContent);
                         logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Document title set to \"{0}\"", paragraphContent);
-                        titleDelegate(FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, bookChapterString, "title"), paragraphContent);
+                        titleParaEntityId = FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, bookChapterString, "title");
+                        title = paragraphContent;
                     }
                     else if (paraClassSet.Contains("ChapNo"))
                     {
@@ -323,23 +300,55 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
 
                         //logger.Log($"<class=\"{paraClassRaw}\">{paragraphContent}");
-                        bodyParagraphDelegate(
-                            FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, bookChapterString, paragraph.ToString()),
-                            paragraphContent,
-                            paragraph,
-                            paraClassSet);
+                        bodyParagraphs.Add(new ParsedBodyParagraph()
+                        {
+                            ParaEntityId = FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, bookChapterString, paragraph.ToString()),
+                            Text = paragraphContent,
+                            ParagraphNum = paragraph,
+                            ClassSet = paraClassSet.Count == 0 ? EMPTY_STRING_SET : new HashSet<string>(paraClassSet, StringComparer.OrdinalIgnoreCase)
+                        });
 
                         paragraph++;
                     }
                 }
 
-                return true;
+                if (title is null || titleParaEntityId is null)
+                {
+                    logger.Log("No title found", LogLevel.Wrn);
+                    return null;
+                }
+
+                return new ParsedChapter()
+                {
+                    Title = title,
+                    DocumentEntityId = documentEntityId,
+                    TitleParaEntityId = titleParaEntityId.Value,
+                    BodyParagraphs = bodyParagraphs,
+                    ChapterId = bookChapterString,
+                };
             }
             catch (Exception e)
             {
                 logger.Log(e);
-                return false;
+                return null;
             }
+        }
+
+        private record struct ParsedChapter
+        {
+            public string ChapterId;
+            public KnowledgeGraphNodeId DocumentEntityId;
+            public KnowledgeGraphNodeId TitleParaEntityId;
+            public string Title;
+            public List<ParsedBodyParagraph> BodyParagraphs;
+        }
+
+        private record struct ParsedBodyParagraph
+        {
+            public KnowledgeGraphNodeId ParaEntityId;
+            public string Text;
+            public int ParagraphNum;
+            public IReadOnlySet<string> ClassSet;
         }
     }
 }

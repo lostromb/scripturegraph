@@ -62,6 +62,9 @@ namespace ScriptureGraph.Core.Schemas
                 case GospelDocumentType.BibleDictionaryEntry:
                     parsedDoc = jsonStructure.Deserialize<BibleDictionaryDocument>();
                     break;
+                case GospelDocumentType.GospelBookChapter:
+                    parsedDoc = jsonStructure.Deserialize<BookChapterDocument>();
+                    break;
                 default:
                     throw new InvalidDataException("Unknown document type: " + parsedMetaDoc.DocumentType.ToString());
             }
@@ -89,6 +92,10 @@ namespace ScriptureGraph.Core.Schemas
                 else if (document is BibleDictionaryDocument bd)
                 {
                     JsonSerializer.Serialize(jsonWriter, bd);
+                }
+                else if (document is BookChapterDocument chap)
+                {
+                    JsonSerializer.Serialize(jsonWriter, chap);
                 }
                 else
                 {
