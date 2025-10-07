@@ -1016,6 +1016,7 @@ namespace ScriptureGraph.App
             returnVal.Background = (Brush)TryFindResource("DocumentReaderPageBackground");
 
             // Build blocks for all paragraphs
+            bool firstNonTitle = true;
             int para = 1;
             foreach (GospelParagraph paragraph in inputDoc.Paragraphs)
             {
@@ -1027,6 +1028,17 @@ namespace ScriptureGraph.App
                 uiParagraph.FontFamily = (FontFamily)TryFindResource($"Para_FontFamily_{styleKey}");
                 uiParagraph.Margin = (Thickness)TryFindResource($"Para_Margin_{styleKey}");
                 uiParagraph.FontSize = (double)TryFindResource($"Para_FontSize_{styleKey}");
+
+                if (firstNonTitle &&
+                    paragraph.Class != GospelParagraphClass.Header &&
+                    paragraph.Class != GospelParagraphClass.SubHeader)
+                {
+                    // Add a special margin space above the first non-title block
+                    // (things like N.T. epistles have titles and subtitles mixed together so those would look weird if we
+                    // had a flat large margin space below all titles in general)
+                    uiParagraph.Margin = new Thickness(uiParagraph.Margin.Left, uiParagraph.Margin.Top + 20, uiParagraph.Margin.Right, uiParagraph.Margin.Bottom);
+                    firstNonTitle = false;
+                }
 
                 if (displayVerses)
                 {

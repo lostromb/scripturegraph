@@ -15,7 +15,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             Canon = canon;
             Book = book;
             Chapter = chapter;
-            Paragraph = null;
+            Paragraph = verse.ToString();
             Verse = verse;
             LowEmphasis = false;
         }
@@ -80,8 +80,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                 else
                 {
                     Verse = null;
-                    Paragraph = parts[2];
                 }
+
+                Paragraph = parts[2];
             }
             else if (entityId.Type == KnowledgeGraphNodeType.ScriptureChapter)
             {
