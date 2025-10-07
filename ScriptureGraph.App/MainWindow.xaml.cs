@@ -10,6 +10,7 @@ using ScriptureGraph.Core.Training.Extractors;
 using System.DirectoryServices;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -963,118 +964,77 @@ namespace ScriptureGraph.App
             }
         }
 
+        private static readonly Regex FORMATTING_HTML_PARSER = new Regex("<(\\/)?([bi])\\s*>");
+
+        private static void AddFormattedInlines(string text, InlineCollection collection)
+        {
+            // TODO: Remove the "fancy" formatting from documents?
+            // Like nbsp and fancy quotes and stuff - they might mess up copy and pasting
+            bool italic = false;
+            bool bold = false;
+            MatchCollection tagMatches = FORMATTING_HTML_PARSER.Matches(text);
+            int currentIndex = 0;
+            foreach (Match match in tagMatches)
+            {
+                string substring = text.Substring(currentIndex, match.Index - currentIndex);
+                Inline inline = new Run(substring);
+                if (bold)
+                    inline = new Bold(inline);
+                if (italic)
+                    inline = new Italic(inline);
+
+                collection.Add(inline);
+                currentIndex = match.Index + match.Length;
+
+                if (string.Equals("b", match.Groups[2].Value))
+                {
+                    bold = !match.Groups[1].Success;
+                }
+                else if (string.Equals("i", match.Groups[2].Value))
+                {
+                    italic = !match.Groups[1].Success;
+                }
+            }
+
+            if (currentIndex < text.Length)
+            {
+                string substring = text.Substring(currentIndex);
+                Inline inline = new Run(substring);
+                if (bold)
+                    inline = new Bold(inline);
+                if (italic)
+                    inline = new Italic(inline);
+
+                collection.Add(inline);
+            }
+        }
+
         private FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc, Guid targetPane)
         {
             FlowDocument returnVal = new FlowDocument();
-            ScriptureChapterDocument? scriptureChapter = inputDoc as ScriptureChapterDocument;
-            BibleDictionaryDocument? bibleDictEntry = inputDoc as BibleDictionaryDocument;
-            ConferenceTalkDocument? confTalkEntry = inputDoc as ConferenceTalkDocument;
-
-            FontFamily bodyParaFont = (FontFamily)TryFindResource("SerifFontFamily");
-            Thickness bodyParaMargin = (Thickness)TryFindResource("DefaultParagraphMargin");
-            double titleFontSize = (double)TryFindResource("TitleFontSize");
-            Thickness titleMargin = (Thickness)TryFindResource("TitleMargin");
-            double subtitleFontSize = (double)TryFindResource("SubtitleFontSize");
-            Thickness subtitleMargin = (Thickness)TryFindResource("SubtitleMargin");
-            double bodyParaFontSize = (double)TryFindResource("VerseFontSize");
-            double verseNumFontSize = (double)TryFindResource("VerseNumFontSize");
-            Thickness verseNumMargin = (Thickness)TryFindResource("VerseNumMargin");
-            bool displayVerses = false;
-
-            // Determine what styles we need to use
-            if (inputDoc is ScriptureChapterDocument)
-            {
-                bodyParaMargin = (Thickness)TryFindResource("ScriptureParagraphMargin");
-                displayVerses = true;
-            }
-
-
+            bool displayVerses = (inputDoc is ScriptureChapterDocument);
             returnVal.Background = (Brush)TryFindResource("DocumentReaderPageBackground");
-            returnVal.FontFamily = bodyParaFont;
-            returnVal.FontSize = bodyParaFontSize;
-
-            // Build header
-            if (scriptureChapter != null)
-            {
-                Section headerSection = new Section();
-
-                Paragraph bookTitle = new Paragraph();
-                bookTitle.TextAlignment = TextAlignment.Center;
-                bookTitle.Margin = titleMargin;
-                bookTitle.FontSize = titleFontSize;
-                bookTitle.Inlines.Add(ScriptureMetadata.GetNameForBook(scriptureChapter.Book, LanguageCode.ENGLISH));
-                headerSection.Blocks.Add(bookTitle);
-
-                if (ScriptureMetadata.GetNumChaptersInBook(scriptureChapter.Book) > 1)
-                {
-                    Paragraph chapterNum = new Paragraph();
-                    chapterNum.TextAlignment = TextAlignment.Center;
-                    chapterNum.Margin = subtitleMargin;
-                    chapterNum.FontSize = subtitleFontSize;
-                    if (string.Equals(scriptureChapter.Book, "dc", StringComparison.Ordinal))
-                    {
-                        chapterNum.Inlines.Add($"Section {scriptureChapter.Chapter}");
-                    }
-                    else
-                    {
-                        // Todo: More refinements for this.
-                        chapterNum.Inlines.Add($"Chapter {scriptureChapter.Chapter}");
-                    }
-
-                    headerSection.Blocks.Add(chapterNum);
-                }
-
-                returnVal.Blocks.Add(headerSection);
-            }
-            else if (bibleDictEntry != null)
-            {
-                Section headerSection = new Section();
-                Paragraph bookTitle = new Paragraph();
-                bookTitle.Margin = titleMargin;
-                bookTitle.FontSize = titleFontSize;
-                bookTitle.TextAlignment = TextAlignment.Center;
-                bookTitle.Inlines.Add(bibleDictEntry.Title);
-                headerSection.Blocks.Add(bookTitle);
-                returnVal.Blocks.Add(headerSection);
-            }
-            else if (confTalkEntry != null)
-            {
-                Section headerSection = new Section();
-
-                Paragraph talkTitle = new Paragraph();
-                talkTitle.TextAlignment = TextAlignment.Center;
-                talkTitle.Margin = titleMargin;
-                talkTitle.FontSize = titleFontSize;
-                talkTitle.Inlines.Add(confTalkEntry.Title);
-                headerSection.Blocks.Add(talkTitle);
-
-                Paragraph talkSpeaker = new Paragraph();
-                talkSpeaker.TextAlignment = TextAlignment.Center;
-                talkSpeaker.Inlines.Add(confTalkEntry.Speaker);
-                talkSpeaker.Margin = subtitleMargin;
-                talkSpeaker.FontSize = subtitleFontSize;
-                headerSection.Blocks.Add(talkSpeaker);
-
-                returnVal.Blocks.Add(headerSection);
-            }
 
             // Build blocks for all paragraphs
             int para = 1;
             foreach (GospelParagraph paragraph in inputDoc.Paragraphs)
             {
+                string styleKey = paragraph.Class.ToString();
                 Paragraph uiParagraph = new Paragraph();
                 uiParagraph.Tag = paragraph.ParagraphEntityId;
 
-                uiParagraph.Margin = bodyParaMargin;
-                uiParagraph.TextAlignment = TextAlignment.Justify;
+                uiParagraph.TextAlignment = (TextAlignment)TryFindResource($"Para_Align_{styleKey}");
+                uiParagraph.FontFamily = (FontFamily)TryFindResource($"Para_FontFamily_{styleKey}");
+                uiParagraph.Margin = (Thickness)TryFindResource($"Para_Margin_{styleKey}");
+                uiParagraph.FontSize = (double)TryFindResource($"Para_FontSize_{styleKey}");
 
                 if (displayVerses)
                 {
                     Floater verseNumFloater = new Floater();
                     verseNumFloater.Padding = new Thickness(0);
                     verseNumFloater.HorizontalAlignment = HorizontalAlignment.Left;
-                    verseNumFloater.FontSize = verseNumFontSize;
-                    verseNumFloater.Margin = verseNumMargin;
+                    verseNumFloater.FontSize = (double)TryFindResource("VerseNumFontSize");
+                    verseNumFloater.Margin = (Thickness)TryFindResource("VerseNumMargin");
                     verseNumFloater.Tag = paragraph.ParagraphEntityId;
                     Paragraph numPara = new Paragraph();
                     numPara.Inlines.Add(para.ToString());
@@ -1084,53 +1044,58 @@ namespace ScriptureGraph.App
                     para++;
                 }
 
-                // TODO: Remove the "fancy" formatting from documents?
-                // Like nbsp and fancy quotes and stuff - they might mess up copy and pasting
-                // TODO: Add class-dependent styling for paragraphs, re-add italics, etc.
-                // headerParagraph.Inlines.Add(new Italic(new Run(scriptureChapter.ChapterHeader.Text)));
-                uiParagraph.Inlines.Add(paragraph.Text);
+                AddFormattedInlines(paragraph.Text, uiParagraph.Inlines);
                 returnVal.Blocks.Add(uiParagraph);
             }
 
             // Buttons at the bottom of the document if prev/next chapters are enabled
-            if (inputDoc is ScriptureChapterDocument)
+            KnowledgeGraphNodeId? prevChapter = null;
+            KnowledgeGraphNodeId? nextChapter = null;
+            if (inputDoc is ScriptureChapterDocument scriptureChapter)
             {
-                scriptureChapter.AssertNonNull(nameof(scriptureChapter));
-                if (scriptureChapter.Prev.HasValue || scriptureChapter.Next.HasValue)
+                prevChapter = scriptureChapter.Prev;
+                nextChapter = scriptureChapter.Next;
+            }
+            else if (inputDoc is BookChapterDocument bookChapter)
+            {
+                prevChapter = bookChapter.Prev;
+                nextChapter = bookChapter.Next;
+            }
+
+            if (prevChapter.HasValue || nextChapter.HasValue)
+            {
+                UniformGrid grid = new UniformGrid();
+
+                Button prevButton = new Button()
                 {
-                    UniformGrid grid = new UniformGrid();
+                    Content = "Previous",
+                    IsEnabled = prevChapter.HasValue,
+                };
 
-                    Button prevButton = new Button()
-                    {
-                        Content = "Previous",
-                        IsEnabled = scriptureChapter.Prev.HasValue,
-                    };
+                Button nextButton = new Button()
+                {
+                    Content = "Next",
+                    IsEnabled = nextChapter.HasValue
+                };
 
-                    Button nextButton = new Button()
-                    {
-                        Content = "Next",
-                        IsEnabled = scriptureChapter.Next.HasValue
-                    };
-
-                    if (scriptureChapter.Prev.HasValue)
-                    {
-                        prevButton.Tag = new Tuple<KnowledgeGraphNodeId, Guid>(scriptureChapter.Prev.Value, targetPane);
-                        prevButton.Click += NextPrevChapterButton_Click;
-                    }
-
-                    if (scriptureChapter.Next.HasValue)
-                    {
-                        nextButton.Tag = new Tuple<KnowledgeGraphNodeId, Guid>(scriptureChapter.Next.Value, targetPane);
-                        nextButton.Click += NextPrevChapterButton_Click;
-                    }
-
-                    grid.Children.Add(prevButton);
-                    grid.Children.Add(nextButton);
-
-                    BlockUIContainer buttonContainer = new BlockUIContainer();
-                    buttonContainer.Child = grid;
-                    returnVal.Blocks.Add(buttonContainer);
+                if (prevChapter.HasValue)
+                {
+                    prevButton.Tag = new Tuple<KnowledgeGraphNodeId, Guid>(prevChapter.Value, targetPane);
+                    prevButton.Click += NextPrevChapterButton_Click;
                 }
+
+                if (nextChapter.HasValue)
+                {
+                    nextButton.Tag = new Tuple<KnowledgeGraphNodeId, Guid>(nextChapter.Value, targetPane);
+                    nextButton.Click += NextPrevChapterButton_Click;
+                }
+
+                grid.Children.Add(prevButton);
+                grid.Children.Add(nextButton);
+
+                BlockUIContainer buttonContainer = new BlockUIContainer();
+                buttonContainer.Child = grid;
+                returnVal.Blocks.Add(buttonContainer);
             }
 
             return returnVal;
@@ -1175,8 +1140,8 @@ namespace ScriptureGraph.App
                         TextBlock searchResultLabel = new TextBlock()
                         {
                             Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                            FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                            FontSize = (double)TryFindResource("VerseFontSize"),
+                            FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                            FontSize = (double)TryFindResource("Para_FontSize_Verse"),
                             TextWrapping = TextWrapping.Wrap,
                             TextAlignment = TextAlignment.Justify,
                             Padding = new Thickness(5),
@@ -1232,8 +1197,8 @@ namespace ScriptureGraph.App
                         TextBlock searchResultLabel = new TextBlock()
                         {
                             Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                            FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                            FontSize = (double)TryFindResource("VerseFontSize"),
+                            FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                            FontSize = (double)TryFindResource("Para_FontSize_Verse"),
                             TextWrapping = TextWrapping.Wrap,
                             TextAlignment = TextAlignment.Justify,
                             Padding = new Thickness(5),
@@ -1273,8 +1238,8 @@ namespace ScriptureGraph.App
                     TextBlock placeholderSearchResult = new TextBlock()
                     {
                         Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                        FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                        FontSize = (double)TryFindResource("VerseFontSize"),
+                        FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                        FontSize = (double)TryFindResource("Para_FontSize_Verse"),
                         TextWrapping = TextWrapping.Wrap,
                         TextAlignment = TextAlignment.Justify,
                         Padding = new Thickness(5),
@@ -1335,8 +1300,8 @@ namespace ScriptureGraph.App
             TextBlock scriptureSearchResult = new TextBlock()
             {
                 Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                FontSize = (double)TryFindResource("VerseFontSize"),
+                FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                FontSize = (double)TryFindResource("Para_FontSize_Verse"),
                 TextWrapping = TextWrapping.Wrap,
                 TextAlignment = TextAlignment.Justify,
                 Padding = new Thickness(5),
@@ -1377,8 +1342,8 @@ namespace ScriptureGraph.App
             TextBlock conferenceTalkResult = new TextBlock()
             {
                 Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                FontSize = (double)TryFindResource("VerseFontSize"),
+                FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Default"),
+                FontSize = (double)TryFindResource("Para_FontSize_Default"),
                 TextWrapping = TextWrapping.Wrap,
                 TextAlignment = TextAlignment.Justify,
                 Padding = new Thickness(5),
@@ -1430,8 +1395,8 @@ namespace ScriptureGraph.App
             TextBlock conferenceTalkResult = new TextBlock()
             {
                 Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
-                FontFamily = (FontFamily)TryFindResource("SerifFontFamily"),
-                FontSize = (double)TryFindResource("VerseFontSize"),
+                FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                FontSize = (double)TryFindResource("Para_FontSize_Verse"),
                 TextWrapping = TextWrapping.Wrap,
                 TextAlignment = TextAlignment.Justify,
                 Padding = new Thickness(5),

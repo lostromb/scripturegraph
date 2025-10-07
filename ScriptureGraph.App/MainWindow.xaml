@@ -9,16 +9,9 @@
     xmlns:System="clr-namespace:System;assembly=System.Runtime" Loaded="Window_Loaded">
     <Window.Resources>
         <FontFamily x:Key="SerifFontFamily">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
-        <System:Double x:Key="VerseFontSize">16</System:Double>
-        <System:Double x:Key="TitleFontSize">32</System:Double>
-        <Thickness x:Key="TitleMargin">0,0,0,0</Thickness>
-        <System:Double x:Key="SubtitleFontSize">18</System:Double>
-        <Thickness x:Key="SubtitleMargin">0,0,0,10</Thickness>
-        <System:Double x:Key="VerseNumFontSize">12</System:Double>
-        <Thickness x:Key="DefaultParagraphMargin">10,0,10,20</Thickness>
-        <Thickness x:Key="ScriptureParagraphMargin">10,0,10,5</Thickness>
         <SolidColorBrush x:Key="DocumentReaderPageBackground" Color="#FFF2F2F2"/>
         <SolidColorBrush x:Key="SearchResultLabelBackground" Color="#FFA1B2D1"/>
+        <System:Double x:Key="VerseNumFontSize">12</System:Double>
         <Thickness x:Key="VerseNumMargin">0,0,5,0</Thickness>
         <System:Double x:Key="ReadingPaneWidth">500</System:Double>
         <SolidColorBrush x:Key="SearchBubbleBackground" Color="LightGray"/>
@@ -26,6 +19,36 @@
         <SolidColorBrush x:Key="RibbonBackgroundColor" Color="#88A0D4"/>
         <SolidColorBrush x:Key="ReadingPaneHeaderColor" Color="#FFB5C3E2"/>
         <SolidColorBrush x:Key="AppBackgroundColor" Color="#FF3A4456"/>
+        <!-- Paragraph styles follow, keyed on the enum name -->
+        <FontFamily x:Key="Para_FontFamily_Default">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
+        <System:Double x:Key="Para_FontSize_Default">16</System:Double>
+        <Thickness x:Key="Para_Margin_Default">10,0,10,20</Thickness>
+        <TextAlignment x:Key="Para_Align_Default">Justify</TextAlignment>
+
+        <FontFamily x:Key="Para_FontFamily_Verse">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
+        <System:Double x:Key="Para_FontSize_Verse">16</System:Double>
+        <Thickness x:Key="Para_Margin_Verse">10,0,10,5</Thickness>
+        <TextAlignment x:Key="Para_Align_Verse">Justify</TextAlignment>
+
+        <FontFamily x:Key="Para_FontFamily_Header">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
+        <System:Double x:Key="Para_FontSize_Header">32</System:Double>
+        <Thickness x:Key="Para_Margin_Header">0,0,0,0</Thickness>
+        <TextAlignment x:Key="Para_Align_Header">Center</TextAlignment>
+
+        <FontFamily x:Key="Para_FontFamily_SubHeader">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
+        <System:Double x:Key="Para_FontSize_SubHeader">18</System:Double>
+        <Thickness x:Key="Para_Margin_SubHeader">0,0,0,10</Thickness>
+        <TextAlignment x:Key="Para_Align_SubHeader">Center</TextAlignment>
+
+        <FontFamily x:Key="Para_FontFamily_StudySummary">Arial, sans-serif</FontFamily>
+        <System:Double x:Key="Para_FontSize_StudySummary">16</System:Double>
+        <Thickness x:Key="Para_Margin_StudySummary">10,0,10,20</Thickness>
+        <TextAlignment x:Key="Para_Align_StudySummary">Justify</TextAlignment>
+
+        <FontFamily x:Key="Para_FontFamily_Quotation">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
+        <System:Double x:Key="Para_FontSize_Quotation">16</System:Double>
+        <Thickness x:Key="Para_Margin_Quotation">30,0,10,20</Thickness>
+        <TextAlignment x:Key="Para_Align_Quotation">Justify</TextAlignment>
     </Window.Resources>
     <DockPanel Name="ViewRoot" Background="{DynamicResource AppBackgroundColor}" Margin="0,0,10,20">
         <DockPanel
