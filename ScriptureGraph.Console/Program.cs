@@ -15,6 +15,7 @@ using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Net;
 
 namespace ScriptureGraph.Console
 {
@@ -35,7 +36,7 @@ namespace ScriptureGraph.Console
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, logger);
 
-            string rootDirectory = @"C:\Code\scripturegraph";
+            string rootDirectory = @"D:\Code\scripturegraph";
             _runtimeFileSystem = new RealFileSystem(logger.Clone("RuntimeFS"), rootDirectory + @"\runtime");
             _webCacheFileSystem = new RealFileSystem(logger.Clone("WebCacheFS"), rootDirectory + @"\runtime\cache");
             _documentCacheFileSystem = new RealFileSystem(logger.Clone("DocumentFS"), rootDirectory + @"\runtime\documents");
@@ -111,8 +112,12 @@ namespace ScriptureGraph.Console
             //BookExtractorATGQ.ExtractDocuments(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
 
             //await Test(logger);
-            await ParseDocuments(logger);
-            await BuildAndTestSearchIndex(logger);
+            //await ParseDocuments(logger);
+            //await BuildAndTestSearchIndex(logger);
+
+            Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/dc-testament/dc/76?lang=eng");
+            string webPage = new WebClient().DownloadString(scriptureUrl);
+            ScripturePageFeatureExtractorNew.ParseInternal(webPage, scriptureUrl, logger);
         }
 
         private static async Task Test(ILogger logger)
