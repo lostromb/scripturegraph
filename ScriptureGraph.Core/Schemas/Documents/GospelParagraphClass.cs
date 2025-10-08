@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ScriptureGraph.Core.Schemas
+namespace ScriptureGraph.Core.Schemas.Documents
 {
     public enum GospelParagraphClass
     {

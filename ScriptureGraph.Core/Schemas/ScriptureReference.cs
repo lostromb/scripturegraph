@@ -38,7 +38,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         // Special cases:
         // "intro" - diagetic introduction
         // "study-summary" - modern-day chapter summary
-        public string? Paragraph;
+        public string Paragraph;
 
         // Usually indicates that this reference was part of a long range of verses, e.g. "Isaiah 53:1-11", and
         // this is not the verse that is the "main" verse within that range.
@@ -62,6 +62,23 @@ namespace ScriptureGraph.Core.Training.Extractors
             {
                 return $"{Canon} {Book}";
             }
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj != null &&
+                obj is ScriptureReference other &&
+                Chapter == other.Chapter &&
+                string.Equals(Book, other.Book, StringComparison.Ordinal) &&
+                string.Equals(Paragraph, other.Paragraph, StringComparison.Ordinal);
+        }
+
+        public override int GetHashCode()
+        {
+            return 
+                (7931 * Chapter.GetValueOrDefault(0).GetHashCode()) ^
+                (1903 * Book.GetHashCode()) ^
+                (5443 * Paragraph.GetHashCode());
         }
 
         public ScriptureReference(KnowledgeGraphNodeId entityId)

@@ -2,7 +2,7 @@
 using ScriptureGraph.Core.Schemas.Serializers;
 using System.Text.Json.Serialization;
 
-namespace ScriptureGraph.Core.Schemas
+namespace ScriptureGraph.Core.Schemas.Documents
 {
     public class GospelParagraph
     {

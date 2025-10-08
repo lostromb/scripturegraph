@@ -1,5 +1,5 @@
 ﻿using ScriptureGraph.Core.Graph;
-using ScriptureGraph.Core.Schemas;
+using ScriptureGraph.Core.Schemas.Documents;
 using System;
 using System.Collections.Generic;
 using System.Linq;

@@ -40,6 +40,67 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 XPathNodeIterator iter;
                 HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
+
+                // Parse footnotes
+                Dictionary<string, ISet<KnowledgeGraphNodeId>> footnoteReferences = new Dictionary<string, ISet<KnowledgeGraphNodeId>>();
+
+                HashSet<ScriptureReference> scriptureRefs = new HashSet<ScriptureReference>();
+                navigator.MoveToRoot();
+                iter = navigator.Select("//footer[@class=\'study-notes\']");
+                while (iter.MoveNext())
+                {
+                    XPathNodeIterator iter2 = iter.Current.Select(".//p[@id]");
+                    while (iter2.MoveNext())
+                    {
+                        HtmlNodeNavigator currentNav = iter2.Current as HtmlNodeNavigator;
+                        if (currentNav == null)
+                        {
+                            continue;
+                        }
+
+                        string footnotePId = currentNav.GetAttribute("id", string.Empty);
+                        if (footnotePId.Length < 3)
+                        {
+                            logger.Log("Invalid footnote id " + footnotePId, LogLevel.Wrn);
+                            continue;
+                        }
+
+                        footnotePId = footnotePId.Substring(0, footnotePId.Length - 3); // trim the _p1 from the end
+                        Console.WriteLine($"ID {footnotePId}");
+
+                        // Extract all scripture references from links and text
+                        scriptureRefs.Clear();
+                        LdsDotOrgCommonParsers.ParseAllScriptureReferences(WebUtility.HtmlDecode(currentNav.CurrentNode.InnerHtml), scriptureRefs, logger);
+                        HashSet<KnowledgeGraphNodeId> refNodeIds = new HashSet<KnowledgeGraphNodeId>();
+                        foreach (ScriptureReference scriptureRef in scriptureRefs)
+                        {
+                            if (scriptureRef.Chapter.HasValue && scriptureRef.Verse.HasValue)
+                            {
+                                refNodeIds.Add(FeatureToNodeMapping.ScriptureVerse(scriptureRef.Book, scriptureRef.Chapter.Value, scriptureRef.Verse.Value));
+                            }
+                            else if (scriptureRef.Chapter.HasValue && !string.IsNullOrEmpty(scriptureRef.Paragraph))
+                            {
+                                refNodeIds.Add(FeatureToNodeMapping.ScriptureSupplementalParagraph(scriptureRef.Book, scriptureRef.Chapter.Value, scriptureRef.Paragraph));
+                            }
+                            else if (scriptureRef.Chapter.HasValue)
+                            {
+                                refNodeIds.Add(FeatureToNodeMapping.ScriptureChapter(scriptureRef.Book, scriptureRef.Chapter.Value));
+                            }
+                            else
+                            {
+                                refNodeIds.Add(FeatureToNodeMapping.ScriptureBook(scriptureRef.Book));
+                            }
+                        }
+
+                        footnoteReferences[footnotePId] = refNodeIds;
+                        foreach (var node in refNodeIds)
+                        {
+                            Console.WriteLine(node);
+                        }
+                    }
+                }
+
+                // Parse headers
                 navigator.MoveToRoot();
                 iter = navigator.Select("//*[@id=\"main\"]/div/header/p");
                 while (iter.MoveNext())
@@ -89,6 +150,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                     }
                 }
 
+                // Parse verses
+
                 return returnVal;
             }
             catch (Exception e)
@@ -113,11 +176,18 @@ namespace ScriptureGraph.Core.Training.Extractors
             public required string Id;
             public required string Class;
             public required string Text;
+            public readonly List<FootnoteReference> References = new List<FootnoteReference>();
 
             public override string ToString()
             {
                 return Text;
             }
+        }
+
+        public class FootnoteReference
+        {
+            public required KnowledgeGraphNodeId ReferenceNodeId;
+            public Range? ReferenceSpan;
         }
     }
 }

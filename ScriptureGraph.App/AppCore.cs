@@ -10,6 +10,7 @@ using Org.BouncyCastle.Crypto;
 using ScriptureGraph.App.Schemas;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
+using ScriptureGraph.Core.Schemas.Documents;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System;

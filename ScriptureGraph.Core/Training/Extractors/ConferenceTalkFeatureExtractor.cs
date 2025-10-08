@@ -6,6 +6,7 @@ using Durandal.Common.Parsers;
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
+using ScriptureGraph.Core.Schemas.Documents;
 using System.Net;
 using System.Text.RegularExpressions;
 

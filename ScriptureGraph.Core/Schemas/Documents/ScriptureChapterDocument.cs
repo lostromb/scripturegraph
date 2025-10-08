@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace ScriptureGraph.Core.Schemas
+namespace ScriptureGraph.Core.Schemas.Documents
 {
     public class ScriptureChapterDocument : GospelDocument
     {

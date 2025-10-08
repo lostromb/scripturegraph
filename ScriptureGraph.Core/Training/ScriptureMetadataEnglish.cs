@@ -620,7 +620,7 @@ namespace ScriptureGraph.Core.Training
 
         private static IEnumerable<ScriptureReference> ParseSingleReference(string book, string entireThing)
         {
-            string bookId = NAME_TO_ID[book];
+            string bookId = NAME_TO_ID[book.Replace(".", string.Empty)];
             string canonId = ScriptureMetadata.GetCanonForBook(bookId);
 
             int? chapter = null;

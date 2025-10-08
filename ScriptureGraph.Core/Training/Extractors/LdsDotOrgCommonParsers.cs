@@ -1,6 +1,7 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training.Extractors
@@ -239,6 +240,31 @@ namespace ScriptureGraph.Core.Training.Extractors
             List<ScriptureReference> destination,
             ILogger logger)
         {
+            foreach (var reference in ParseAllScriptureReferences(scriptureHtmlPage, logger))
+            {
+                destination.Add(reference);
+            }
+        }
+
+        internal static void ParseAllScriptureReferences(
+            string scriptureHtmlPage,
+            ISet<ScriptureReference> destination,
+            ILogger logger)
+        {
+            foreach (var reference in ParseAllScriptureReferences(scriptureHtmlPage, logger))
+            {
+                if (!destination.Contains(reference))
+                {
+                    destination.Add(reference);
+                }
+            }
+        }
+
+        internal static IEnumerable<ScriptureReference> ParseAllScriptureReferences(
+            string scriptureHtmlPage,
+            ILogger logger)
+        {
+            List<ScriptureReference> scratch = new List<ScriptureReference>();
             foreach (Match footnotScriptureRef in ScriptureRefParser.Matches(scriptureHtmlPage))
             {
                 string refCanon = footnotScriptureRef.Groups[1].Value;
@@ -247,7 +273,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     // It's a reference without chapter or verse info (usually TG or BD)
                     //logger.Log($"Adding reference without chapter to {refCanon} {refBook}");
-                    destination.Add(new ScriptureReference(refCanon, refBook));
+                    yield return new ScriptureReference(refCanon, refBook);
                 }
                 else
                 {
@@ -257,7 +283,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         if (string.Equals("intro", footnotScriptureRef.Groups[4].Value))
                         {
                             // Commonly found on footnotes in D&C that refer to the "intro" of the chapter, which become a "paragraph" rather than verse reference
-                            destination.Add(new ScriptureReference(refCanon, refBook, refChapter, footnotScriptureRef.Groups[4].Value));
+                            yield return new ScriptureReference(refCanon, refBook, refChapter, footnotScriptureRef.Groups[4].Value);
                         }
                         else
                         {
@@ -268,6 +294,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                             }
 
                             // It defines a range somehow
+                            scratch.Clear();
                             ParseVerseParagraphRangeString(footnotScriptureRef.Groups[4].Value, logger,
                                 (referenceString) =>
                                 {
@@ -283,8 +310,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                                         newRef = new ScriptureReference(refCanon, refBook, refChapter, referenceString);
                                     }
 
-                                    destination.Add(newRef);
+                                    scratch.Add(newRef);
                                 });
+
+                            foreach (var scripture in scratch)
+                            {
+                                yield return scripture;
+                            }
                         }
                     }
                     else if (footnotScriptureRef.Groups[6].Success)
@@ -297,22 +329,35 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                         // It's a very long span across chapters.
                         // Group 6 in this case is like "12:37-13:13"
+                        scratch.Clear();
                         ParseMultiChapterSpan(refBook, footnotScriptureRef.Groups[6].Value, logger,
                             (chapter, verse) =>
                             {
                                 ScriptureReference newRef = new ScriptureReference(refCanon, refBook, chapter, verse);
                                 newRef.LowEmphasis = emphasisVerse.HasValue && verse != emphasisVerse.Value;
-                                destination.Add(newRef);
+                                scratch.Add(newRef);
                             });
+
+                        foreach (var scripture in scratch)
+                        {
+                            yield return scripture;
+                        }
                     }
                     else
                     {
                         // Not sure if this is possible but whatever
                         //logger.Log($"Adding reference with chapter but no verse to {refCanon} {refBook} {refChapter}");
-                        destination.Add(
-                            new ScriptureReference(refCanon, refBook, refChapter));
+                        yield return new ScriptureReference(refCanon, refBook, refChapter);
                     }
                 }
+            }
+
+            // Also parse the plaintext and add any references there if we missed them
+            string strippedHtml = WebUtility.HtmlDecode(scriptureHtmlPage);
+            strippedHtml = StringUtils.RegexRemove(HtmlTagRemover, strippedHtml);
+            foreach (ScriptureReference plaintextReference in ScriptureMetadataEnglish.ParseAllReferences(strippedHtml))
+            {
+                yield return plaintextReference;
             }
         }
 
