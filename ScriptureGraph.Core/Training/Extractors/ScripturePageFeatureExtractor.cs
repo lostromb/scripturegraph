@@ -208,7 +208,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     foreach (var scriptureRef in word.Footnote.ScriptureReferences)
                     {
-                       KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
+                       KnowledgeGraphNodeId refNodeId = scriptureRef.ToNodeId();
                         trainingFeaturesOut.Add(new TrainingFeature(
                             thisVerseNode,
                             refNodeId,

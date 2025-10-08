@@ -112,12 +112,12 @@ namespace ScriptureGraph.Console
             //BookExtractorATGQ.ExtractDocuments(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
 
             //await Test(logger);
-            //await ParseDocuments(logger);
+            await ParseDocuments(logger);
             //await BuildAndTestSearchIndex(logger);
 
-            Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/dc-testament/dc/76?lang=eng");
-            string webPage = new WebClient().DownloadString(scriptureUrl);
-            ScripturePageFeatureExtractorNew.ParseInternal(webPage, scriptureUrl, logger);
+            //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/dc-testament/dc/76?lang=eng");
+            //string webPage = new WebClient().DownloadString(scriptureUrl);
+            //ScripturePageFeatureExtractorNew.ParseInternal(webPage, scriptureUrl, logger);
         }
 
         private static async Task Test(ILogger logger)

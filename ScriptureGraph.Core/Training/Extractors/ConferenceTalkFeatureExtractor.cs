@@ -165,7 +165,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         // Cross-references between this verse and other verses based on inline scripture links (used on legacy pages before footnotes)
                         foreach (ScriptureReference scriptureRef in scriptureReferences)
                         {
-                            KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
+                            KnowledgeGraphNodeId refNodeId = scriptureRef.ToNodeId();
                             // Entity reference between this talk paragraph and the scripture ref
                             trainingFeaturesOut.Add(new TrainingFeature(
                                 thisParagraphNode,
@@ -197,7 +197,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                             
                             foreach (var scriptureRef in footnote.ScriptureReferences)
                             {
-                                KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
+                                KnowledgeGraphNodeId refNodeId = scriptureRef.ToNodeId();
                                 // Entity reference between this talk paragraph and the scripture ref
                                 trainingFeaturesOut.Add(new TrainingFeature(
                                     thisParagraphNode,

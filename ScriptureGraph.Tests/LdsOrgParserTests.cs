@@ -152,5 +152,65 @@ namespace ScriptureGraph.Tests
             Assert.AreEqual("ot ex 13:2", dest[3].ToString());
             Assert.AreEqual(true, dest[3].LowEmphasis);
         }
+
+        [TestMethod]
+        public void TestParseAndFormatHtml_PassthroughText()
+        {
+            string html = "His purposes fail not, neither are there any who can stay his hand.";
+            LdsDotOrgCommonParsers.HtmlFragmentParseModel parserOutput = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(html, new ConsoleLogger());
+            Assert.AreEqual(html, parserOutput.TextWithInlineFormatTags);
+            Assert.AreEqual(0, parserOutput.Links.Count);
+        }
+
+        [TestMethod]
+        public void TestParseAndFormatHtml_HtmlDecodeText()
+        {
+            string html = "His &lt;purposes&gt; fail not, neither are there any who can stay his hand.";
+            LdsDotOrgCommonParsers.HtmlFragmentParseModel parserOutput = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(html, new ConsoleLogger());
+            Assert.AreEqual("His <purposes> fail not, neither are there any who can stay his hand.", parserOutput.TextWithInlineFormatTags);
+            Assert.AreEqual(0, parserOutput.Links.Count);
+        }
+
+        [TestMethod]
+        public void TestParseAndFormatHtml_NestedBoldItalic()
+        {
+            string html = "This is <i><b>IMPORTANT</b></i> stuff";
+            LdsDotOrgCommonParsers.HtmlFragmentParseModel parserOutput = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(html, new ConsoleLogger());
+            Assert.AreEqual("This is <i><b>IMPORTANT</b></i> stuff", parserOutput.TextWithInlineFormatTags);
+            Assert.AreEqual(0, parserOutput.Links.Count);
+        }
+
+        [TestMethod]
+        public void TestParseAndFormatHtml_IgnoreOtherTags()
+        {
+            string html = "<div>My name <span>is <b>Darth Vader</b></span></div>";
+            LdsDotOrgCommonParsers.HtmlFragmentParseModel parserOutput = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(html, new ConsoleLogger());
+            Assert.AreEqual("My name is <b>Darth Vader</b>", parserOutput.TextWithInlineFormatTags);
+            Assert.AreEqual(0, parserOutput.Links.Count);
+        }
+
+        [TestMethod]
+        public void TestParseAndFormatHtml_BasicLink()
+        {
+            string html = "His <a class=\"study-note-ref\" href=\"/study/scriptures/dc-testament/dc/76?lang=eng#note3a\" data-scroll-id=\"note3a\"><sup class=\"marker\" data-value=\"a\"></sup>purposes</a> fail not, neither are there any who can stay his hand.";
+            LdsDotOrgCommonParsers.HtmlFragmentParseModel parserOutput = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(html, new ConsoleLogger());
+            Assert.AreEqual("His purposes fail not, neither are there any who can stay his hand.", parserOutput.TextWithInlineFormatTags);
+            Assert.AreEqual(1, parserOutput.Links.Count);
+            Assert.AreEqual(4, parserOutput.Links[0].Item1.Start);
+            Assert.AreEqual(12, parserOutput.Links[0].Item1.End);
+            Assert.AreEqual("/study/scriptures/dc-testament/dc/76?lang=eng#note3a", parserOutput.Links[0].Item2);
+        }
+
+        [TestMethod]
+        public void TestParseAndFormatHtml_EncodedLink()
+        {
+            string html = "His <a class=\"study-note-ref\" href=\"/study/scriptures/nt/john/5?lang=eng&amp;id=p29#p29\" data-scroll-id=\"note3a\"><sup class=\"marker\" data-value=\"a\"></sup>purposes</a> fail not, neither are there any who can stay his hand.";
+            LdsDotOrgCommonParsers.HtmlFragmentParseModel parserOutput = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(html, new ConsoleLogger());
+            Assert.AreEqual("His purposes fail not, neither are there any who can stay his hand.", parserOutput.TextWithInlineFormatTags);
+            Assert.AreEqual(1, parserOutput.Links.Count);
+            Assert.AreEqual(4, parserOutput.Links[0].Item1.Start);
+            Assert.AreEqual(12, parserOutput.Links[0].Item1.End);
+            Assert.AreEqual("/study/scriptures/nt/john/5?lang=eng&id=p29#p29", parserOutput.Links[0].Item2);
+        }
     }
 }

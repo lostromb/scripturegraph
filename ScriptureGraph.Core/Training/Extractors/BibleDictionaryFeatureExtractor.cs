@@ -94,7 +94,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         LdsDotOrgCommonParsers.ParseAllScriptureReferences(sentence, references, logger);
                         foreach (ScriptureReference scriptureRef in references)
                         {
-                            KnowledgeGraphNodeId refNodeId = LdsDotOrgCommonParsers.ConvertScriptureRefToNodeId(scriptureRef);
+                            KnowledgeGraphNodeId refNodeId = scriptureRef.ToNodeId();
 
                             // Associate all scripture references in this sentence to the paragraph entity
                             trainingFeaturesOut.Add(new TrainingFeature(

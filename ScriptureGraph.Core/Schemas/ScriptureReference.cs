@@ -46,7 +46,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         public override string? ToString()
         {
-            if (Chapter.HasValue && Paragraph != null)
+            if (Chapter.HasValue && !string.IsNullOrEmpty(Paragraph))
             {
                 return $"{Canon} {Book} {Chapter}:{Paragraph}";
             }
@@ -119,6 +119,61 @@ namespace ScriptureGraph.Core.Training.Extractors
             else
             {
                 throw new FormatException("Entity id is not a scripture reference");
+            }
+        }
+
+        public KnowledgeGraphNodeId ToNodeId()
+        {
+            if (string.Equals(Canon, "tg", StringComparison.Ordinal))
+            {
+                // Topical guide topic
+                return FeatureToNodeMapping.TopicalGuideKeyword(Book);
+            }
+            else if (string.Equals(Canon, "bd", StringComparison.Ordinal))
+            {
+                // Bible dictionary topic
+                return FeatureToNodeMapping.BibleDictionaryTopic(Book);
+            }
+            else if (string.Equals(Canon, "gs", StringComparison.Ordinal))
+            {
+                // GS topic
+                return FeatureToNodeMapping.GuideToScripturesTopic(Book);
+            }
+            else
+            {
+                if (Chapter.HasValue &&
+                    Verse.HasValue)
+                {
+                    // Regular scripture ref
+                    return FeatureToNodeMapping.ScriptureVerse(
+                        Book,
+                        Chapter.Value,
+                        Verse.Value);
+                }
+                else if (Chapter.HasValue)
+                {
+                    if (Paragraph != null)
+                    {
+                        // Non-numerical paragraph
+                        return FeatureToNodeMapping.ScriptureSupplementalParagraph(
+                            Book,
+                            Chapter.Value,
+                            Paragraph);
+                    }
+                    else
+                    {
+                        // Reference to an entire chapter
+                        return FeatureToNodeMapping.ScriptureChapter(
+                            Book,
+                            Chapter.Value);
+                    }
+                }
+                else
+                {
+                    // Reference to an entire book
+                    return FeatureToNodeMapping.ScriptureBook(
+                        Book);
+                }
             }
         }
     }

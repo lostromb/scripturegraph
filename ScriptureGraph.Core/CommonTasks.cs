@@ -286,13 +286,13 @@ namespace ScriptureGraph.Core
             IThreadPool threadPool = new TaskThreadPool();
             DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
             logger.Log("Processing documents from webcrawler sources");
-            //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawler, logger);
+            await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawler, logger);
             //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for webcrawler parsing to finish");
             await processor.WaitForThreadsToFinish();
             logger.Log("Processing documents from local sources");
-            Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
+            //Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
         }
 
         /// <summary>
@@ -353,7 +353,7 @@ namespace ScriptureGraph.Core
                 if (match.Success)
                 {
                     logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
-                    ScriptureChapterDocument? structuredDoc = ScripturePageFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                    ScriptureChapterDocument? structuredDoc = ScripturePageFeatureExtractorNew.ParseDocument(page.Html, page.Url, logger);
                     parsedDoc = structuredDoc;
                     if (structuredDoc == null)
                     {
@@ -517,9 +517,9 @@ namespace ScriptureGraph.Core
 
         public static async Task CrawlStandardWorks(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
-            await CrawlBookOfMormon(crawler, pageAction, logger);
-            await CrawlOldTestament(crawler, pageAction, logger);
-            await CrawlNewTestament(crawler, pageAction, logger);
+            //await CrawlBookOfMormon(crawler, pageAction, logger);
+            //await CrawlOldTestament(crawler, pageAction, logger);
+            //await CrawlNewTestament(crawler, pageAction, logger);
             await CrawlDC(crawler, pageAction, logger);
             await CrawlPGP(crawler, pageAction, logger);
         }

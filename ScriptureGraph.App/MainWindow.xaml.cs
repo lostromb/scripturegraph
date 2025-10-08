@@ -1041,7 +1041,7 @@ namespace ScriptureGraph.App
                     firstNonTitle = false;
                 }
 
-                if (displayVerses)
+                if (displayVerses && paragraph.Class == GospelParagraphClass.Verse)
                 {
                     Floater verseNumFloater = new Floater();
                     verseNumFloater.Padding = new Thickness(0);

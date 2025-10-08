@@ -1,8 +1,12 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.Utils;
+using HtmlAgilityPack;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.XPath;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
@@ -33,9 +37,11 @@ namespace ScriptureGraph.Core.Training.Extractors
         /// Capture group 2: book (from URL, e.g. "alma") OR for TG or BD, this is the article name (e.g. "god-knowledge-about")
         /// Capture group 3: The chapter integer being referenced, or empty (for refs without chapter such as TG or BD)
         /// Capture group 4: The "paragraph" string, interpreted as the verse or verse range being referenced, in the specific HTML anchor format that must be parsed. Example: "p2", "p37-p38", "p11-p12,19"
+        /// Capture group 5: The "span" string, for very long ranges
+        /// Capture group 6: The fragment, often the emphasis verse such as "p14"
         /// </summary>
-        // class=\"scripture-ref\"\s+href=\"\/study\/scriptures\/(.+?)\/(.+?)(?:\/(\d+?))?\?lang=eng(?:&id=(.+?))?(?:#.+?)?(?:&span=(.+?)(?:#.+?))?\"
-        private static readonly Regex ScriptureRefParser = new Regex("class=\\\"scripture-ref\\\"\\s+href=\\\"\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=eng(?:&id=(.+?))?(#.+?)?(?:&span=(.+?)(#.+?)?)?\\\"");
+        // \/study\/scriptures\/(.+?)\/(.+?)(?:\/(\d+?))?\?lang=\w+(?:&id=(.+?))?(?:&span=(.+?))?(?:#(.+?))?(?:$|\")
+        private static readonly Regex ScriptureRefParser = new Regex("\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=\\w+(?:&id=(.+?))?(?:&span=(.+?))?(?:#(.+?))?(?:$|\\\")");
 
         // Original: <p class=\"([^\"]+?)\".*?>(?:.+?\"verse-number\">(\d+)\s*<\/span>\s*)?(.+?)<\/p>
         // Group 1: paragraph's class
@@ -44,6 +50,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         private static readonly Regex ParagraphParser = new Regex("<p class=\\\"([^\\\"]+?)\\\".*?>(?:.+?\\\"verse-number\\\">(\\d+)\\s*<\\/span>\\s*)?(.+?)<\\/p>");
 
         private static readonly Regex PageBreakRemover = new Regex("<span class=\"page-break\".+?</span>");
+        private static readonly Regex VerseNumSpanRemover = new Regex("<span class=\"verse-number\".+?</span>");
 
         // Matches "entry" paragraphs on topical guide, index, and guide to scriptures
         public static readonly Regex IndexEntryParser = new Regex("<p class=\"entry\".+?>([\\w\\W]+?)<\\/p>");
@@ -68,6 +75,11 @@ namespace ScriptureGraph.Core.Training.Extractors
         internal static string ReplaceBrWithNewlines(string input)
         {
             return StringUtils.RegexReplace(LineBreakMatcher, input, "\r\n");
+        }
+
+        internal static string RemoveVerseNumberSpans(string input)
+        {
+            return StringUtils.RegexRemove(VerseNumSpanRemover, input);
         }
 
         internal static string RemoveNbsp(string input)
@@ -149,61 +161,6 @@ namespace ScriptureGraph.Core.Training.Extractors
             return verses;
         }
 
-        internal static KnowledgeGraphNodeId ConvertScriptureRefToNodeId(ScriptureReference scriptureRef)
-        {
-            if (string.Equals(scriptureRef.Canon, "tg", StringComparison.Ordinal))
-            {
-                // Topical guide topic
-                return FeatureToNodeMapping.TopicalGuideKeyword(scriptureRef.Book);
-            }
-            else if (string.Equals(scriptureRef.Canon, "bd", StringComparison.Ordinal))
-            {
-                // Bible dictionary topic
-                return FeatureToNodeMapping.BibleDictionaryTopic(scriptureRef.Book);
-            }
-            else if (string.Equals(scriptureRef.Canon, "gs", StringComparison.Ordinal))
-            {
-                // GS topic
-                return FeatureToNodeMapping.GuideToScripturesTopic(scriptureRef.Book);
-            }
-            else
-            {
-                if (scriptureRef.Chapter.HasValue &&
-                    scriptureRef.Verse.HasValue)
-                {
-                    // Regular scripture ref
-                    return FeatureToNodeMapping.ScriptureVerse(
-                        scriptureRef.Book,
-                        scriptureRef.Chapter.Value,
-                        scriptureRef.Verse.Value);
-                }
-                else if (scriptureRef.Chapter.HasValue)
-                {
-                    if (scriptureRef.Paragraph != null)
-                    {
-                        // Non-numerical paragraph
-                        return FeatureToNodeMapping.ScriptureSupplementalParagraph(
-                            scriptureRef.Book,
-                            scriptureRef.Chapter.Value,
-                            scriptureRef.Paragraph);
-                    }
-                    else
-                    {
-                        // Reference to an entire chapter
-                        return FeatureToNodeMapping.ScriptureChapter(
-                            scriptureRef.Book,
-                            scriptureRef.Chapter.Value);
-                    }
-                }
-                else
-                {
-                    // Reference to an entire book
-                    return FeatureToNodeMapping.ScriptureBook(
-                        scriptureRef.Book);
-                }
-            }
-        }
-
         internal static Dictionary<string, StructuredFootnote> ParseFootnotesFromPage(
             string scriptureHtmlPage,
             ILogger logger)
@@ -264,7 +221,9 @@ namespace ScriptureGraph.Core.Training.Extractors
             string scriptureHtmlPage,
             ILogger logger)
         {
+            HashSet<ScriptureReference> dedup = new HashSet<ScriptureReference>();
             List<ScriptureReference> scratch = new List<ScriptureReference>();
+            ScriptureReference toReturn;
             foreach (Match footnotScriptureRef in ScriptureRefParser.Matches(scriptureHtmlPage))
             {
                 string refCanon = footnotScriptureRef.Groups[1].Value;
@@ -273,26 +232,39 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     // It's a reference without chapter or verse info (usually TG or BD)
                     //logger.Log($"Adding reference without chapter to {refCanon} {refBook}");
-                    yield return new ScriptureReference(refCanon, refBook);
+                    toReturn = new ScriptureReference(refCanon, refBook);
+                    if (!dedup.Contains(toReturn))
+                    {
+                        dedup.Add(toReturn);
+                        yield return toReturn;
+                    }
                 }
                 else
                 {
                     int refChapter = int.Parse(footnotScriptureRef.Groups[3].Value);
+
+                    int? emphasisVerse = null;
+                    int eParse;
+                    if (footnotScriptureRef.Groups[6].Success && footnotScriptureRef.Groups[6].Value.StartsWith("#p") &&
+                        int.TryParse(footnotScriptureRef.Groups[6].Value.TrimStart('#').TrimStart('p'), out eParse))
+                    {
+                        emphasisVerse = eParse;
+                    }
+
                     if (footnotScriptureRef.Groups[4].Success)
                     {
                         if (string.Equals("intro", footnotScriptureRef.Groups[4].Value))
                         {
                             // Commonly found on footnotes in D&C that refer to the "intro" of the chapter, which become a "paragraph" rather than verse reference
-                            yield return new ScriptureReference(refCanon, refBook, refChapter, footnotScriptureRef.Groups[4].Value);
+                            toReturn = new ScriptureReference(refCanon, refBook, refChapter, footnotScriptureRef.Groups[4].Value);
+                            if (!dedup.Contains(toReturn))
+                            {
+                                dedup.Add(toReturn);
+                                yield return toReturn;
+                            }
                         }
                         else
                         {
-                            int? emphasisVerse = null;
-                            if (footnotScriptureRef.Groups[5].Success)
-                            {
-                                emphasisVerse = int.Parse(footnotScriptureRef.Groups[5].Value.TrimStart('#').TrimStart('p'));
-                            }
-
                             // It defines a range somehow
                             scratch.Clear();
                             ParseVerseParagraphRangeString(footnotScriptureRef.Groups[4].Value, logger,
@@ -315,22 +287,20 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                             foreach (var scripture in scratch)
                             {
-                                yield return scripture;
+                                if (!dedup.Contains(scripture))
+                                {
+                                    dedup.Add(scripture);
+                                    yield return scripture;
+                                }
                             }
                         }
                     }
-                    else if (footnotScriptureRef.Groups[6].Success)
+                    else if (footnotScriptureRef.Groups[5].Success)
                     {
-                        int? emphasisVerse = null;
-                        if (footnotScriptureRef.Groups[7].Success)
-                        {
-                            emphasisVerse = int.Parse(footnotScriptureRef.Groups[7].Value.TrimStart('#').TrimStart('p'));
-                        }
-
                         // It's a very long span across chapters.
-                        // Group 6 in this case is like "12:37-13:13"
+                        // Group 5 in this case is like "12:37-13:13"
                         scratch.Clear();
-                        ParseMultiChapterSpan(refBook, footnotScriptureRef.Groups[6].Value, logger,
+                        ParseMultiChapterSpan(refBook, footnotScriptureRef.Groups[5].Value, logger,
                             (chapter, verse) =>
                             {
                                 ScriptureReference newRef = new ScriptureReference(refCanon, refBook, chapter, verse);
@@ -340,14 +310,23 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                         foreach (var scripture in scratch)
                         {
-                            yield return scripture;
+                            if (!dedup.Contains(scripture))
+                            {
+                                dedup.Add(scripture);
+                                yield return scripture;
+                            }
                         }
                     }
                     else
                     {
                         // Not sure if this is possible but whatever
                         //logger.Log($"Adding reference with chapter but no verse to {refCanon} {refBook} {refChapter}");
-                        yield return new ScriptureReference(refCanon, refBook, refChapter);
+                        toReturn = new ScriptureReference(refCanon, refBook, refChapter);
+                        if (!dedup.Contains(toReturn))
+                        {
+                            dedup.Add(toReturn);
+                            yield return toReturn;
+                        }
                     }
                 }
             }
@@ -357,7 +336,11 @@ namespace ScriptureGraph.Core.Training.Extractors
             strippedHtml = StringUtils.RegexRemove(HtmlTagRemover, strippedHtml);
             foreach (ScriptureReference plaintextReference in ScriptureMetadataEnglish.ParseAllReferences(strippedHtml))
             {
-                yield return plaintextReference;
+                if (!dedup.Contains(plaintextReference))
+                {
+                    dedup.Add(plaintextReference);
+                    yield return plaintextReference;
+                }
             }
         }
 
@@ -531,6 +514,103 @@ namespace ScriptureGraph.Core.Training.Extractors
                 parsedPlaintext = pooledSb.Builder.ToString();
                 return returnVal;
             }
+        }
+
+        private struct HtmlStackOp
+        {
+            public Action<HtmlStackOp> Operation;
+            public int ClosingTagStreamPos;
+            public int TagBeginCharIndex;
+            public string LinkHref;
+
+            public HtmlStackOp(Action<HtmlStackOp> operation, int streamPos, int tagBeginCharIndex, string linkHref)
+            {
+                Operation = operation;
+                ClosingTagStreamPos = streamPos;
+                TagBeginCharIndex = tagBeginCharIndex;
+                LinkHref = linkHref;
+            }
+        }
+
+        internal static HtmlFragmentParseModel ParseAndFormatHtmlFragmentNew(string htmlFragment, ILogger logger)
+        {
+            using (PooledStringBuilder pooledSb = StringBuilderPool.Rent())
+            {
+                StringBuilder sb = pooledSb.Builder;
+                List<Tuple<IntRange, string>> links = new List<Tuple<IntRange, string>>();
+                HtmlDocument html = new HtmlDocument();
+                html.LoadHtml(htmlFragment);
+
+                Stack<HtmlStackOp> closingTagStack = new Stack<HtmlStackOp>();
+                HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
+                var iter = navigator.Select("//node()");
+                while (iter.MoveNext())
+                {
+                    HtmlNodeNavigator currentNav = iter.Current as HtmlNodeNavigator;
+                    if (currentNav == null)
+                    {
+                        continue;
+                    }
+
+                    // Insert closing tags where needed
+                    while (closingTagStack.Count > 0 && currentNav.CurrentNode.StreamPosition >= closingTagStack.Peek().ClosingTagStreamPos)
+                    {
+                        HtmlStackOp op = closingTagStack.Pop();
+                        op.Operation(op);
+                    }
+
+                    if (currentNav.CurrentNode.NodeType == HtmlNodeType.Text)
+                    {
+                        sb.Append(WebUtility.HtmlDecode(currentNav.CurrentNode.InnerText));
+                    }
+                    else if (string.Equals("i", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        sb.Append("<i>");
+                        closingTagStack.Push(new HtmlStackOp((op) => sb.Append("</i>"), currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, string.Empty));
+                    }
+                    else if (string.Equals("b", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        sb.Append("<b>");
+                        closingTagStack.Push(new HtmlStackOp((op) => sb.Append("</b>"), currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, string.Empty));
+                    }
+                    else if (string.Equals("a", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string href = currentNav.CurrentNode.GetAttributeValue("href", string.Empty);
+                        if (!string.IsNullOrEmpty(href))
+                        {
+                            href = WebUtility.HtmlDecode(href);
+                            closingTagStack.Push(new HtmlStackOp((op) =>
+                            {
+                                links.Add(new Tuple<IntRange, string>(new IntRange(op.TagBeginCharIndex, sb.Length), op.LinkHref));
+                            }, currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, href));
+                        }
+                        else
+                        {
+                            logger.Log($"Found anchor link with no href: {currentNav.CurrentNode.OuterHtml}", LogLevel.Wrn);
+                        }
+                    }
+
+                    //logger.Log($"NAME \"{currentNav.CurrentNode.Name}\" TYPE \"{currentNav.CurrentNode.NodeType}\" START \"{currentNav.CurrentNode.StreamPosition}\" END \"{currentNav.CurrentNode.EndNode.StreamPosition}\" OUTER \"{currentNav.CurrentNode.OuterHtml}\" INNER \"{currentNav.CurrentNode.InnerHtml}\"");
+                }
+
+                while (closingTagStack.Count > 0)
+                {
+                    HtmlStackOp op = closingTagStack.Pop();
+                    op.Operation(op);
+                }
+
+                return new HtmlFragmentParseModel()
+                {
+                    TextWithInlineFormatTags = sb.ToString(),
+                    Links = links
+                };
+             }
+        }
+
+        public class HtmlFragmentParseModel
+        {
+            public required string TextWithInlineFormatTags;
+            public required List<Tuple<IntRange, string>> Links;
         }
     }
 }
