@@ -43,6 +43,9 @@ namespace ScriptureGraph.Core.Training.Extractors
         // \/study\/scriptures\/(.+?)\/(.+?)(?:\/(\d+?))?\?lang=\w+(?:&id=(.+?))?(?:&span=(.+?))?(?:#(.+?))?(?:$|\")
         private static readonly Regex ScriptureRefParser = new Regex("\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=\\w+(?:&id=(.+?))?(?:&span=(.+?))?(?:#(.+?))?(?:$|\\\")");
 
+        // \/study\/general-conference\/(\d+?)\/(\d+?)\/(.+?)\?lang=\w+(?:&id=(.+?))?(?:#(.+?))?(?:$|\")
+        private static readonly Regex ConferenceLinkParser = new Regex("\\/study\\/general-conference\\/(\\d+?)\\/(\\d+?)\\/(.+?)\\?lang=\\w+(?:&id=(.+?))?(?:#(.+?))?(?:$|\\\")");
+
         // Original: <p class=\"([^\"]+?)\".*?>(?:.+?\"verse-number\">(\d+)\s*<\/span>\s*)?(.+?)<\/p>
         // Group 1: paragraph's class
         // Group 2: verse number (if applicable)
@@ -344,7 +347,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        internal static void ParseVerseParagraphRangeString(string refVerseEncoded, ILogger logger, Action<string> handler)
+        internal static void ParseVerseParagraphRangeString(string refVerseEncoded, ILogger logger, Action<string> handler, bool returnNonInt = false)
         {
             refVerseEncoded = refVerseEncoded.Replace("p", "");
             // Parse the encoded verses.
@@ -392,7 +395,14 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         // Very rare cases like 1 Ne 8:19 will have footnotes refering to other footnotes
                         // We're just gonna ignore those
-                        logger.Log($"Invalid cross-reference location to {verseRange}, ignoring...", LogLevel.Wrn);
+                        if (returnNonInt)
+                        {
+                            handler(verseRange);
+                        }
+                        else
+                        {
+                            logger.Log($"Invalid cross-reference location to {verseRange}, ignoring...", LogLevel.Wrn);
+                        }
                     }
                 }
             }
@@ -611,6 +621,30 @@ namespace ScriptureGraph.Core.Training.Extractors
         {
             public required string TextWithInlineFormatTags;
             public required List<Tuple<IntRange, string>> Links;
+        }
+
+        internal static IEnumerable<KnowledgeGraphNodeId> ParseAllConferenceTalkLinks(string html, ILogger logger)
+        {
+            foreach (Match parsedLink in ConferenceLinkParser.Matches(html))
+            {
+                int year = int.Parse(parsedLink.Groups[1].Value);
+                int month = int.Parse(parsedLink.Groups[2].Value);
+                ConferencePhase phase = month > 6 ? ConferencePhase.October : ConferencePhase.April;
+                string talkId = parsedLink.Groups[3].Value;
+                if (parsedLink.Groups[4].Success)
+                {
+                    List<string> blah = new List<string>();
+                    ParseVerseParagraphRangeString(parsedLink.Groups[4].Value, logger, (s) => blah.Add($"p{s}"), returnNonInt: true);
+                    foreach (string para in blah)
+                    {
+                        yield return FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, para);
+                    }
+                }
+                else
+                {
+                    yield return FeatureToNodeMapping.ConferenceTalk(year, phase, talkId);
+                }
+            }
         }
     }
 }

@@ -95,6 +95,12 @@ namespace ScriptureGraph.Core.Training
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalkParagraph, $"{year}|{phaseStr}|{talkId}|{paragraph}");
         }
 
+        public static KnowledgeGraphNodeId ConferenceTalkParagraph(int year, ConferencePhase phase, string talkId, string paragraph)
+        {
+            string phaseStr = phase == ConferencePhase.April ? "04" : "10";
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalkParagraph, $"{year}|{phaseStr}|{talkId}|{paragraph}");
+        }
+
         public static KnowledgeGraphNodeId ConferenceSpeaker(string speakerName)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceSpeaker, speakerName.ToLowerInvariant().Replace(".", string.Empty));

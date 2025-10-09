@@ -97,7 +97,7 @@ namespace ScriptureGraph.Core
                 if (match.Success)
                 {
                     logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
-                    ScripturePageFeatureExtractorNew.ExtractFeatures(page.Html, page.Url, logger, features);
+                    ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
                 }
                 else
                 {
@@ -161,12 +161,12 @@ namespace ScriptureGraph.Core
             TrainingKnowledgeGraph entitySearchGraph = new TrainingKnowledgeGraph();
             EntityNameIndex nameIndex = new EntityNameIndex();
             DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex);
-            //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
-            BookExtractorATGQ.ExtractSearchIndexFeatures(
-                epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
+            //BookExtractorATGQ.ExtractSearchIndexFeatures(
+            //    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
 
             return new Tuple<TrainingKnowledgeGraph, EntityNameIndex>(entitySearchGraph, nameIndex);
         }
@@ -286,9 +286,9 @@ namespace ScriptureGraph.Core
             IThreadPool threadPool = new TaskThreadPool();
             DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
             logger.Log("Processing documents from webcrawler sources");
-            await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawler, logger);
-            await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawler, logger);
+            //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for webcrawler parsing to finish");
             await processor.WaitForThreadsToFinish();
             logger.Log("Processing documents from local sources");
@@ -353,7 +353,7 @@ namespace ScriptureGraph.Core
                 if (match.Success)
                 {
                     logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
-                    ScriptureChapterDocument? structuredDoc = ScripturePageFeatureExtractorNew.ParseDocument(page.Html, page.Url, logger);
+                    ScriptureChapterDocument? structuredDoc = ScripturePageFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
                     parsedDoc = structuredDoc;
                     if (structuredDoc == null)
                     {
@@ -392,7 +392,7 @@ namespace ScriptureGraph.Core
                         if (match.Success)
                         {
                             logger.Log($"Parsing conference talk {page.Url.AbsolutePath}");
-                            ConferenceTalkDocument? structuredDoc = ConferenceTalkFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                            ConferenceTalkDocument? structuredDoc = ConferenceTalkFeatureExtractorNew.ParseDocument(page.Html, page.Url, logger);
                             parsedDoc = structuredDoc;
                             if (structuredDoc == null)
                             {
@@ -427,12 +427,20 @@ namespace ScriptureGraph.Core
 
         private static async Task CrawlGeneralConference(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
+            //HashSet<Regex> allowedUrls =
+            //[
+            //    new Regex("^https://www.churchofjesuschrist.org/study/general-conference\\?lang=eng$"), // overall conference index
+            //    new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+\\?lang=eng$"), // decade index pages
+            //    new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+\\?lang=eng$"), // conference index page
+            //    new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+/.+?\\?lang=eng$"), // specific talks
+            //];
+
             HashSet<Regex> allowedUrls =
             [
                 new Regex("^https://www.churchofjesuschrist.org/study/general-conference\\?lang=eng$"), // overall conference index
-                new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+\\?lang=eng$"), // decade index pages
-                new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+\\?lang=eng$"), // conference index page
-                new Regex("^https://www.churchofjesuschrist.org/study/general-conference/\\d+/\\d+/.+?\\?lang=eng$"), // specific talks
+                new Regex("^https://www.churchofjesuschrist.org/study/general-conference/2025\\?lang=eng$"), // decade index pages
+                new Regex("^https://www.churchofjesuschrist.org/study/general-conference/2025/\\d+\\?lang=eng$"), // conference index page
+                new Regex("^https://www.churchofjesuschrist.org/study/general-conference/2025/\\d+/.+?\\?lang=eng$"), // specific talks
             ];
 
             await crawler.Crawl(

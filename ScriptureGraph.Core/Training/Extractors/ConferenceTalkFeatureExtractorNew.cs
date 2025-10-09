@@ -12,9 +12,9 @@ using System.Xml.XPath;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
-    public class ScripturePageFeatureExtractorNew
+    public class ConferenceTalkFeatureExtractorNew
     {
-        private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/(.+?)\\/(.+?)\\/(\\d+)");
+        private static readonly Regex UrlPathParser = new Regex("\\/study\\/general-conference\\/(\\d+)\\/(\\d+)\\/(.+?)(?:\\?|$)");
 
         public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
         {
@@ -27,46 +27,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return;
                 }
 
-                // Chapter-level features
-
-                // Relationship between this scripture book and the chapters in it
-                trainingFeaturesOut.Add(new TrainingFeature(
-                    FeatureToNodeMapping.ScriptureBook(
-                        parseResult.Book),
-                    FeatureToNodeMapping.ScriptureChapter(
-                        parseResult.Book,
-                        parseResult.Chapter),
-                    TrainingFeatureType.BookAssociation));
-
-                // And the previous chapter, if applicable
-                if (parseResult.Chapter > 1)
-                {
-                    trainingFeaturesOut.Add(new TrainingFeature(
-                        FeatureToNodeMapping.ScriptureChapter(
-                            parseResult.Book,
-                            parseResult.Chapter),
-                        FeatureToNodeMapping.ScriptureChapter(
-                            parseResult.Book,
-                            parseResult.Chapter - 1),
-                        TrainingFeatureType.BookAssociation));
-                }
-
-                // Verse-level features
-                foreach (Paragraph verse in parseResult.Titles)
-                {
-                    ExtractFeaturesFromSingleVerse(verse, parseResult.Book, parseResult.Chapter, null, trainingFeaturesOut);
-                }
-
-                foreach (Paragraph verse in parseResult.StudySummaries)
-                {
-                    ExtractFeaturesFromSingleVerse(verse, parseResult.Book, parseResult.Chapter, null, trainingFeaturesOut);
-                }
-
-                int verseNum = 1;
-                foreach (Paragraph verse in parseResult.Verses)
-                {
-                    ExtractFeaturesFromSingleVerse(verse, parseResult.Book, parseResult.Chapter, verseNum++, trainingFeaturesOut);
-                }
+                
             }
             catch (Exception e)
             {
@@ -74,7 +35,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        public static ScriptureChapterDocument? ParseDocument(string htmlPage, Uri pageUrl, ILogger logger)
+        public static ConferenceTalkDocument? ParseDocument(string htmlPage, Uri pageUrl, ILogger logger)
         {
             try
             {
@@ -85,45 +46,25 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return null;
                 }
 
-                ScriptureChapterDocument returnVal = new ScriptureChapterDocument()
+                ConferenceTalkDocument returnVal = new ConferenceTalkDocument()
                 {
-                    DocumentType = GospelDocumentType.ScriptureChapter,
-                    Canon = parseResult.Canon,
-                    Book = parseResult.Book,
-                    Chapter = parseResult.Chapter,
+                    DocumentType = GospelDocumentType.GeneralConferenceTalk,
+                    Conference = parseResult.Conference,
+                    Speaker = parseResult.SpeakerName,
+                    SpeakerEntityId = parseResult.SpeakerEntityId,
+                    TalkId = parseResult.TalkId,
+                    Title = parseResult.TalkTitle,
                     Language = LanguageCode.ENGLISH,
                     Paragraphs = new List<GospelParagraph>(),
-                    DocumentEntityId = FeatureToNodeMapping.ScriptureChapter(parseResult.Book, parseResult.Chapter),
-                    Prev = ScriptureMetadata.GetPrevChapter(parseResult.Book, parseResult.Chapter),
-                    Next = ScriptureMetadata.GetNextChapter(parseResult.Book, parseResult.Chapter)
+                    DocumentEntityId = parseResult.DocumentEntityId
                 };
 
-                foreach (var paragraph in parseResult.Titles)
+                foreach (var paragraph in parseResult.Paragraphs)
                 {
                     returnVal.Paragraphs.Add(new GospelParagraph()
                     {
                         ParagraphEntityId = paragraph.ParaEntityId,
                         Class = StandardizeClass(paragraph.Class, paragraph.Text),
-                        Text = paragraph.Text.Trim()
-                    });
-                }
-
-                foreach (var paragraph in parseResult.StudySummaries)
-                {
-                    returnVal.Paragraphs.Add(new GospelParagraph()
-                    {
-                        ParagraphEntityId = paragraph.ParaEntityId,
-                        Class = StandardizeClass(paragraph.Class, paragraph.Text),
-                        Text = paragraph.Text.Trim()
-                    });
-                }
-
-                foreach (var paragraph in parseResult.Verses)
-                {
-                    returnVal.Paragraphs.Add(new GospelParagraph()
-                    {
-                        ParagraphEntityId = paragraph.ParaEntityId,
-                        Class = paragraph.HasVerseNumber ? GospelParagraphClass.Verse : GospelParagraphClass.Default,
                         Text = paragraph.Text.Trim()
                     });
                 }
@@ -140,14 +81,18 @@ namespace ScriptureGraph.Core.Training.Extractors
         private static readonly IReadOnlyDictionary<string, GospelParagraphClass> CLASS_MAPPING = new Dictionary<string, GospelParagraphClass>(StringComparer.OrdinalIgnoreCase)
         {
             {"title", GospelParagraphClass.Header },
-            {"subtitle", GospelParagraphClass.SubHeader },
-            {"title-number", GospelParagraphClass.ChapterNum },
-            {"study-intro", GospelParagraphClass.StudySummary },
-            {"study-summary", GospelParagraphClass.StudySummary },
+            {"author-name", GospelParagraphClass.SubHeader },
+            {"author-role", GospelParagraphClass.SubHeader },
+            {"line", GospelParagraphClass.Poem },
         };
 
         private static GospelParagraphClass StandardizeClass(string rawClass, string debugText)
         {
+            if (string.IsNullOrEmpty(rawClass))
+            {
+                return GospelParagraphClass.Default;
+            }
+
             GospelParagraphClass returnVal;
             if (CLASS_MAPPING.TryGetValue(rawClass, out returnVal))
             {
@@ -169,19 +114,30 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return null;
                 }
 
-                string canon = urlParse.Groups[1].Value;
-                string book = urlParse.Groups[2].Value;
-                int chapter = int.Parse(urlParse.Groups[3].Value);
+                htmlPage = WebUtility.HtmlDecode(htmlPage);
+                htmlPage = LdsDotOrgCommonParsers.RemoveNbsp(htmlPage);
+                int year = int.Parse(urlParse.Groups[1].Value);
+                ConferencePhase phase = int.Parse(urlParse.Groups[2].Value) < 7 ? ConferencePhase.April : ConferencePhase.October;
+                string talkId = urlParse.Groups[3].Value;
+                string talkTitle, authorFullName;
+                ParseTalkAndAuthorNames(htmlPage, logger, out talkTitle, out authorFullName);
+
+                if (!IsValidConferenceTalk(talkTitle, authorFullName))
+                {
+                    return null;
+                }
 
                 HtmlDocument html = new HtmlDocument();
                 html.LoadHtml(htmlPage);
 
                 DocumentParseModel returnVal = new DocumentParseModel()
                 {
-                    Canon = canon,
-                    Book = book,
-                    Chapter = chapter,
-                    DocumentEntityId = FeatureToNodeMapping.ScriptureChapter(book, chapter)
+                    Conference = new Conference(phase, year),
+                    SpeakerName = authorFullName,
+                    TalkId = talkId,
+                    DocumentEntityId = FeatureToNodeMapping.ConferenceTalk(year, phase, talkId),
+                    SpeakerEntityId = FeatureToNodeMapping.ConferenceSpeaker(authorFullName),
+                    TalkTitle = talkTitle
                 };
 
                 XPathNodeIterator iter;
@@ -192,19 +148,11 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 HashSet<ScriptureReference> scriptureRefs = new HashSet<ScriptureReference>();
                 navigator.MoveToRoot();
-                iter = navigator.Select("//footer[@class=\"study-notes\"]//p[@id]");
+                iter = navigator.Select("//footer[@class=\"notes\"]//li[@id]");
                 while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
                 {
                     string footnotePId = currentNav.GetAttribute("id", string.Empty);
-                    if (footnotePId.Length < 3)
-                    {
-                        logger.Log("Invalid footnote id " + footnotePId, LogLevel.Wrn);
-                        continue;
-                    }
-
-                    footnotePId = footnotePId.Substring(0, footnotePId.Length - 3); // trim the _p1 from the end
                     //Console.WriteLine($"ID {footnotePId}");
-                        
 
                     string content = currentNav.CurrentNode.InnerHtml;
                     content = WebUtility.HtmlDecode(content);
@@ -215,7 +163,20 @@ namespace ScriptureGraph.Core.Training.Extractors
                     HashSet<KnowledgeGraphNodeId> refNodeIds = new HashSet<KnowledgeGraphNodeId>();
                     foreach (ScriptureReference scriptureRef in scriptureRefs)
                     {
-                        refNodeIds.Add(scriptureRef.ToNodeId());
+                        KnowledgeGraphNodeId refId = scriptureRef.ToNodeId();
+                        if (!refNodeIds.Contains(refId))
+                        {
+                            refNodeIds.Add(refId);
+                        }
+                    }
+
+                    // Conference talks can also reference other talks
+                    foreach (KnowledgeGraphNodeId confTalkReference in LdsDotOrgCommonParsers.ParseAllConferenceTalkLinks(content, logger))
+                    {
+                        if (!refNodeIds.Contains(confTalkReference))
+                        {
+                            refNodeIds.Add(confTalkReference);
+                        }
                     }
 
                     footnoteReferences[footnotePId] = refNodeIds;
@@ -245,62 +206,53 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         foreach (ScriptureReference scriptureRef in LdsDotOrgCommonParsers.ParseAllScriptureReferences(inlineRef.Item2, logger))
                         {
-                            // Ignore references within the same book and chapter (e.g. hyperlinks found in long study summaries, see d&C 76 for example)
-                            if (!string.Equals(book, scriptureRef.Book, StringComparison.OrdinalIgnoreCase) &&
-                                chapter != scriptureRef.Chapter.GetValueOrDefault(-1))
+                            //Console.WriteLine($"Links to {inlineRef.Item2}");
+                            footnoteRefs.Add(new FootnoteReference()
                             {
-                                //Console.WriteLine($"Links to {inlineRef.Item2}");
-                                footnoteRefs.Add(new FootnoteReference()
-                                {
-                                    TargetNodeId = scriptureRef.ToNodeId(),
-                                    ScriptureRef = scriptureRef,
-                                    ReferenceSpan = inlineRef.Item1
-                                });
-                            }
+                                TargetNodeId = scriptureRef.ToNodeId(),
+                                ScriptureRef = scriptureRef,
+                                ReferenceSpan = inlineRef.Item1
+                            });
                         }
                     }
 
                     Paragraph para = new Paragraph()
                     {
-                        ParaEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, paraIdRaw),
+                        ParaEntityId = FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, paraIdRaw),
                         Class = paraClassRaw,
                         Id = paraIdRaw,
                         Text = parsedHtml.TextWithInlineFormatTags,
                         References = footnoteRefs,
-                        HasVerseNumber = false
                     };
 
                     if (string.Equals("h1", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Handle mixed emphases by splitting into title and subtitle
-                        returnVal.Titles.AddRange(SplitHeaderIntoMultiTitleParagraphs(content, book, chapter));
+                        para.Text = para.Text.Trim();
+                        para.Class = "title";
+                        returnVal.Paragraphs.Add(para);
                     }
-                    else if (string.Equals(paraClassRaw, "title-number", StringComparison.OrdinalIgnoreCase))
+                    else if (string.Equals(paraClassRaw, "author-name", StringComparison.OrdinalIgnoreCase))
                     {
                         para.Text = para.Text.Trim();
-                        returnVal.Titles.Add(para);
+                        returnVal.Paragraphs.Add(para);
                     }
-                    else if (string.Equals(paraClassRaw, "subtitle", StringComparison.OrdinalIgnoreCase))
+                    else if (string.Equals(paraClassRaw, "author-role", StringComparison.OrdinalIgnoreCase))
                     {
-                        para.Text = para.Text.Trim();
-                        returnVal.Titles.Add(para);
+                        para.Text = $"<i>{para.Text.Trim()}</i>";
+                        returnVal.Paragraphs.Add(para);
                     }
-                    else if (string.Equals(paraClassRaw, "study-summary", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(paraClassRaw, "study-intro", StringComparison.OrdinalIgnoreCase))
+                    else if (string.Equals(paraClassRaw, "kicker", StringComparison.OrdinalIgnoreCase))
                     {
-                        returnVal.StudySummaries.Add(para);
+                        returnVal.Kicker = para.Text.Trim();
                     }
-                    //else
-                    //{
-                    //    Console.WriteLine(paraClassRaw);
-                    //    Console.WriteLine(para.Text);
-                    //    returnVal.StudySummaries.Add(para);
-                    //}
-
-                    //Console.WriteLine(para.Text);
+                    else
+                    {
+                        //Console.WriteLine(paraClassRaw);
+                        //Console.WriteLine(para.Text);
+                    }
                 }
 
-                // Parse verses
+                // Parse paragraphs
                 navigator.MoveToRoot();
                 iter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]//p[@id]");
                 while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
@@ -310,15 +262,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     //Console.WriteLine($"ID {paraIdRaw} CLASS {paraClassRaw}");
                     //Console.WriteLine(currentNav.CurrentNode.InnerHtml.Trim());
 
-                    int parsedVerse;
-                    int? verseNum = null;
-                    if (int.TryParse(paraIdRaw.TrimStart('p'), out parsedVerse))
-                    {
-                        verseNum = parsedVerse;
-                    }
-
                     string content = currentNav.CurrentNode.InnerHtml;
-                    content = LdsDotOrgCommonParsers.RemoveVerseNumberSpans(content);
                     content = LdsDotOrgCommonParsers.RemoveNbsp(content);
                     content = content.Trim();
                     var parsedHtml = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(content, logger);
@@ -354,38 +298,19 @@ namespace ScriptureGraph.Core.Training.Extractors
                             // example D&C 76:15
                             foreach (ScriptureReference scriptureRef in LdsDotOrgCommonParsers.ParseAllScriptureReferences(inlineRef.Item2, logger))
                             {
-                                // Ignore references within the same book and chapter (e.g. hyperlinks found in long study summaries, see d&C 76 for example)
-                                if (!string.Equals(book, scriptureRef.Book, StringComparison.OrdinalIgnoreCase) &&
-                                    chapter != scriptureRef.Chapter.GetValueOrDefault(-1))
+                                //Console.WriteLine($"Links to {scriptureRef}");
+                                footnoteRefs.Add(new FootnoteReference()
                                 {
-                                    //Console.WriteLine($"Links to {scriptureRef}");
-                                    footnoteRefs.Add(new FootnoteReference()
-                                    {
-                                        TargetNodeId = scriptureRef.ToNodeId(),
-                                        ScriptureRef = scriptureRef,
-                                        ReferenceSpan = inlineRef.Item1
-                                    });
-                                }
+                                    TargetNodeId = scriptureRef.ToNodeId(),
+                                    ScriptureRef = scriptureRef,
+                                    ReferenceSpan = inlineRef.Item1
+                                });
                             }
                         }
                     }
 
                     //Console.WriteLine(parsedHtml.TextWithInlineFormatTags);
-                    KnowledgeGraphNodeId paraEntityId;
-                    if (verseNum.HasValue)
-                    {
-                        paraEntityId = FeatureToNodeMapping.ScriptureVerse(book, chapter, verseNum.Value);
-                    }
-                    else
-                    {
-                        paraEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, paraIdRaw);
-                    }
-
-                    // Need to hack official declarations here as they don't have "verses" even though the code marks them as such
-                    if (string.Equals("od", book, StringComparison.OrdinalIgnoreCase))
-                    {
-                        verseNum = null;
-                    }
+                    KnowledgeGraphNodeId paraEntityId = FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, paraIdRaw);
 
                     Paragraph para = new Paragraph()
                     {
@@ -394,10 +319,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                         Id = paraIdRaw,
                         Text = parsedHtml.TextWithInlineFormatTags,
                         References = footnoteRefs,
-                        HasVerseNumber = verseNum.HasValue
                     };
 
-                    returnVal.Verses.Add(para);
+                    returnVal.Paragraphs.Add(para);
                 }
 
                 return returnVal;
@@ -409,74 +333,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        private static IEnumerable<Paragraph> SplitHeaderIntoMultiTitleParagraphs(string headerHtml, string book, int chapter)
-        {
-            HtmlDocument html = new HtmlDocument();
-            html.LoadHtml(headerHtml);
-
-            HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
-            string rawText = navigator.CurrentNode.InnerText;
-
-            var iter = navigator.Select("//span[@class=\"dominant\"]");
-            if (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
-            {
-                string emphasizedText = currentNav.CurrentNode.InnerText;
-                Regex textMatcher = new Regex("([\\w\\W]+)?" + Regex.Escape(emphasizedText) + "([\\w\\W]+)?");
-                Match titleMatch = textMatcher.Match(rawText);
-                if (titleMatch.Success)
-                {
-                    if (titleMatch.Groups[1].Success)
-                    {
-                        yield return new Paragraph()
-                        {
-                            ParaEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, "subtitle-1"),
-                            Class = "subtitle",
-                            Id = "subtitle-1",
-                            Text = titleMatch.Groups[1].Value.Trim(),
-                            References = new List<FootnoteReference>(),
-                            HasVerseNumber = false
-                        };
-                    }
-
-                    yield return new Paragraph()
-                    {
-                        ParaEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, "title"),
-                        Class = "title",
-                        Id = "title",
-                        Text = emphasizedText,
-                        References = new List<FootnoteReference>(),
-                        HasVerseNumber = false
-                    };
-
-                    if (titleMatch.Groups[2].Success)
-                    {
-                        yield return new Paragraph()
-                        {
-                            ParaEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, "subtitle-2"),
-                            Class = "subtitle",
-                            Id = "subtitle-2",
-                            Text = titleMatch.Groups[2].Value.Trim(),
-                            References = new List<FootnoteReference>(),
-                            HasVerseNumber = false
-                        };
-                    }
-
-                    yield break;
-                }
-            }
-
-            yield return new Paragraph()
-            {
-                ParaEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, "title"),
-                Class = "title",
-                Id = "title",
-                Text = rawText,
-                References = new List<FootnoteReference>(),
-                HasVerseNumber = false
-            };
-        }
-
-        private static void ExtractFeaturesFromSingleVerse(
+        private static void ExtractFeaturesFromSingleParagraph(
             Paragraph currentParagraph,
             string book,
             int chapter,
@@ -540,16 +397,76 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
+        private static readonly Regex PrintableTitleParser = new Regex("<h1.*?>(.+?)<\\/h1>");
+
+        // <p[^>]+class=\"author-name\"[^>]+?>\s*(?:<span[\w\W]+?<\/span>)?(?:By |From )?(?:Elder |Sister |President |Bishop |Brother )?(.+?)<\/p>
+        private static readonly Regex AuthorNameParser = new Regex("<p[^>]+class=\\\"author-name\\\"[^>]+?>\\s*(.+?)<\\/p>");
+
+        private static readonly Regex AuthorTitleRemover = new Regex("(?:By |From )?(?:Elder |Sister |President |Bishop |Brother )?");
+
+        private static readonly Regex ParenthesesRemover = new Regex("\\s+\\(.+?\\)");
+
+        private static void ParseTalkAndAuthorNames(string htmlPage, ILogger logger, out string talkTitle, out string authorFullName)
+        {
+            talkTitle = StringUtils.RegexRip(PrintableTitleParser, htmlPage, 1, logger);
+            talkTitle = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, talkTitle);
+            // Some rare talks have a scripture citation in the title, to handle that remove anything within parentheses
+            // https://www.churchofjesuschrist.org/study/general-conference/1999/04/repent-of-our-selfishness-d-c-56-8?lang=eng
+            talkTitle = StringUtils.RegexRemove(ParenthesesRemover, talkTitle);
+            talkTitle = talkTitle.Trim();
+            authorFullName = StringUtils.RegexRip(AuthorNameParser, htmlPage, 1, logger);
+            authorFullName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, authorFullName);
+            authorFullName = StringUtils.RegexRemove(AuthorTitleRemover, authorFullName);
+            authorFullName = authorFullName.Trim();
+        }
+
+        private static bool IsValidConferenceTalk(string talkTitle, string authorFullName)
+        {
+            if ((talkTitle.Contains("Audit") ||
+                    talkTitle.Contains("Finance")) &&
+                    talkTitle.Contains("Report"))
+            {
+                // Ignore auditing department reports
+                return false;
+            }
+
+            if (talkTitle.Contains("Statistic"))
+            {
+                // Ignore church statistical reports
+                return false;
+            }
+
+            if (talkTitle.Contains("Sustain") && talkTitle.Contains("Officers"))
+            {
+                // Ignore sustainings of church officers
+                return false;
+            }
+
+            // This catches general assemblies, solemn assemblies, and other special occasionas
+            if (authorFullName.Contains("Presented by"))
+            {
+                return false;
+            }
+
+            // Ignore entire sessions, meetings, firesides, video presentations, and proclamations
+            if (string.IsNullOrWhiteSpace(authorFullName))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         private class DocumentParseModel
         {
-            public required string Canon;
-            public required string Book;
-            public required int Chapter;
             public required KnowledgeGraphNodeId DocumentEntityId;
-            public readonly List<Paragraph> Titles = new List<Paragraph>();
-            public readonly List<Paragraph> StudySummaries = new List<Paragraph>();
-            public readonly List<Paragraph> Verses = new List<Paragraph>();
-            public readonly Dictionary<string, string> Footnotes = new Dictionary<string, string>();
+            public required string TalkId;
+            public required string SpeakerName;
+            public required KnowledgeGraphNodeId SpeakerEntityId;
+            public required string TalkTitle;
+            public required Conference Conference;
+            public string? Kicker;
+            public readonly List<Paragraph> Paragraphs = new List<Paragraph>();
         }
 
         private class Paragraph
@@ -559,7 +476,6 @@ namespace ScriptureGraph.Core.Training.Extractors
             public required string Class;
             public required string Text;
             public required List<FootnoteReference> References;
-            public required bool HasVerseNumber;
 
             public override string ToString()
             {

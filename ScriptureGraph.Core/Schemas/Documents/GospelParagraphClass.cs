@@ -34,10 +34,18 @@ namespace ScriptureGraph.Core.Schemas.Documents
         Verse = 4,
 
         /// <summary>
-        /// A line of quotation (used also for poems, songs, etc.)
+        /// A quoted block
         /// </summary>
         Quotation = 5,
 
+        /// <summary>
+        /// The top-level "Chapter 4", "Section 76", etc. heading
+        /// </summary>
         ChapterNum = 6,
+
+        /// <summary>
+        /// A line from a poem or song
+        /// </summary>
+        Poem = 7,
     }
 }

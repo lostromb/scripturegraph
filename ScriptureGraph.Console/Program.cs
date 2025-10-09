@@ -36,7 +36,7 @@ namespace ScriptureGraph.Console
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, logger);
 
-            string rootDirectory = @"D:\Code\scripturegraph";
+            string rootDirectory = @"C:\Code\scripturegraph";
             _runtimeFileSystem = new RealFileSystem(logger.Clone("RuntimeFS"), rootDirectory + @"\runtime");
             _webCacheFileSystem = new RealFileSystem(logger.Clone("WebCacheFS"), rootDirectory + @"\runtime\cache");
             _documentCacheFileSystem = new RealFileSystem(logger.Clone("DocumentFS"), rootDirectory + @"\runtime\documents");
@@ -112,15 +112,20 @@ namespace ScriptureGraph.Console
             //BookExtractorATGQ.ExtractDocuments(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
 
             //await Test(logger);
-            //await ParseDocuments(logger);
+            await ParseDocuments(logger);
             //await BuildAndTestSearchIndex(logger);
-            await BuildAndTestUniversalGraph(logger);
+            //await BuildAndTestUniversalGraph(logger);
 
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/pgp/abr/1?lang=eng");
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/john/1?lang=eng");
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/dc-testament/od/1?lang=eng");
             //string webPage = new WebClient().DownloadString(scriptureUrl);
             //ScripturePageFeatureExtractorNew.ParseDocument(webPage, scriptureUrl, logger);
+            
+            //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/general-conference/2025/10/41holland?lang=eng");
+            //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/general-conference/2023/10/26choi?lang=eng");
+            //string webPage = new WebClient().DownloadString(talkUrl);
+            //ConferenceTalkFeatureExtractorNew.ParseDocument(webPage, talkUrl, logger);
         }
 
         private static async Task Test(ILogger logger)
