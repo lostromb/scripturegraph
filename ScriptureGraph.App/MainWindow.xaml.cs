@@ -1115,6 +1115,7 @@ namespace ScriptureGraph.App
                     para++;
                 }
 
+                // TODO small caps for scripture chapter title and subtitles
                 AddFormattedInlines(paragraph.Text, uiParagraph.Inlines);
                 returnVal.Blocks.Add(uiParagraph);
             }

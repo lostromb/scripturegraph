@@ -59,6 +59,16 @@ namespace ScriptureGraph.Core.Training.Extractors
                     DocumentEntityId = parseResult.DocumentEntityId
                 };
 
+                foreach (var paragraph in parseResult.Headers)
+                {
+                    returnVal.Paragraphs.Add(new GospelParagraph()
+                    {
+                        ParagraphEntityId = paragraph.ParaEntityId,
+                        Class = StandardizeClass(paragraph.Class, paragraph.Text),
+                        Text = paragraph.Text.Trim()
+                    });
+                }
+
                 foreach (var paragraph in parseResult.Paragraphs)
                 {
                     returnVal.Paragraphs.Add(new GospelParagraph()
@@ -83,7 +93,9 @@ namespace ScriptureGraph.Core.Training.Extractors
             {"title", GospelParagraphClass.Header },
             {"author-name", GospelParagraphClass.SubHeader },
             {"author-role", GospelParagraphClass.SubHeader },
+            {"kicker", GospelParagraphClass.StudySummary },
             {"line", GospelParagraphClass.Poem },
+            {"subheading", GospelParagraphClass.SubHeader },
         };
 
         private static GospelParagraphClass StandardizeClass(string rawClass, string debugText)
@@ -229,21 +241,22 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         para.Text = para.Text.Trim();
                         para.Class = "title";
-                        returnVal.Paragraphs.Add(para);
+                        returnVal.Headers.Add(para);
                     }
                     else if (string.Equals(paraClassRaw, "author-name", StringComparison.OrdinalIgnoreCase))
                     {
                         para.Text = para.Text.Trim();
-                        returnVal.Paragraphs.Add(para);
+                        returnVal.Headers.Add(para);
                     }
                     else if (string.Equals(paraClassRaw, "author-role", StringComparison.OrdinalIgnoreCase))
                     {
                         para.Text = $"<i>{para.Text.Trim()}</i>";
-                        returnVal.Paragraphs.Add(para);
+                        returnVal.Headers.Add(para);
                     }
                     else if (string.Equals(paraClassRaw, "kicker", StringComparison.OrdinalIgnoreCase))
                     {
                         returnVal.Kicker = para.Text.Trim();
+                        returnVal.Headers.Add(para);
                     }
                     else
                     {
@@ -253,8 +266,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 // Parse paragraphs
+                int subheaderNum = 0;
                 navigator.MoveToRoot();
-                iter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]//p[@id]");
+                iter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]//p[@id] | //*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]//h2");
                 while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
                 {
                     string paraIdRaw = currentNav.GetAttribute("id", string.Empty) ?? string.Empty;
@@ -263,6 +277,11 @@ namespace ScriptureGraph.Core.Training.Extractors
                     //Console.WriteLine(currentNav.CurrentNode.InnerHtml.Trim());
 
                     string content = currentNav.CurrentNode.InnerHtml;
+                    if (content.Contains("<cite>"))
+                    {
+                        continue;
+                    }
+
                     content = LdsDotOrgCommonParsers.RemoveNbsp(content);
                     content = content.Trim();
                     var parsedHtml = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(content, logger);
@@ -309,19 +328,33 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
                     }
 
-                    //Console.WriteLine(parsedHtml.TextWithInlineFormatTags);
-                    KnowledgeGraphNodeId paraEntityId = FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, paraIdRaw);
-
-                    Paragraph para = new Paragraph()
+                    if (string.Equals("h2", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        ParaEntityId = paraEntityId,
-                        Class = paraClassRaw,
-                        Id = paraIdRaw,
-                        Text = parsedHtml.TextWithInlineFormatTags,
-                        References = footnoteRefs,
-                    };
+                        Paragraph para = new Paragraph()
+                        {
+                            ParaEntityId = FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, $"section{subheaderNum++}"),
+                            Class = "subheading",
+                            Id = paraIdRaw,
+                            Text = parsedHtml.TextWithInlineFormatTags,
+                            References = footnoteRefs,
+                        };
 
-                    returnVal.Paragraphs.Add(para);
+                        returnVal.Paragraphs.Add(para);
+                    }
+                    else
+                    {
+                        //Console.WriteLine(parsedHtml.TextWithInlineFormatTags);
+                        Paragraph para = new Paragraph()
+                        {
+                            ParaEntityId = FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, paraIdRaw),
+                            Class = paraClassRaw,
+                            Id = paraIdRaw,
+                            Text = parsedHtml.TextWithInlineFormatTags,
+                            References = footnoteRefs,
+                        };
+
+                        returnVal.Paragraphs.Add(para);
+                    }
                 }
 
                 return returnVal;
@@ -466,6 +499,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             public required string TalkTitle;
             public required Conference Conference;
             public string? Kicker;
+            public readonly List<Paragraph> Headers = new List<Paragraph>();
             public readonly List<Paragraph> Paragraphs = new List<Paragraph>();
         }
 

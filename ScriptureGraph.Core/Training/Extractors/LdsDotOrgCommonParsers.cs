@@ -347,7 +347,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        internal static void ParseVerseParagraphRangeString(string refVerseEncoded, ILogger logger, Action<string> handler, bool returnNonInt = false)
+        internal static void ParseVerseParagraphRangeString(string refVerseEncoded, ILogger logger, Action<string> handler)
         {
             refVerseEncoded = refVerseEncoded.Replace("p", "");
             // Parse the encoded verses.
@@ -395,15 +395,32 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         // Very rare cases like 1 Ne 8:19 will have footnotes refering to other footnotes
                         // We're just gonna ignore those
-                        if (returnNonInt)
-                        {
-                            handler(verseRange);
-                        }
-                        else
-                        {
-                            logger.Log($"Invalid cross-reference location to {verseRange}, ignoring...", LogLevel.Wrn);
-                        }
+                        logger.Log($"Invalid cross-reference location to {verseRange}, ignoring...", LogLevel.Wrn);
                     }
+                }
+            }
+        }
+
+        internal static IEnumerable<string> ParseConfParagraphRangeString(string refVerseEncoded, ILogger logger)
+        {
+            // Parse the encoded verses.
+            // Examples:
+            // p5 (verse 5)
+            // p1-p4 (verses 1-4)
+            // p3,p6 (verses 3 and 6)
+            // p21-p23,p27 (verses 21-23 and 27)
+            //logger.Log($"Decoding verse ref {refVerseEncoded}");
+            string[] segments = refVerseEncoded.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (string paraRange in segments)
+            {
+                int hyphenIndex = paraRange.IndexOf('-');
+                if (hyphenIndex > 0)
+                {
+                    logger.Log($"Unsupported range of paragraphs {paraRange}, ignoring...", LogLevel.Wrn);
+                }
+                else
+                {
+                    yield return paraRange;
                 }
             }
         }
@@ -633,9 +650,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 string talkId = parsedLink.Groups[3].Value;
                 if (parsedLink.Groups[4].Success)
                 {
-                    List<string> blah = new List<string>();
-                    ParseVerseParagraphRangeString(parsedLink.Groups[4].Value, logger, (s) => blah.Add($"p{s}"), returnNonInt: true);
-                    foreach (string para in blah)
+                    foreach (string para in ParseConfParagraphRangeString(parsedLink.Groups[4].Value, logger))
                     {
                         yield return FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, para);
                     }
