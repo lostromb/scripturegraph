@@ -34,8 +34,8 @@ namespace ScriptureGraph.Core
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
             DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(startGraph);
             await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
         }
@@ -97,7 +97,7 @@ namespace ScriptureGraph.Core
                 if (match.Success)
                 {
                     logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
-                    ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    ScripturePageFeatureExtractorNew.ExtractFeatures(page.Html, page.Url, logger, features);
                 }
                 else
                 {
@@ -519,8 +519,8 @@ namespace ScriptureGraph.Core
         {
             //await CrawlBookOfMormon(crawler, pageAction, logger);
             //await CrawlOldTestament(crawler, pageAction, logger);
-            await CrawlNewTestament(crawler, pageAction, logger);
-            //await CrawlDC(crawler, pageAction, logger);
+            //await CrawlNewTestament(crawler, pageAction, logger);
+            await CrawlDC(crawler, pageAction, logger);
             //await CrawlPGP(crawler, pageAction, logger);
         }
 

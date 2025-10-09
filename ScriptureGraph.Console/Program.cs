@@ -112,8 +112,9 @@ namespace ScriptureGraph.Console
             //BookExtractorATGQ.ExtractDocuments(fileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger).Count();
 
             //await Test(logger);
-            await ParseDocuments(logger);
+            //await ParseDocuments(logger);
             //await BuildAndTestSearchIndex(logger);
+            await BuildAndTestUniversalGraph(logger);
 
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/pgp/abr/1?lang=eng");
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/john/1?lang=eng");
@@ -300,7 +301,7 @@ namespace ScriptureGraph.Console
                 logger.Log("Loading model");
                 using (Stream testGraphIn = _runtimeFileSystem.OpenStream(modelFileIn, FileOpenMode.Open, FileAccessMode.Read))
                 {
-                    graph = TrainingKnowledgeGraph.LoadLegacyFormat(testGraphIn);
+                    graph = TrainingKnowledgeGraph.Load(testGraphIn);
                 }
             }
             else

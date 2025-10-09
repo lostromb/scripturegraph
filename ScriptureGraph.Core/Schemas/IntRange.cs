@@ -10,6 +10,7 @@ namespace ScriptureGraph.Core.Schemas
     {
         public readonly int Start;
         public readonly int End;
+        public int Length => End - Start;
 
         public IntRange(int start, int end)
         {

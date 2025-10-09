@@ -16,6 +16,64 @@ namespace ScriptureGraph.Core.Training.Extractors
     {
         private static readonly Regex UrlPathParser = new Regex("\\/study\\/scriptures\\/(.+?)\\/(.+?)\\/(\\d+)");
 
+        public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        {
+            try
+            {
+                DocumentParseModel? parseResult = ParseInternal(htmlPage, pageUrl, logger);
+                if (parseResult == null)
+                {
+                    logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
+                    return;
+                }
+
+                // Chapter-level features
+
+                // Relationship between this scripture book and the chapters in it
+                trainingFeaturesOut.Add(new TrainingFeature(
+                    FeatureToNodeMapping.ScriptureBook(
+                        parseResult.Book),
+                    FeatureToNodeMapping.ScriptureChapter(
+                        parseResult.Book,
+                        parseResult.Chapter),
+                    TrainingFeatureType.BookAssociation));
+
+                // And the previous chapter, if applicable
+                if (parseResult.Chapter > 1)
+                {
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        FeatureToNodeMapping.ScriptureChapter(
+                            parseResult.Book,
+                            parseResult.Chapter),
+                        FeatureToNodeMapping.ScriptureChapter(
+                            parseResult.Book,
+                            parseResult.Chapter - 1),
+                        TrainingFeatureType.BookAssociation));
+                }
+
+                // Verse-level features
+                foreach (Paragraph verse in parseResult.Titles)
+                {
+                    ExtractFeaturesFromSingleVerse(verse, parseResult.Book, parseResult.Chapter, null, trainingFeaturesOut);
+                }
+
+                foreach (Paragraph verse in parseResult.StudySummaries)
+                {
+                    ExtractFeaturesFromSingleVerse(verse, parseResult.Book, parseResult.Chapter, null, trainingFeaturesOut);
+                }
+
+                int verseNum = 1;
+                foreach (Paragraph verse in parseResult.Verses)
+                {
+                    ExtractFeaturesFromSingleVerse(verse, parseResult.Book, parseResult.Chapter, verseNum++, trainingFeaturesOut);
+                }
+            }
+            catch (Exception e)
+            {
+                logger.Log(e);
+            }
+        }
+
         public static ScriptureChapterDocument? ParseDocument(string htmlPage, Uri pageUrl, ILogger logger)
         {
             try
@@ -23,6 +81,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 DocumentParseModel? parseResult = ParseInternal(htmlPage, pageUrl, logger);
                 if (parseResult == null)
                 {
+                    logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
                     return null;
                 }
 
@@ -99,7 +158,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             return GospelParagraphClass.Default;
         }
 
-        public static DocumentParseModel? ParseInternal(string htmlPage, Uri pageUrl, ILogger logger)
+        private static DocumentParseModel? ParseInternal(string htmlPage, Uri pageUrl, ILogger logger)
         {
             try
             {
@@ -400,7 +459,71 @@ namespace ScriptureGraph.Core.Training.Extractors
             };
         }
 
-        public class DocumentParseModel
+        private static void ExtractFeaturesFromSingleVerse(
+            Paragraph currentParagraph,
+            string book,
+            int chapter,
+            int? verse,
+            List<TrainingFeature> trainingFeaturesOut)
+        {
+            // Common word and ngram level features associated with this verse entity
+            EnglishWordFeatureExtractor.ExtractTrainingFeatures(currentParagraph.Text.Trim(), trainingFeaturesOut, currentParagraph.ParaEntityId);
+
+            // Is this paragraph an actual numerical verse?
+            if (verse.HasValue)
+            {
+                // Relationship between this verse and the previous one (if present)
+                if (verse.Value > 1)
+                {
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        currentParagraph.ParaEntityId,
+                        FeatureToNodeMapping.ScriptureVerse(
+                            book,
+                            chapter,
+                            verse.Value - 1),
+                        TrainingFeatureType.ParagraphAssociation));
+                }
+            }
+
+            // Relationship between this verse and the book it's in
+            trainingFeaturesOut.Add(new TrainingFeature(
+                currentParagraph.ParaEntityId,
+                FeatureToNodeMapping.ScriptureChapter(
+                    book,
+                    chapter),
+                TrainingFeatureType.BookAssociation));
+
+            // Cross-references between this verse and other verses based on footnotes
+            foreach (var footnote in currentParagraph.References)
+            {
+                TrainingFeatureType featureType = TrainingFeatureType.ScriptureReference;
+                if (footnote.ScriptureRef != null && footnote.ScriptureRef.LowEmphasis)
+                {
+                    featureType = TrainingFeatureType.ScriptureReferenceWithoutEmphasis;
+                }
+
+                trainingFeaturesOut.Add(new TrainingFeature(
+                    currentParagraph.ParaEntityId,
+                    footnote.TargetNodeId,
+                    featureType));
+
+                // Also parse the words actually tagged by the footnote - this is why we had to do very careful
+                // start-end index calculations earlier
+                if (footnote.ReferenceSpan.HasValue)
+                {
+                    string footnoteText = currentParagraph.Text.Substring(footnote.ReferenceSpan.Value.Start, footnote.ReferenceSpan.Value.Length);
+                    foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(footnoteText))
+                    {
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            ngram,
+                            footnote.TargetNodeId,
+                            TrainingFeatureType.WordDesignation));
+                    }
+                }
+            }
+        }
+
+        private class DocumentParseModel
         {
             public required string Canon;
             public required string Book;
@@ -412,7 +535,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             public readonly Dictionary<string, string> Footnotes = new Dictionary<string, string>();
         }
 
-        public class Paragraph
+        private class Paragraph
         {
             public required KnowledgeGraphNodeId ParaEntityId;
             public required string Id;
@@ -426,7 +549,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        public class FootnoteReference
+        private class FootnoteReference
         {
             public required KnowledgeGraphNodeId TargetNodeId;
             public ScriptureReference? ScriptureRef;
