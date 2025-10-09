@@ -1,12 +1,15 @@
 ﻿using Durandal.Common.Compression.Zip;
 using Durandal.Common.File;
+using Durandal.Common.Instrumentation;
 using Durandal.Common.Logger;
 using Durandal.Common.NLP.Language;
+using Durandal.Common.Tasks;
 using Durandal.Common.Utils;
 using HtmlAgilityPack;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Schemas.Documents;
+using System.Diagnostics;
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Xml.XPath;
@@ -22,76 +25,115 @@ namespace ScriptureGraph.Core.Training.Extractors
         private static readonly Regex CHAPTER_FILE_MATCHER = new Regex("^sec_(\\d+)_(\\d+)\\.xml$");
         private static readonly IReadOnlySet<string> EMPTY_STRING_SET = new HashSet<string>();
 
-        public static void ExtractFeatures(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        public static void ExtractFeatures(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, Action<TrainingFeature> trainingFeaturesOut)
         {
             try
             {
-                ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
+                using (IThreadPool threadPool = new FixedCapacityThreadPool(
+                    new TaskThreadPool(),
+                    NullLogger.Singleton,
+                    NullMetricCollector.Singleton,
+                    DimensionSet.Empty,
+                    "TrainingThreads"))
                 {
-                    // High-level features
-                    // Title of the question -> Question
-                    foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(chapter.Title))
+                    int threadsStarted = 0;
+                    int threadsCompleted = 0;
+                    ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
                     {
-                        trainingFeaturesOut.Add(new TrainingFeature(
-                            chapter.DocumentEntityId,
-                            ngram,
-                            TrainingFeatureType.WordDesignation));
-                    }
-
-                    foreach (ParsedBodyParagraph para in chapter.BodyParagraphs)
-                    {
-                        // Associate this paragraph with the entire question
-                        trainingFeaturesOut.Add(new TrainingFeature(
-                            chapter.DocumentEntityId,
-                            para.ParaEntityId,
-                            TrainingFeatureType.BookAssociation));
-
-                        // And with the previous paragraph
-                        if (para.ParagraphNum > 1)
+                        Interlocked.Increment(ref threadsStarted);
+                        threadPool.EnqueueUserWorkItem(() =>
                         {
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                para.ParaEntityId,
-                                FeatureToNodeMapping.BookChapterParagraph(chapter.DocumentEntityId, (para.ParagraphNum - 1).ToString()),
-                                TrainingFeatureType.ParagraphAssociation));
-                        }
-
-                        // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
-                        // doing 9x permutations between every single word in the paragraph)
-                        List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
-
-                        foreach (string sentence in sentences)
-                        {
-                            string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
-
-                            // Common word and ngram level features associated with this paragraph entity
-                            EnglishWordFeatureExtractor.ExtractTrainingFeatures(thisSentenceWordBreakerText, trainingFeaturesOut, para.ParaEntityId);
-
-                            // Parse all scripture references (in plaintext) and turn them into entity links
-                            foreach (ScriptureReference scriptureRef in ScriptureMetadata.ParseAllReferences(thisSentenceWordBreakerText, LanguageCode.ENGLISH))
+                            try
                             {
-                                KnowledgeGraphNodeId refNodeId = scriptureRef.ToNodeId();
-                                // Entity reference between this talk paragraph and the scripture ref
-                                trainingFeaturesOut.Add(new TrainingFeature(
-                                    para.ParaEntityId,
-                                    refNodeId,
-                                    TrainingFeatureType.EntityReference));
-
-                                // And association between all words spoken in this sentence and the scripture ref
-                                foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(thisSentenceWordBreakerText))
-                                {
-                                    trainingFeaturesOut.Add(new TrainingFeature(
-                                        ngram,
-                                        refNodeId,
-                                        TrainingFeatureType.WordAssociation));
-                                }
+                                ExtractFeaturesOnThread(chapter, trainingFeaturesOut, logger);
                             }
-                        }
+                            finally
+                            {
+                                Interlocked.Increment(ref threadsCompleted);
+                            }
+                        });
+                    });
+
+                    Stopwatch runawayTimer = Stopwatch.StartNew();
+                    while (threadsCompleted < threadsStarted && runawayTimer.Elapsed < TimeSpan.FromSeconds(60))
+                    {
+                        Thread.Sleep(100);
                     }
-                });
+                }
             }
             catch (Exception e)
             {
                 logger.Log(e);
+            }
+        }
+
+        private static void ExtractFeaturesOnThread(ParsedChapter chapter, Action<TrainingFeature> trainingFeaturesOut, ILogger logger)
+        {
+            // High-level features
+            // Title of the question -> Question
+            foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(chapter.Title))
+            {
+                trainingFeaturesOut(new TrainingFeature(
+                    chapter.DocumentEntityId,
+                    ngram,
+                    TrainingFeatureType.WordDesignation));
+            }
+
+            foreach (ParsedBodyParagraph para in chapter.BodyParagraphs)
+            {
+                // Associate this paragraph with the entire question
+                trainingFeaturesOut(new TrainingFeature(
+                    chapter.DocumentEntityId,
+                    para.ParaEntityId,
+                    TrainingFeatureType.BookAssociation));
+
+                // And with the previous paragraph
+                if (para.ParagraphNum > 1)
+                {
+                    trainingFeaturesOut(new TrainingFeature(
+                        para.ParaEntityId,
+                        FeatureToNodeMapping.BookChapterParagraph(chapter.DocumentEntityId, (para.ParagraphNum - 1).ToString()),
+                        TrainingFeatureType.ParagraphAssociation));
+                }
+
+                // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
+                // doing 9x permutations between every single word in the paragraph)
+                List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
+
+                List<TrainingFeature> scratch = new List<TrainingFeature>();
+                foreach (string sentence in sentences)
+                {
+                    string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
+
+                    // Common word and ngram level features associated with this paragraph entity
+                    scratch.Clear();
+                    EnglishWordFeatureExtractor.ExtractTrainingFeatures(thisSentenceWordBreakerText, scratch, para.ParaEntityId);
+
+                    foreach (var f in scratch)
+                    {
+                        trainingFeaturesOut(f);
+                    }
+
+                    // Parse all scripture references (in plaintext) and turn them into entity links
+                    foreach (ScriptureReference scriptureRef in ScriptureMetadata.ParseAllReferences(thisSentenceWordBreakerText, LanguageCode.ENGLISH))
+                    {
+                        KnowledgeGraphNodeId refNodeId = scriptureRef.ToNodeId();
+                        // Entity reference between this talk paragraph and the scripture ref
+                        trainingFeaturesOut(new TrainingFeature(
+                            para.ParaEntityId,
+                            refNodeId,
+                            TrainingFeatureType.EntityReference));
+
+                        // And association between all words spoken in this sentence and the scripture ref
+                        foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(thisSentenceWordBreakerText))
+                        {
+                            trainingFeaturesOut(new TrainingFeature(
+                                ngram,
+                                refNodeId,
+                                TrainingFeatureType.WordAssociation));
+                        }
+                    }
+                }
             }
         }
 
@@ -196,7 +238,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     using (Stream fileStream = fileSystem.OpenStream(file, FileOpenMode.Open, FileAccessMode.Read))
                     {
-                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Parsing file \"{0}\"", file.FullName);
+                        logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Parsing epub file \"{0}\"", file.FullName);
                         int volumeNum = int.Parse(fileNameMatch.Groups[1].Value);
                         int chapterNum = int.Parse(fileNameMatch.Groups[2].Value);
                         ParsedChapter? chap = ParseSingleChapter(fileStream, volumeNum, chapterNum, logger);

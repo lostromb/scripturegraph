@@ -12,6 +12,7 @@ using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
@@ -29,15 +30,62 @@ namespace ScriptureGraph.Core
         /// <param name="logger"></param>
         /// <param name="pageCache"></param>
         /// <returns></returns>
-        public static async Task BuildUniversalGraph(ILogger logger, TrainingKnowledgeGraph startGraph, WebPageCache pageCache)
+        public static async Task BuildUniversalGraph(ILogger logger, TrainingKnowledgeGraph startGraph, WebPageCache pageCache, IFileSystem epubFileSystem)
         {
             WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
             DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(startGraph);
             await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for index building to finish");
             await processor.WaitForThreadsToFinish();
+            logger.Log("Processing documents from local sources");
+            //BookExtractorATGQ.ExtractFeatures(
+            //    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, startGraph.Train);
+        }
+
+        /// <summary>
+        /// Builds a search index over conference talks and BD topics
+        /// </summary>
+        /// <param name="logger"></param>
+        /// <param name="pageCache"></param>
+        /// <returns></returns>
+        public static async Task<Tuple<TrainingKnowledgeGraph, EntityNameIndex>> BuildSearchIndex(ILogger logger, WebPageCache pageCache, IFileSystem epubFileSystem)
+        {
+            WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
+            TrainingKnowledgeGraph entitySearchGraph = new TrainingKnowledgeGraph();
+            EntityNameIndex nameIndex = new EntityNameIndex();
+            DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex);
+            await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            logger.Log("Waiting for index building to finish");
+            await processor.WaitForThreadsToFinish();
+            logger.Log("Processing documents from local sources");
+            //BookExtractorATGQ.ExtractSearchIndexFeatures(
+            //    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
+
+            return new Tuple<TrainingKnowledgeGraph, EntityNameIndex>(entitySearchGraph, nameIndex);
+        }
+
+        /// <summary>
+        /// Extracts structured documents from web pages to be loaded into a reader
+        /// </summary>
+        /// <param name="logger"></param>
+        /// <param name="pageCache"></param>
+        /// <returns></returns>
+        public static async Task ParseDocuments(ILogger logger, WebPageCache pageCache, IFileSystem documentFileSystem, IFileSystem epubFileSystem)
+        {
+            WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
+            IThreadPool threadPool = new TaskThreadPool();
+            DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
+            logger.Log("Processing documents from webcrawler sources");
+            await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            logger.Log("Waiting for webcrawler parsing to finish");
+            await processor.WaitForThreadsToFinish();
+            logger.Log("Processing documents from local sources");
+            //Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
         }
 
         /// <summary>
@@ -66,7 +114,8 @@ namespace ScriptureGraph.Core
 
             public async Task WaitForThreadsToFinish()
             {
-                while (_threadsFinished < _threadsStarted)
+                Stopwatch runawayTimer = Stopwatch.StartNew();
+                while (_threadsFinished < _threadsStarted && runawayTimer.Elapsed < TimeSpan.FromSeconds(60))
                 {
                     await Task.Delay(100);
                 }
@@ -79,7 +128,7 @@ namespace ScriptureGraph.Core
                 {
                     try
                     {
-                        ProcessFromWebCrawler(page, logger);
+                        ProcessFromWebCrawler(page, logger).Await();
                     }
                     finally
                     {
@@ -150,28 +199,6 @@ namespace ScriptureGraph.Core
         }
 
         /// <summary>
-        /// Builds a search index over conference talks and BD topics
-        /// </summary>
-        /// <param name="logger"></param>
-        /// <param name="pageCache"></param>
-        /// <returns></returns>
-        public static async Task<Tuple<TrainingKnowledgeGraph, EntityNameIndex>> BuildSearchIndex(ILogger logger, WebPageCache pageCache, IFileSystem epubFileSystem)
-        {
-            WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
-            TrainingKnowledgeGraph entitySearchGraph = new TrainingKnowledgeGraph();
-            EntityNameIndex nameIndex = new EntityNameIndex();
-            DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex);
-            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            logger.Log("Waiting for index building to finish");
-            await processor.WaitForThreadsToFinish();
-            //BookExtractorATGQ.ExtractSearchIndexFeatures(
-            //    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
-
-            return new Tuple<TrainingKnowledgeGraph, EntityNameIndex>(entitySearchGraph, nameIndex);
-        }
-
-        /// <summary>
         /// Web page processor which extracts search features from pages to build a search index
         /// </summary>
         private class DocumentProcessorForSearchIndex
@@ -199,7 +226,8 @@ namespace ScriptureGraph.Core
 
             public async Task WaitForThreadsToFinish()
             {
-                while (_threadsFinished < _threadsStarted)
+                Stopwatch runawayTimer = Stopwatch.StartNew();
+                while (_threadsFinished < _threadsStarted && runawayTimer.Elapsed < TimeSpan.FromSeconds(60))
                 {
                     await Task.Delay(100);
                 }
@@ -212,7 +240,7 @@ namespace ScriptureGraph.Core
                 {
                     try
                     {
-                        ProcessFromWebCrawler(page, logger);
+                        ProcessFromWebCrawler(page, logger).Await();
                     }
                     finally
                     {
@@ -256,7 +284,7 @@ namespace ScriptureGraph.Core
                         if (match.Success)
                         {
                             logger.Log($"Building search index from conference talk {page.Url.AbsolutePath}");
-                            ConferenceTalkFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
+                            ConferenceTalkFeatureExtractorNew.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
                         }
                         else
                         {
@@ -272,27 +300,6 @@ namespace ScriptureGraph.Core
 
                 return Task.FromResult<bool>(true);
             }
-        }
-
-        /// <summary>
-        /// Extracts structured documents from web pages to be loaded into a reader
-        /// </summary>
-        /// <param name="logger"></param>
-        /// <param name="pageCache"></param>
-        /// <returns></returns>
-        public static async Task ParseDocuments(ILogger logger, WebPageCache pageCache, IFileSystem documentFileSystem, IFileSystem epubFileSystem)
-        {
-            WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
-            IThreadPool threadPool = new TaskThreadPool();
-            DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
-            logger.Log("Processing documents from webcrawler sources");
-            //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawler, logger);
-            //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-            logger.Log("Waiting for webcrawler parsing to finish");
-            await processor.WaitForThreadsToFinish();
-            logger.Log("Processing documents from local sources");
-            //Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
         }
 
         /// <summary>
@@ -321,7 +328,8 @@ namespace ScriptureGraph.Core
 
             public async Task WaitForThreadsToFinish()
             {
-                while (_threadsFinished < _threadsStarted)
+                Stopwatch runawayTimer = Stopwatch.StartNew();
+                while (_threadsFinished < _threadsStarted && runawayTimer.Elapsed < TimeSpan.FromSeconds(60))
                 {
                     await Task.Delay(100);
                 }
@@ -334,7 +342,7 @@ namespace ScriptureGraph.Core
                 {
                     try
                     {
-                        ProcessFromWebCrawler(page, logger);
+                        ProcessFromWebCrawler(page, logger).Await();
                     }
                     finally
                     {
@@ -438,7 +446,6 @@ namespace ScriptureGraph.Core
             HashSet<Regex> allowedUrls =
             [
                 new Regex("^https://www.churchofjesuschrist.org/study/general-conference\\?lang=eng$"), // overall conference index
-                new Regex("^https://www.churchofjesuschrist.org/study/general-conference/2025\\?lang=eng$"), // decade index pages
                 new Regex("^https://www.churchofjesuschrist.org/study/general-conference/2025/\\d+\\?lang=eng$"), // conference index page
                 new Regex("^https://www.churchofjesuschrist.org/study/general-conference/2025/\\d+/.+?\\?lang=eng$"), // specific talks
             ];

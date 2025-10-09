@@ -235,6 +235,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                     DocumentEntityId = dictEntryNodeId,
                 };
 
+                returnVal.Paragraphs.Add(new GospelParagraph()
+                {
+                    ParagraphEntityId = FeatureToNodeMapping.BibleDictionaryParagraph(topicId, "title"),
+                    Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, prettyTopicString),
+                    Class = GospelParagraphClass.SubHeader
+                });
+
                 int paragraph = 0;
                 foreach (Match entryMatch in ParagraphParser.Matches(htmlPage))
                 {
@@ -243,7 +250,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                     returnVal.Paragraphs.Add(new GospelParagraph()
                     {
                         ParagraphEntityId = FeatureToNodeMapping.BibleDictionaryParagraph(topicId, paragraph),
-                        Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, rawParagraph)
+                        Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, rawParagraph),
+                        Class = GospelParagraphClass.Default,
                     });
                 }
 

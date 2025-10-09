@@ -7,6 +7,7 @@ using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Schemas.Documents;
 using System.Net;
+using System.Numerics;
 using System.Text.RegularExpressions;
 using System.Xml.XPath;
 
@@ -23,11 +24,49 @@ namespace ScriptureGraph.Core.Training.Extractors
                 DocumentParseModel? parseResult = ParseInternal(htmlPage, pageUrl, logger);
                 if (parseResult == null)
                 {
-                    logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
+                    //logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
                     return;
                 }
 
                 
+            }
+            catch (Exception e)
+            {
+                logger.Log(e);
+            }
+        }
+
+        public static void ExtractSearchIndexFeatures(string htmlPage, Uri pageUrl, ILogger logger, Action<TrainingFeature> trainingFeaturesOut, EntityNameIndex nameIndex)
+        {
+            try
+            {
+                DocumentParseModel? parseResult = ParseInternal(htmlPage, pageUrl, logger);
+                if (parseResult == null)
+                {
+                    //logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
+                    return;
+                }
+
+                // Extract ngrams from the talk title and associate it with the talk
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(parseResult.TalkTitle))
+                {
+                    trainingFeaturesOut(new TrainingFeature(
+                        parseResult.DocumentEntityId,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
+
+                nameIndex.Mapping[parseResult.SpeakerEntityId] = parseResult.SpeakerName;
+                nameIndex.Mapping[parseResult.DocumentEntityId] = parseResult.TalkTitle;
+
+                // Extract ngrams from the speaker's name and associate it with the speaker
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(parseResult.SpeakerName))
+                {
+                    trainingFeaturesOut(new TrainingFeature(
+                        parseResult.SpeakerEntityId,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
             }
             catch (Exception e)
             {
@@ -42,7 +81,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 DocumentParseModel? parseResult = ParseInternal(htmlPage, pageUrl, logger);
                 if (parseResult == null)
                 {
-                    logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
+                    //logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
                     return null;
                 }
 

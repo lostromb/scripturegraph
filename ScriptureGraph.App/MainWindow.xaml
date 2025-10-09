@@ -31,7 +31,7 @@
         <TextAlignment x:Key="Para_Align_Verse">Justify</TextAlignment>
 
         <FontFamily x:Key="Para_FontFamily_Header">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
-        <System:Double x:Key="Para_FontSize_Header">42</System:Double>
+        <System:Double x:Key="Para_FontSize_Header">36</System:Double>
         <Thickness x:Key="Para_Margin_Header">0,0,0,0</Thickness>
         <TextAlignment x:Key="Para_Align_Header">Center</TextAlignment>
 

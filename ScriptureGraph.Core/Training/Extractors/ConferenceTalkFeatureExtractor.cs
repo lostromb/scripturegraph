@@ -395,6 +395,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                 return false;
             }
 
+            if (authorFullName.Length > 100)
+            {
+                // Way too long
+                return false;
+            }
+
             return true;
         }
 

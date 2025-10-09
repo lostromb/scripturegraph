@@ -394,8 +394,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                     else
                     {
                         // Very rare cases like 1 Ne 8:19 will have footnotes refering to other footnotes
-                        // We're just gonna ignore those
-                        logger.Log($"Invalid cross-reference location to {verseRange}, ignoring...", LogLevel.Wrn);
+                        // so the verse will be "study_intro1" or something.
+                        // Just send the raw string and it should be parsed as a paragraph reference with no verse #
+                        //logger.Log($"Invalid cross-reference location to {verseRange}, ignoring...", LogLevel.Wrn);
+                        handler(verseRange);
                     }
                 }
             }
@@ -648,12 +650,19 @@ namespace ScriptureGraph.Core.Training.Extractors
                 int month = int.Parse(parsedLink.Groups[2].Value);
                 ConferencePhase phase = month > 6 ? ConferencePhase.October : ConferencePhase.April;
                 string talkId = parsedLink.Groups[3].Value;
-                if (parsedLink.Groups[4].Success)
+                // this is for things like "p3-p7", but without the actual document, we can't make assumptions about what
+                // paragraphs compose that range
+                //if (parsedLink.Groups[4].Success)
+                //{
+                //    foreach (string para in ParseConfParagraphRangeString(parsedLink.Groups[4].Value, logger))
+                //    {
+                //        yield return FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, para);
+                //    }
+                //}
+                // So instead we only parse the "focus" paragraph extracted from url fragment #p5, if it exists
+                if (parsedLink.Groups[5].Success)
                 {
-                    foreach (string para in ParseConfParagraphRangeString(parsedLink.Groups[4].Value, logger))
-                    {
-                        yield return FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, para);
-                    }
+                    yield return FeatureToNodeMapping.ConferenceTalkParagraph(year, phase, talkId, parsedLink.Groups[5].Value);
                 }
                 else
                 {

@@ -68,6 +68,11 @@ namespace ScriptureGraph.Core.Training
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionaryTopic, topic);
         }
 
+        public static KnowledgeGraphNodeId BibleDictionaryParagraph(string topic, string paragraph)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionaryParagraph, $"{topic}|{paragraph}");
+        }
+
         public static KnowledgeGraphNodeId BibleDictionaryParagraph(string topic, int paragraph)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionaryParagraph, $"{topic}|{paragraph}");

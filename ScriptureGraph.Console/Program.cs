@@ -36,7 +36,7 @@ namespace ScriptureGraph.Console
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, logger);
 
-            string rootDirectory = @"C:\Code\scripturegraph";
+            string rootDirectory = @"D:\Code\scripturegraph";
             _runtimeFileSystem = new RealFileSystem(logger.Clone("RuntimeFS"), rootDirectory + @"\runtime");
             _webCacheFileSystem = new RealFileSystem(logger.Clone("WebCacheFS"), rootDirectory + @"\runtime\cache");
             _documentCacheFileSystem = new RealFileSystem(logger.Clone("DocumentFS"), rootDirectory + @"\runtime\documents");
@@ -113,17 +113,17 @@ namespace ScriptureGraph.Console
 
             //await Test(logger);
             await ParseDocuments(logger);
-            //await BuildAndTestSearchIndex(logger);
-            //await BuildAndTestUniversalGraph(logger);
+            await BuildSearchIndex(logger);
+            await BuildUniversalGraph(logger);
 
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/pgp/abr/1?lang=eng");
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/john/1?lang=eng");
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/dc-testament/od/1?lang=eng");
             //string webPage = new WebClient().DownloadString(scriptureUrl);
             //ScripturePageFeatureExtractorNew.ParseDocument(webPage, scriptureUrl, logger);
-            
+
             //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/general-conference/2025/10/41holland?lang=eng");
-            //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/general-conference/2023/10/26choi?lang=eng");
+            //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/general-conference/2025/10/54godoy?lang=eng");
             //string webPage = new WebClient().DownloadString(talkUrl);
             //ConferenceTalkFeatureExtractorNew.ParseDocument(webPage, talkUrl, logger);
         }
@@ -199,7 +199,7 @@ namespace ScriptureGraph.Console
             //await CommonTasks.ParseDocuments(logger, pageCache, documentFileSystem);
         }
 
-        private static async Task BuildAndTestSearchIndex(ILogger logger)
+        private static async Task<TrainingKnowledgeGraph> BuildSearchIndex(ILogger logger)
         {
             TrainingKnowledgeGraph entitySearchGraph;
 
@@ -232,6 +232,11 @@ namespace ScriptureGraph.Console
                 }
             }
 
+            return entitySearchGraph;
+        }
+
+        private static async Task TestSearchIndex(IKnowledgeGraph entitySearchGraph, ILogger logger)
+        {
             logger.Log("Ready to query");
             RunSearchQuery("russell m nelson", entitySearchGraph, logger);
             RunSearchQuery("jeffrey", entitySearchGraph, logger);
@@ -297,10 +302,11 @@ namespace ScriptureGraph.Console
             }
         }
 
-        private static async Task BuildAndTestUniversalGraph(ILogger logger)
+        private static async Task<TrainingKnowledgeGraph> BuildUniversalGraph(ILogger logger)
         {
             TrainingKnowledgeGraph graph;
-            VirtualPath modelFileIn = new VirtualPath("all.graph");
+            VirtualPath modelFileIn = new VirtualPath("all.graph.br");
+            WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
 
             if (_runtimeFileSystem.Exists(modelFileIn))
             {
@@ -313,16 +319,22 @@ namespace ScriptureGraph.Console
             }
             else
             {
-                WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
                 graph = new TrainingKnowledgeGraph();
-                await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
-                using (Stream testGraphOut = _runtimeFileSystem.OpenStream(modelFileIn, FileOpenMode.Create, FileAccessMode.Write))
-                using (BrotliStream brotliStream = new BrotliStream(testGraphOut, CompressionLevel.SmallestSize))
-                {
-                    graph.Save(brotliStream);
-                }
             }
 
+            // Update and save graph
+            await CommonTasks.BuildUniversalGraph(logger, graph, pageCache, _epubFileSystem);
+            using (Stream testGraphOut = _runtimeFileSystem.OpenStream(modelFileIn, FileOpenMode.Create, FileAccessMode.Write))
+            using (BrotliStream brotliStream = new BrotliStream(testGraphOut, CompressionLevel.SmallestSize))
+            {
+                graph.Save(brotliStream);
+            }
+
+            return graph;
+        }
+
+        private static async Task TestUniversalGraph(IKnowledgeGraph graph, ILogger logger)
+        {
             int dispLines;
             //logger.Log("Edge dump");
             //dispLines = 100;
@@ -467,7 +479,6 @@ namespace ScriptureGraph.Console
 
         private static async Task ParseDocuments(ILogger logger)
         {
-            
             WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
             await CommonTasks.ParseDocuments(logger, pageCache, _documentCacheFileSystem, _epubFileSystem);
         }

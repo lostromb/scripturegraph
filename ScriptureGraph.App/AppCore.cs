@@ -47,7 +47,7 @@ namespace ScriptureGraph.App
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, _coreLogger);
 
 #if DEBUG
-            string contentPath = @"C:\Code\scripturegraph\runtime";
+            string contentPath = @"D:\Code\scripturegraph\runtime";
 #else
             string contentPath = Path.Combine(Environment.CurrentDirectory, "content");
             if (!Directory.Exists(contentPath))
@@ -80,10 +80,10 @@ namespace ScriptureGraph.App
                 throw new Exception("Can't find name index file");
             }
 
-            //if (!(await _fileSystem.ExistsAsync(largeGraphFileName)))
-            //{
-            //    throw new Exception("Can't find main search graph file");
-            //}
+            if (!(await _fileSystem.ExistsAsync(largeGraphFileName)))
+            {
+                throw new Exception("Can't find main search graph file");
+            }
 
             using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(smallGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
             using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
@@ -99,12 +99,12 @@ namespace ScriptureGraph.App
                 _entityNameLookup = EntityNameIndex.Deserialize(searchIndexIn);
             }
 
-            //using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
-            //using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
-            //{
-            //    _coreLogger.Log("Loading large search index");
-            //    _largeSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, _nativeHeap);
-            //}
+            using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
+            using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
+            {
+                _coreLogger.Log("Loading large search index");
+                _largeSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, _nativeHeap);
+            }
 
             timer.Stop();
             _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Indexes loaded in {0} ms", timer.ElapsedMillisecondsPrecise());
