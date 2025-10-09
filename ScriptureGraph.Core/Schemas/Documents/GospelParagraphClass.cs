@@ -37,5 +37,7 @@ namespace ScriptureGraph.Core.Schemas.Documents
         /// A line of quotation (used also for poems, songs, etc.)
         /// </summary>
         Quotation = 5,
+
+        ChapterNum = 6,
     }
 }

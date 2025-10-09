@@ -212,5 +212,16 @@ namespace ScriptureGraph.Tests
             Assert.AreEqual(12, parserOutput.Links[0].Item1.End);
             Assert.AreEqual("/study/scriptures/nt/john/5?lang=eng&id=p29#p29", parserOutput.Links[0].Item2);
         }
+
+
+
+        [TestMethod]
+        public void TestParseAndFormatHtml_ClarityWords()
+        {
+            string html = "He was <span class=\"clarity-word\">of</span> John";
+            LdsDotOrgCommonParsers.HtmlFragmentParseModel parserOutput = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(html, new ConsoleLogger());
+            Assert.AreEqual("He was <i>of</i> John", parserOutput.TextWithInlineFormatTags);
+            Assert.AreEqual(0, parserOutput.Links.Count);
+        }
     }
 }

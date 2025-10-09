@@ -31,7 +31,7 @@
         <TextAlignment x:Key="Para_Align_Verse">Justify</TextAlignment>
 
         <FontFamily x:Key="Para_FontFamily_Header">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
-        <System:Double x:Key="Para_FontSize_Header">32</System:Double>
+        <System:Double x:Key="Para_FontSize_Header">42</System:Double>
         <Thickness x:Key="Para_Margin_Header">0,0,0,0</Thickness>
         <TextAlignment x:Key="Para_Align_Header">Center</TextAlignment>
 
@@ -49,6 +49,11 @@
         <System:Double x:Key="Para_FontSize_Quotation">16</System:Double>
         <Thickness x:Key="Para_Margin_Quotation">30,0,10,20</Thickness>
         <TextAlignment x:Key="Para_Align_Quotation">Justify</TextAlignment>
+
+        <FontFamily x:Key="Para_FontFamily_ChapterNum">Palatino, Palatino Linotype, Palatino-Roman, Pahoran, Noto Sans Myanmar, NotoSansMyanmar, SaysetthaldsLao, NotoSerifTamil, serif</FontFamily>
+        <System:Double x:Key="Para_FontSize_ChapterNum">26</System:Double>
+        <Thickness x:Key="Para_Margin_ChapterNum">0,0,0,10</Thickness>
+        <TextAlignment x:Key="Para_Align_ChapterNum">Center</TextAlignment>
     </Window.Resources>
     <DockPanel Name="ViewRoot" Background="{DynamicResource AppBackgroundColor}" Margin="0,0,10,20">
         <DockPanel

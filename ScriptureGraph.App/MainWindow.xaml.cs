@@ -1016,8 +1016,59 @@ namespace ScriptureGraph.App
             bool displayVerses = (inputDoc is ScriptureChapterDocument);
             returnVal.Background = (Brush)TryFindResource("DocumentReaderPageBackground");
 
+            KnowledgeGraphNodeId? prevChapter = null;
+            KnowledgeGraphNodeId? nextChapter = null;
+            if (inputDoc is ScriptureChapterDocument scriptureChapter)
+            {
+                prevChapter = scriptureChapter.Prev;
+                nextChapter = scriptureChapter.Next;
+            }
+            else if (inputDoc is BookChapterDocument bookChapter)
+            {
+                prevChapter = bookChapter.Prev;
+                nextChapter = bookChapter.Next;
+            }
+
+            // Buttons at the top of the document if prev/next chapters are enabled
+            if (prevChapter.HasValue || nextChapter.HasValue)
+            {
+                UniformGrid grid = new UniformGrid();
+
+                Button prevButton = new Button()
+                {
+                    Content = "Previous",
+                    IsEnabled = prevChapter.HasValue,
+                };
+
+                Button nextButton = new Button()
+                {
+                    Content = "Next",
+                    IsEnabled = nextChapter.HasValue
+                };
+
+                if (prevChapter.HasValue)
+                {
+                    prevButton.Tag = new Tuple<KnowledgeGraphNodeId, Guid>(prevChapter.Value, targetPane);
+                    prevButton.Click += NextPrevChapterButton_Click;
+                }
+
+                if (nextChapter.HasValue)
+                {
+                    nextButton.Tag = new Tuple<KnowledgeGraphNodeId, Guid>(nextChapter.Value, targetPane);
+                    nextButton.Click += NextPrevChapterButton_Click;
+                }
+
+                grid.Children.Add(prevButton);
+                grid.Children.Add(nextButton);
+
+                BlockUIContainer buttonContainer = new BlockUIContainer();
+                buttonContainer.Child = grid;
+                returnVal.Blocks.Add(buttonContainer);
+            }
+
             // Build blocks for all paragraphs
             bool firstNonTitle = true;
+            bool firstPara = true;
             int para = 1;
             foreach (GospelParagraph paragraph in inputDoc.Paragraphs)
             {
@@ -1030,7 +1081,8 @@ namespace ScriptureGraph.App
                 uiParagraph.Margin = (Thickness)TryFindResource($"Para_Margin_{styleKey}");
                 uiParagraph.FontSize = (double)TryFindResource($"Para_FontSize_{styleKey}");
 
-                if (firstNonTitle &&
+                if (!firstPara &&
+                    firstNonTitle &&
                     paragraph.Class != GospelParagraphClass.Header &&
                     paragraph.Class != GospelParagraphClass.SubHeader)
                 {
@@ -1039,6 +1091,13 @@ namespace ScriptureGraph.App
                     // had a flat large margin space below all titles in general)
                     uiParagraph.Margin = new Thickness(uiParagraph.Margin.Left, uiParagraph.Margin.Top + 20, uiParagraph.Margin.Right, uiParagraph.Margin.Bottom);
                     firstNonTitle = false;
+                }
+
+                firstPara = false;
+
+                if (paragraph.Class == GospelParagraphClass.StudySummary)
+                {
+                    paragraph.Text = $"<i>{paragraph.Text}</i>";
                 }
 
                 if (displayVerses && paragraph.Class == GospelParagraphClass.Verse)
@@ -1059,20 +1118,6 @@ namespace ScriptureGraph.App
 
                 AddFormattedInlines(paragraph.Text, uiParagraph.Inlines);
                 returnVal.Blocks.Add(uiParagraph);
-            }
-
-            // Buttons at the bottom of the document if prev/next chapters are enabled
-            KnowledgeGraphNodeId? prevChapter = null;
-            KnowledgeGraphNodeId? nextChapter = null;
-            if (inputDoc is ScriptureChapterDocument scriptureChapter)
-            {
-                prevChapter = scriptureChapter.Prev;
-                nextChapter = scriptureChapter.Next;
-            }
-            else if (inputDoc is BookChapterDocument bookChapter)
-            {
-                prevChapter = bookChapter.Prev;
-                nextChapter = bookChapter.Next;
             }
 
             if (prevChapter.HasValue || nextChapter.HasValue)

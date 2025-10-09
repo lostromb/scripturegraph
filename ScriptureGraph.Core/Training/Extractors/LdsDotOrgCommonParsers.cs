@@ -544,14 +544,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                 Stack<HtmlStackOp> closingTagStack = new Stack<HtmlStackOp>();
                 HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
                 var iter = navigator.Select("//node()");
-                while (iter.MoveNext())
+                while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
                 {
-                    HtmlNodeNavigator currentNav = iter.Current as HtmlNodeNavigator;
-                    if (currentNav == null)
-                    {
-                        continue;
-                    }
-
                     // Insert closing tags where needed
                     while (closingTagStack.Count > 0 && currentNav.CurrentNode.StreamPosition >= closingTagStack.Peek().ClosingTagStreamPos)
                     {
@@ -563,7 +557,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         sb.Append(WebUtility.HtmlDecode(currentNav.CurrentNode.InnerText));
                     }
-                    else if (string.Equals("i", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
+                    else if (string.Equals("i", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||
+                        (string.Equals("span", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals("clarity-word", currentNav.CurrentNode.GetAttributeValue("class", string.Empty))))
                     {
                         sb.Append("<i>");
                         closingTagStack.Push(new HtmlStackOp((op) => sb.Append("</i>"), currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, string.Empty));
@@ -573,6 +569,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                         sb.Append("<b>");
                         closingTagStack.Push(new HtmlStackOp((op) => sb.Append("</b>"), currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, string.Empty));
                     }
+                    //else if (string.Equals("br", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
+                    //{
+                    //    sb.Append("\r\n");
+                    //}
                     else if (string.Equals("a", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
                     {
                         string href = currentNav.CurrentNode.GetAttributeValue("href", string.Empty);

@@ -519,9 +519,9 @@ namespace ScriptureGraph.Core
         {
             //await CrawlBookOfMormon(crawler, pageAction, logger);
             //await CrawlOldTestament(crawler, pageAction, logger);
-            //await CrawlNewTestament(crawler, pageAction, logger);
-            await CrawlDC(crawler, pageAction, logger);
-            await CrawlPGP(crawler, pageAction, logger);
+            await CrawlNewTestament(crawler, pageAction, logger);
+            //await CrawlDC(crawler, pageAction, logger);
+            //await CrawlPGP(crawler, pageAction, logger);
         }
 
         private static async Task CrawlBibleDictionary(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)

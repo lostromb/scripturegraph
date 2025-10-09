@@ -115,7 +115,8 @@ namespace ScriptureGraph.Console
             await ParseDocuments(logger);
             //await BuildAndTestSearchIndex(logger);
 
-            //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/dc-testament/dc/76?lang=eng");
+            //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/pgp/abr/1?lang=eng");
+            //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/john/1?lang=eng");
             //string webPage = new WebClient().DownloadString(scriptureUrl);
             //ScripturePageFeatureExtractorNew.ParseInternal(webPage, scriptureUrl, logger);
         }

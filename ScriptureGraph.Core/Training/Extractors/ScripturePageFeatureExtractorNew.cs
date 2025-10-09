@@ -45,7 +45,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         ParagraphEntityId = paragraph.ParaEntityId,
                         Class = StandardizeClass(paragraph.Class, paragraph.Text),
-                        Text = paragraph.Text
+                        Text = paragraph.Text.Trim()
                     });
                 }
 
@@ -55,7 +55,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         ParagraphEntityId = paragraph.ParaEntityId,
                         Class = StandardizeClass(paragraph.Class, paragraph.Text),
-                        Text = paragraph.Text
+                        Text = paragraph.Text.Trim()
                     });
                 }
 
@@ -65,7 +65,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         ParagraphEntityId = paragraph.ParaEntityId,
                         Class = GospelParagraphClass.Verse,
-                        Text = paragraph.Text
+                        Text = paragraph.Text.Trim()
                     });
                 }
 
@@ -80,14 +80,15 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private static readonly IReadOnlyDictionary<string, GospelParagraphClass> CLASS_MAPPING = new Dictionary<string, GospelParagraphClass>(StringComparer.OrdinalIgnoreCase)
         {
-            {"title-number", GospelParagraphClass.SubHeader },
+            {"title", GospelParagraphClass.Header },
+            {"subtitle", GospelParagraphClass.SubHeader },
+            {"title-number", GospelParagraphClass.ChapterNum },
             {"study-intro", GospelParagraphClass.StudySummary },
             {"study-summary", GospelParagraphClass.StudySummary },
         };
 
         private static GospelParagraphClass StandardizeClass(string rawClass, string debugText)
         {
-
             GospelParagraphClass returnVal;
             if (CLASS_MAPPING.TryGetValue(rawClass, out returnVal))
             {
@@ -177,17 +178,11 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 // Parse headers
                 navigator.MoveToRoot();
-                iter = navigator.Select("//*[@id=\"main\"]/div/header/p");
-                while (iter.MoveNext())
+                iter = navigator.Select("//*[@id=\"main\"]/div/header/p | //*[@id=\"main\"]/div/header/h1");
+                while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
                 {
-                    HtmlNodeNavigator currentNav = iter.Current as HtmlNodeNavigator;
-                    if (currentNav == null)
-                    {
-                        continue;
-                    }
-
-                    string paraIdRaw = currentNav.GetAttribute("id", string.Empty);
-                    string paraClassRaw = currentNav.GetAttribute("class", string.Empty);
+                    string paraIdRaw = currentNav.GetAttribute("id", string.Empty) ?? string.Empty;
+                    string paraClassRaw = currentNav.GetAttribute("class", string.Empty) ?? string.Empty;
                     //Console.WriteLine($"ID {paraIdRaw} CLASS {paraClassRaw}");
                     //Console.WriteLine(currentNav.CurrentNode.InnerHtml.Trim());
 
@@ -225,7 +220,17 @@ namespace ScriptureGraph.Core.Training.Extractors
                         References = footnoteRefs
                     };
 
-                    if (string.Equals(paraClassRaw, "title-number", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals("h1", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Handle mixed emphases by splitting into title and subtitle
+                        returnVal.Titles.AddRange(SplitHeaderIntoMultiTitleParagraphs(content, book, chapter));
+                    }
+                    else if (string.Equals(paraClassRaw, "title-number", StringComparison.OrdinalIgnoreCase))
+                    {
+                        para.Text = para.Text.Trim();
+                        returnVal.Titles.Add(para);
+                    }
+                    else if (string.Equals(paraClassRaw, "subtitle", StringComparison.OrdinalIgnoreCase))
                     {
                         para.Text = para.Text.Trim();
                         returnVal.Titles.Add(para);
@@ -235,6 +240,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         returnVal.StudySummaries.Add(para);
                     }
+                    //else
+                    //{
+                    //    Console.WriteLine(paraClassRaw);
+                    //    Console.WriteLine(para.Text);
+                    //    returnVal.StudySummaries.Add(para);
+                    //}
 
                     //Console.WriteLine(para.Text);
                 }
@@ -242,16 +253,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                 // Parse verses
                 navigator.MoveToRoot();
                 iter = navigator.Select("//p[@class=\"verse\"]");
-                while (iter.MoveNext())
+                while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
                 {
-                    HtmlNodeNavigator currentNav = iter.Current as HtmlNodeNavigator;
-                    if (currentNav == null)
-                    {
-                        continue;
-                    }
-
-                    string paraIdRaw = currentNav.GetAttribute("id", string.Empty);
-                    string paraClassRaw = currentNav.GetAttribute("class", string.Empty);
+                    string paraIdRaw = currentNav.GetAttribute("id", string.Empty) ?? string.Empty;
+                    string paraClassRaw = currentNav.GetAttribute("class", string.Empty) ?? string.Empty;
                     //Console.WriteLine($"ID {paraIdRaw} CLASS {paraClassRaw}");
                     //Console.WriteLine(currentNav.CurrentNode.InnerHtml.Trim());
 
@@ -330,6 +335,69 @@ namespace ScriptureGraph.Core.Training.Extractors
                 logger.Log(e);
                 return null;
             }
+        }
+
+        private static IEnumerable<Paragraph> SplitHeaderIntoMultiTitleParagraphs(string headerHtml, string book, int chapter)
+        {
+            HtmlDocument html = new HtmlDocument();
+            html.LoadHtml(headerHtml);
+
+            HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
+            string rawText = navigator.CurrentNode.InnerText;
+
+            var iter = navigator.Select("//span[@class=\"dominant\"]");
+            if (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
+            {
+                string emphasizedText = currentNav.CurrentNode.InnerText;
+                Regex textMatcher = new Regex("([\\w\\W]+)?" + Regex.Escape(emphasizedText) + "([\\w\\W]+)?");
+                Match titleMatch = textMatcher.Match(rawText);
+                if (titleMatch.Success)
+                {
+                    if (titleMatch.Groups[1].Success)
+                    {
+                        yield return new Paragraph()
+                        {
+                            ParaEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, "subtitle-1"),
+                            Class = "subtitle",
+                            Id = "subtitle-1",
+                            Text = titleMatch.Groups[1].Value.Trim(),
+                            References = new List<FootnoteReference>()
+                        };
+                    }
+
+                    yield return new Paragraph()
+                    {
+                        ParaEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, "title"),
+                        Class = "title",
+                        Id = "title",
+                        Text = emphasizedText,
+                        References = new List<FootnoteReference>()
+                    };
+
+                    if (titleMatch.Groups[2].Success)
+                    {
+                        yield return new Paragraph()
+                        {
+                            ParaEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, "subtitle-2"),
+                            Class = "subtitle",
+                            Id = "subtitle-2",
+                            Text = titleMatch.Groups[2].Value.Trim(),
+                            References = new List<FootnoteReference>()
+                        };
+                    }
+
+                    yield break;
+                }
+            }
+
+            yield return new Paragraph()
+            {
+                ParaEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, "title"),
+                Class = "title",
+                Id = "title",
+                Text = rawText,
+                References = new List<FootnoteReference>()
+            };
         }
 
         public class DocumentParseModel
