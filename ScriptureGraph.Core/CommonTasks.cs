@@ -287,7 +287,7 @@ namespace ScriptureGraph.Core
             DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
             logger.Log("Processing documents from webcrawler sources");
             await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawler, logger);
-            //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+            await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
             logger.Log("Waiting for webcrawler parsing to finish");
             await processor.WaitForThreadsToFinish();
@@ -517,11 +517,11 @@ namespace ScriptureGraph.Core
 
         public static async Task CrawlStandardWorks(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
-            //await CrawlBookOfMormon(crawler, pageAction, logger);
-            //await CrawlOldTestament(crawler, pageAction, logger);
-            //await CrawlNewTestament(crawler, pageAction, logger);
+            await CrawlBookOfMormon(crawler, pageAction, logger);
+            await CrawlOldTestament(crawler, pageAction, logger);
+            await CrawlNewTestament(crawler, pageAction, logger);
             await CrawlDC(crawler, pageAction, logger);
-            //await CrawlPGP(crawler, pageAction, logger);
+            await CrawlPGP(crawler, pageAction, logger);
         }
 
         private static async Task CrawlBibleDictionary(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)

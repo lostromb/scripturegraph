@@ -36,7 +36,7 @@ namespace ScriptureGraph.Console
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, logger);
 
-            string rootDirectory = @"C:\Code\scripturegraph";
+            string rootDirectory = @"D:\Code\scripturegraph";
             _runtimeFileSystem = new RealFileSystem(logger.Clone("RuntimeFS"), rootDirectory + @"\runtime");
             _webCacheFileSystem = new RealFileSystem(logger.Clone("WebCacheFS"), rootDirectory + @"\runtime\cache");
             _documentCacheFileSystem = new RealFileSystem(logger.Clone("DocumentFS"), rootDirectory + @"\runtime\documents");
@@ -118,8 +118,9 @@ namespace ScriptureGraph.Console
 
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/pgp/abr/1?lang=eng");
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/john/1?lang=eng");
+            //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/dc-testament/od/1?lang=eng");
             //string webPage = new WebClient().DownloadString(scriptureUrl);
-            //ScripturePageFeatureExtractorNew.ParseInternal(webPage, scriptureUrl, logger);
+            //ScripturePageFeatureExtractorNew.ParseDocument(webPage, scriptureUrl, logger);
         }
 
         private static async Task Test(ILogger logger)
@@ -300,8 +301,9 @@ namespace ScriptureGraph.Console
             {
                 logger.Log("Loading model");
                 using (Stream testGraphIn = _runtimeFileSystem.OpenStream(modelFileIn, FileOpenMode.Open, FileAccessMode.Read))
+                using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(testGraphIn))
                 {
-                    graph = TrainingKnowledgeGraph.Load(testGraphIn);
+                    graph = TrainingKnowledgeGraph.Load(brotliStream);
                 }
             }
             else
@@ -310,8 +312,9 @@ namespace ScriptureGraph.Console
                 graph = new TrainingKnowledgeGraph();
                 await CommonTasks.BuildUniversalGraph(logger, graph, pageCache);
                 using (Stream testGraphOut = _runtimeFileSystem.OpenStream(modelFileIn, FileOpenMode.Create, FileAccessMode.Write))
+                using (BrotliStream brotliStream = new BrotliStream(testGraphOut, CompressionLevel.SmallestSize))
                 {
-                    graph.Save(testGraphOut);
+                    graph.Save(brotliStream);
                 }
             }
 
