@@ -123,7 +123,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     returnVal.Paragraphs.Add(new GospelParagraph()
                     {
                         ParagraphEntityId = paragraph.ParaEntityId,
-                        Class = GospelParagraphClass.Verse,
+                        Class = paragraph.HasVerseNumber ? GospelParagraphClass.Verse : GospelParagraphClass.Default,
                         Text = paragraph.Text.Trim()
                     });
                 }
@@ -192,52 +192,42 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 HashSet<ScriptureReference> scriptureRefs = new HashSet<ScriptureReference>();
                 navigator.MoveToRoot();
-                iter = navigator.Select("//footer[@class=\'study-notes\']");
-                while (iter.MoveNext())
+                iter = navigator.Select("//footer[@class=\"study-notes\"]//p[@id]");
+                while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
                 {
-                    XPathNodeIterator iter2 = iter.Current.Select(".//p[@id]");
-                    while (iter2.MoveNext())
+                    string footnotePId = currentNav.GetAttribute("id", string.Empty);
+                    if (footnotePId.Length < 3)
                     {
-                        HtmlNodeNavigator currentNav = iter2.Current as HtmlNodeNavigator;
-                        if (currentNav == null)
-                        {
-                            continue;
-                        }
+                        logger.Log("Invalid footnote id " + footnotePId, LogLevel.Wrn);
+                        continue;
+                    }
 
-                        string footnotePId = currentNav.GetAttribute("id", string.Empty);
-                        if (footnotePId.Length < 3)
-                        {
-                            logger.Log("Invalid footnote id " + footnotePId, LogLevel.Wrn);
-                            continue;
-                        }
-
-                        footnotePId = footnotePId.Substring(0, footnotePId.Length - 3); // trim the _p1 from the end
-                        //Console.WriteLine($"ID {footnotePId}");
+                    footnotePId = footnotePId.Substring(0, footnotePId.Length - 3); // trim the _p1 from the end
+                    //Console.WriteLine($"ID {footnotePId}");
                         
 
-                        string content = currentNav.CurrentNode.InnerHtml;
-                        content = WebUtility.HtmlDecode(content);
+                    string content = currentNav.CurrentNode.InnerHtml;
+                    content = WebUtility.HtmlDecode(content);
 
-                        // Extract all scripture references from links and text
-                        scriptureRefs.Clear();
-                        LdsDotOrgCommonParsers.ParseAllScriptureReferences(content, scriptureRefs, logger);
-                        HashSet<KnowledgeGraphNodeId> refNodeIds = new HashSet<KnowledgeGraphNodeId>();
-                        foreach (ScriptureReference scriptureRef in scriptureRefs)
-                        {
-                            refNodeIds.Add(scriptureRef.ToNodeId());
-                        }
-
-                        footnoteReferences[footnotePId] = refNodeIds;
-                        //foreach (var node in refNodeIds)
-                        //{
-                        //    Console.WriteLine(node);
-                        //}
+                    // Extract all scripture references from links and text
+                    scriptureRefs.Clear();
+                    LdsDotOrgCommonParsers.ParseAllScriptureReferences(content, scriptureRefs, logger);
+                    HashSet<KnowledgeGraphNodeId> refNodeIds = new HashSet<KnowledgeGraphNodeId>();
+                    foreach (ScriptureReference scriptureRef in scriptureRefs)
+                    {
+                        refNodeIds.Add(scriptureRef.ToNodeId());
                     }
+
+                    footnoteReferences[footnotePId] = refNodeIds;
+                    //foreach (var node in refNodeIds)
+                    //{
+                    //    Console.WriteLine(node);
+                    //}
                 }
 
                 // Parse headers
                 navigator.MoveToRoot();
-                iter = navigator.Select("//*[@id=\"main\"]/div/header/p | //*[@id=\"main\"]/div/header/h1");
+                iter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/header//p | //*[@id=\"main\"]/div[@class=\"body\"]/header//h1");
                 while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
                 {
                     string paraIdRaw = currentNav.GetAttribute("id", string.Empty) ?? string.Empty;
@@ -276,7 +266,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                         Class = paraClassRaw,
                         Id = paraIdRaw,
                         Text = parsedHtml.TextWithInlineFormatTags,
-                        References = footnoteRefs
+                        References = footnoteRefs,
+                        HasVerseNumber = false
                     };
 
                     if (string.Equals("h1", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
@@ -311,7 +302,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 // Parse verses
                 navigator.MoveToRoot();
-                iter = navigator.Select("//p[@class=\"verse\"]");
+                iter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]//p[@id]");
                 while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
                 {
                     string paraIdRaw = currentNav.GetAttribute("id", string.Empty) ?? string.Empty;
@@ -319,7 +310,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                     //Console.WriteLine($"ID {paraIdRaw} CLASS {paraClassRaw}");
                     //Console.WriteLine(currentNav.CurrentNode.InnerHtml.Trim());
 
-                    int verseNum = int.Parse(paraIdRaw.TrimStart('p'));
+                    int parsedVerse;
+                    int? verseNum = null;
+                    if (int.TryParse(paraIdRaw.TrimStart('p'), out parsedVerse))
+                    {
+                        verseNum = parsedVerse;
+                    }
 
                     string content = currentNav.CurrentNode.InnerHtml;
                     content = LdsDotOrgCommonParsers.RemoveVerseNumberSpans(content);
@@ -349,7 +345,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                             }
                             else
                             {
-                                logger.Log($"Verse {verseNum} has reference to unknown footnote {footnote}, ignoring...", LogLevel.Wrn);
+                                logger.Log($"Verse {paraIdRaw} has reference to unknown footnote {footnote}, ignoring...", LogLevel.Wrn);
                             }
                         }
                         else
@@ -375,13 +371,30 @@ namespace ScriptureGraph.Core.Training.Extractors
                     }
 
                     //Console.WriteLine(parsedHtml.TextWithInlineFormatTags);
+                    KnowledgeGraphNodeId paraEntityId;
+                    if (verseNum.HasValue)
+                    {
+                        paraEntityId = FeatureToNodeMapping.ScriptureVerse(book, chapter, verseNum.Value);
+                    }
+                    else
+                    {
+                        paraEntityId = FeatureToNodeMapping.ScriptureSupplementalParagraph(book, chapter, paraIdRaw);
+                    }
+
+                    // Need to hack official declarations here as they don't have "verses" even though the code marks them as such
+                    if (string.Equals("od", book, StringComparison.OrdinalIgnoreCase))
+                    {
+                        verseNum = null;
+                    }
+
                     Paragraph para = new Paragraph()
                     {
-                        ParaEntityId = FeatureToNodeMapping.ScriptureVerse(book, chapter, verseNum),
+                        ParaEntityId = paraEntityId,
                         Class = paraClassRaw,
                         Id = paraIdRaw,
                         Text = parsedHtml.TextWithInlineFormatTags,
-                        References = footnoteRefs
+                        References = footnoteRefs,
+                        HasVerseNumber = verseNum.HasValue
                     };
 
                     returnVal.Verses.Add(para);
@@ -420,7 +433,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                             Class = "subtitle",
                             Id = "subtitle-1",
                             Text = titleMatch.Groups[1].Value.Trim(),
-                            References = new List<FootnoteReference>()
+                            References = new List<FootnoteReference>(),
+                            HasVerseNumber = false
                         };
                     }
 
@@ -430,7 +444,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                         Class = "title",
                         Id = "title",
                         Text = emphasizedText,
-                        References = new List<FootnoteReference>()
+                        References = new List<FootnoteReference>(),
+                        HasVerseNumber = false
                     };
 
                     if (titleMatch.Groups[2].Success)
@@ -441,7 +456,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                             Class = "subtitle",
                             Id = "subtitle-2",
                             Text = titleMatch.Groups[2].Value.Trim(),
-                            References = new List<FootnoteReference>()
+                            References = new List<FootnoteReference>(),
+                            HasVerseNumber = false
                         };
                     }
 
@@ -455,7 +471,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                 Class = "title",
                 Id = "title",
                 Text = rawText,
-                References = new List<FootnoteReference>()
+                References = new List<FootnoteReference>(),
+                HasVerseNumber = false
             };
         }
 
@@ -542,6 +559,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             public required string Class;
             public required string Text;
             public required List<FootnoteReference> References;
+            public required bool HasVerseNumber;
 
             public override string ToString()
             {

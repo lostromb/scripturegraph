@@ -1013,7 +1013,6 @@ namespace ScriptureGraph.App
         private FlowDocument ConvertDocumentToFlowDocument(GospelDocument inputDoc, Guid targetPane)
         {
             FlowDocument returnVal = new FlowDocument();
-            bool displayVerses = (inputDoc is ScriptureChapterDocument);
             returnVal.Background = (Brush)TryFindResource("DocumentReaderPageBackground");
 
             KnowledgeGraphNodeId? prevChapter = null;
@@ -1100,7 +1099,7 @@ namespace ScriptureGraph.App
                     paragraph.Text = $"<i>{paragraph.Text}</i>";
                 }
 
-                if (displayVerses && paragraph.Class == GospelParagraphClass.Verse)
+                if (paragraph.Class == GospelParagraphClass.Verse)
                 {
                     Floater verseNumFloater = new Floater();
                     verseNumFloater.Padding = new Thickness(0);
