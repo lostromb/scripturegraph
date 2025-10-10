@@ -1099,7 +1099,8 @@ namespace ScriptureGraph.App
                     paragraph.Text = $"<i>{paragraph.Text}</i>";
                 }
 
-                if (paragraph.Class == GospelParagraphClass.Verse)
+                if (inputDoc is ScriptureChapterDocument &&
+                    paragraph.Class == GospelParagraphClass.Verse)
                 {
                     Floater verseNumFloater = new Floater();
                     verseNumFloater.Padding = new Thickness(0);

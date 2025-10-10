@@ -112,9 +112,11 @@ namespace ScriptureGraph.Console
             //BookExtractorMD.ExtractDocuments(_epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger).Count();
 
             //await Test(logger);
-            await ParseDocuments(logger);
-            await BuildSearchIndex(logger);
-            await BuildUniversalGraph(logger);
+            //await ParseDocuments(logger);
+            //await BuildSearchIndex(logger);
+            //await BuildUniversalGraph(logger);
+
+            CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
 
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/pgp/abr/1?lang=eng");
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/john/1?lang=eng");
@@ -126,6 +128,17 @@ namespace ScriptureGraph.Console
             //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/general-conference/2025/10/54godoy?lang=eng");
             //string webPage = new WebClient().DownloadString(talkUrl);
             //ConferenceTalkFeatureExtractorNew.ParseDocument(webPage, talkUrl, logger);
+        }
+
+        private static void CompressFile(IFileSystem fileSystem, VirtualPath inputFile)
+        {
+            VirtualPath outputFile = new VirtualPath(inputFile.Name + ".br");
+            using (Stream fileIn = fileSystem.OpenStream(inputFile, FileOpenMode.Open, FileAccessMode.Read))
+            using (Stream fileOut = fileSystem.OpenStream(outputFile, FileOpenMode.Create, FileAccessMode.Write))
+            using (BrotliStream brotli = new BrotliStream(fileOut, CompressionLevel.Fastest))
+            {
+                fileIn.CopyToPooled(brotli);
+            }
         }
 
         private static async Task Test(ILogger logger)

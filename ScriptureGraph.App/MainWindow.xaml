@@ -54,6 +54,11 @@
         <System:Double x:Key="Para_FontSize_ChapterNum">26</System:Double>
         <Thickness x:Key="Para_Margin_ChapterNum">0,0,0,10</Thickness>
         <TextAlignment x:Key="Para_Align_ChapterNum">Center</TextAlignment>
+
+        <FontFamily x:Key="Para_FontFamily_Poem">Ensign:Sans, Zoram, Zoram ldsLat, Arial, sans-serif-light, sans-serif</FontFamily>
+        <System:Double x:Key="Para_FontSize_Poem">18</System:Double>
+        <Thickness x:Key="Para_Margin_Poem">30,0,0,10</Thickness>
+        <TextAlignment x:Key="Para_Align_Poem">Left</TextAlignment>
     </Window.Resources>
     <DockPanel Name="ViewRoot" Background="{DynamicResource AppBackgroundColor}" Margin="0,0,10,20">
         <DockPanel
