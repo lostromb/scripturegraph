@@ -587,8 +587,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                         sb.Append(WebUtility.HtmlDecode(currentNav.CurrentNode.InnerText));
                     }
                     else if (string.Equals("i", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals("em", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||
                         (string.Equals("span", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals("clarity-word", currentNav.CurrentNode.GetAttributeValue("class", string.Empty))))
+                            string.Equals("clarity-word", currentNav.CurrentNode.GetAttributeValue("class", string.Empty))))
                     {
                         sb.Append("<i>");
                         closingTagStack.Push(new HtmlStackOp((op) => sb.Append("</i>"), currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, string.Empty));
