@@ -47,7 +47,7 @@ namespace ScriptureGraph.App
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, _coreLogger);
 
 #if DEBUG
-            string contentPath = @"D:\Code\scripturegraph\runtime";
+            string contentPath = @"C:\Code\scripturegraph\runtime";
 #else
             string contentPath = Path.Combine(Environment.CurrentDirectory, "content");
             if (!Directory.Exists(contentPath))

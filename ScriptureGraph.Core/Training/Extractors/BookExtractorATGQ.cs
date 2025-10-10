@@ -31,11 +31,12 @@ namespace ScriptureGraph.Core.Training.Extractors
             {
                 ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
                 {
+                    ParsedChapter closure = chapter;
                     threadPool.EnqueueUserWorkItem(() =>
                     {
                         try
                         {
-                            ExtractFeaturesOnThread(chapter, trainingFeaturesOut, logger);
+                            ExtractFeaturesOnThread(closure, trainingFeaturesOut, logger);
                         }
                         catch (Exception e)
                         {
@@ -62,6 +63,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     TrainingFeatureType.WordDesignation));
             }
 
+            List<TrainingFeature> scratch = new List<TrainingFeature>();
             foreach (ParsedBodyParagraph para in chapter.BodyParagraphs)
             {
                 // Associate this paragraph with the entire question
@@ -83,7 +85,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                 // doing 9x permutations between every single word in the paragraph)
                 List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
 
-                List<TrainingFeature> scratch = new List<TrainingFeature>();
                 foreach (string sentence in sentences)
                 {
                     string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);

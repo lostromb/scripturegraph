@@ -42,13 +42,18 @@ namespace ScriptureGraph.Core
             {
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(startGraph, threadPool);
-                await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                BookExtractorATGQ.ExtractFeatures(
+                //BookExtractorATGQ.ExtractFeatures(
+                //    epubFileSystem,
+                //    new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"),
+                //    logger, startGraph.Train, threadPool);
+
+                BookExtractorMD.ExtractFeatures(
                     epubFileSystem,
-                    new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"),
+                    new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"),
                     logger, startGraph.Train, threadPool);
 
                 logger.Log("Winding down training threads");
@@ -79,11 +84,13 @@ namespace ScriptureGraph.Core
                 TrainingKnowledgeGraph entitySearchGraph = new TrainingKnowledgeGraph();
                 EntityNameIndex nameIndex = new EntityNameIndex();
                 DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex, threadPool);
-                await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                BookExtractorATGQ.ExtractSearchIndexFeatures(
-                    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
+                //BookExtractorATGQ.ExtractSearchIndexFeatures(
+                //    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
+                BookExtractorMD.ExtractSearchIndexFeatures(
+                    epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger, entitySearchGraph.Train, nameIndex);
 
                 logger.Log("Winding down training threads");
                 while (threadPool.RunningWorkItems > 0)
@@ -114,11 +121,12 @@ namespace ScriptureGraph.Core
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
                 logger.Log("Processing documents from webcrawler sources");
-                await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
+                //Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
+                Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
 
                 logger.Log("Winding down training threads");
                 while (threadPool.RunningWorkItems > 0)
@@ -640,6 +648,30 @@ namespace ScriptureGraph.Core
                 //}
 
                 VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json.br");
+                using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
+                {
+                    GospelDocument.SerializePolymorphic(brotliStream, bookChapter);
+                }
+            }
+        }
+
+        private static void Book_MD_ExtractDocuments(
+            IFileSystem documentCacheFileSystem,
+            IFileSystem epubFileSystem,
+            VirtualPath epubPath,
+            ILogger logger)
+        {
+            documentCacheFileSystem.CreateDirectory(new VirtualPath("md"));
+            foreach (BookChapterDocument bookChapter in BookExtractorMD.ExtractDocuments(epubFileSystem, epubPath, logger))
+            {
+                //VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json");
+                //using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                //{
+                //    GospelDocument.SerializePolymorphic(fileOut, bookChapter);
+                //}
+
+                VirtualPath fileDestination = new VirtualPath($"md\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json.br");
                 using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
                 using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
                 {
