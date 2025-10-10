@@ -25,41 +25,24 @@ namespace ScriptureGraph.Core.Training.Extractors
         private static readonly Regex CHAPTER_FILE_MATCHER = new Regex("^sec_(\\d+)_(\\d+)\\.xml$");
         private static readonly IReadOnlySet<string> EMPTY_STRING_SET = new HashSet<string>();
 
-        public static void ExtractFeatures(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, Action<TrainingFeature> trainingFeaturesOut)
+        public static void ExtractFeatures(IFileSystem fileSystem, VirtualPath bookPath, ILogger logger, Action<TrainingFeature> trainingFeaturesOut, IThreadPool threadPool)
         {
             try
             {
-                using (IThreadPool threadPool = new FixedCapacityThreadPool(
-                    new TaskThreadPool(),
-                    NullLogger.Singleton,
-                    NullMetricCollector.Singleton,
-                    DimensionSet.Empty,
-                    "TrainingThreads"))
+                ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
                 {
-                    int threadsStarted = 0;
-                    int threadsCompleted = 0;
-                    ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
+                    threadPool.EnqueueUserWorkItem(() =>
                     {
-                        Interlocked.Increment(ref threadsStarted);
-                        threadPool.EnqueueUserWorkItem(() =>
+                        try
                         {
-                            try
-                            {
-                                ExtractFeaturesOnThread(chapter, trainingFeaturesOut, logger);
-                            }
-                            finally
-                            {
-                                Interlocked.Increment(ref threadsCompleted);
-                            }
-                        });
+                            ExtractFeaturesOnThread(chapter, trainingFeaturesOut, logger);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.Log(e);
+                        }
                     });
-
-                    Stopwatch runawayTimer = Stopwatch.StartNew();
-                    while (threadsCompleted < threadsStarted && runawayTimer.Elapsed < TimeSpan.FromSeconds(60))
-                    {
-                        Thread.Sleep(100);
-                    }
-                }
+                });
             }
             catch (Exception e)
             {
@@ -172,7 +155,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     Language = LanguageCode.ENGLISH,
                     Paragraphs = new List<GospelParagraph>(),
                     DocumentEntityId = chapter.DocumentEntityId,
-                    ChapterId = chapter.ChapterId,
+                    ChapterId = $"{chapter.Volume}.{chapter.Chapter}",
                     ChapterName = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, chapter.Title),
                 };
 
@@ -239,7 +222,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     using (Stream fileStream = fileSystem.OpenStream(file, FileOpenMode.Open, FileAccessMode.Read))
                     {
                         logger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "Parsing epub file \"{0}\"", file.FullName);
-                        int volumeNum = int.Parse(fileNameMatch.Groups[1].Value);
+                        int volumeNum = int.Parse(fileNameMatch.Groups[1].Value) + 1;
                         int chapterNum = int.Parse(fileNameMatch.Groups[2].Value);
                         ParsedChapter? chap = ParseSingleChapter(fileStream, volumeNum, chapterNum, logger);
 
@@ -255,7 +238,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         private static ParsedChapter? ParseSingleChapter(
             Stream htmlStream,
             int volume,
-            int chapter,
+            int epubPageNum,
             ILogger logger)
         {
             try
@@ -263,9 +246,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 HtmlDocument html = new HtmlDocument();
                 html.Load(htmlStream);
 
-                string bookChapterString = $"{volume}.{chapter}";
-
-                bool hasChapterNum = false;
+                int? chapterNum = null;
                 bool hasChapterTitle = false;
 
                 // First, see if this is actually a chapter
@@ -286,16 +267,22 @@ namespace ScriptureGraph.Core.Training.Extractors
                     }
                     else if (paraClassSet.Contains("ChapNo"))
                     {
-                        hasChapterNum = true;
+                        int parse;
+                        if (int.TryParse(iter.Current.InnerXml.Trim(), out parse))
+                        {
+                            logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Chapter number is {0}", parse);
+                            chapterNum = parse;
+                        }
                     }
                 }
 
-                if (!hasChapterNum || !hasChapterTitle)
+                if (chapterNum == null || !hasChapterTitle)
                 {
                     logger.Log("This page does not appear to be a chapter", LogLevel.Wrn);
                     return null;
                 }
 
+                string bookChapterString = $"{volume}.{chapterNum.Value}";
                 KnowledgeGraphNodeId documentEntityId = FeatureToNodeMapping.BookChapter(BOOK_ID, bookChapterString);
                 KnowledgeGraphNodeId? titleParaEntityId = null;
                 string? title = null;
@@ -328,8 +315,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                     }
                     else if (paraClassSet.Contains("ChapNo"))
                     {
-                        logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Chapter number is \"{0}\"", paraContent);
-                        hasChapterNum = true;
                     }
                     else
                     {
@@ -369,7 +354,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                     DocumentEntityId = documentEntityId,
                     TitleParaEntityId = titleParaEntityId.Value,
                     BodyParagraphs = bodyParagraphs,
-                    ChapterId = bookChapterString,
+                    Volume = volume,
+                    Chapter = chapterNum.Value
                 };
             }
             catch (Exception e)
@@ -381,7 +367,8 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private record struct ParsedChapter
         {
-            public string ChapterId;
+            public int Volume;
+            public int Chapter;
             public KnowledgeGraphNodeId DocumentEntityId;
             public KnowledgeGraphNodeId TitleParaEntityId;
             public string Title;

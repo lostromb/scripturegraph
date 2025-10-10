@@ -305,16 +305,17 @@ namespace ScriptureGraph.Console
         private static async Task<TrainingKnowledgeGraph> BuildUniversalGraph(ILogger logger)
         {
             TrainingKnowledgeGraph graph;
-            VirtualPath modelFileIn = new VirtualPath("all.graph.br");
+            VirtualPath modelFile = new VirtualPath("all.graph");
             WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
 
-            if (_runtimeFileSystem.Exists(modelFileIn))
+            if (_runtimeFileSystem.Exists(modelFile))
             {
-                logger.Log("Loading model");
-                using (Stream testGraphIn = _runtimeFileSystem.OpenStream(modelFileIn, FileOpenMode.Open, FileAccessMode.Read))
-                using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(testGraphIn))
+                logger.Log("Loading existing model " + modelFile.FullName);
+                using (Stream testGraphIn = _runtimeFileSystem.OpenStream(modelFile, FileOpenMode.Open, FileAccessMode.Read))
+                //using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(testGraphIn))
                 {
-                    graph = TrainingKnowledgeGraph.Load(brotliStream);
+                    graph = TrainingKnowledgeGraph.Load(testGraphIn);
+                    logger.Log($"Loaded model with {graph.Count} nodes");
                 }
             }
             else
@@ -324,10 +325,11 @@ namespace ScriptureGraph.Console
 
             // Update and save graph
             await CommonTasks.BuildUniversalGraph(logger, graph, pageCache, _epubFileSystem);
-            using (Stream testGraphOut = _runtimeFileSystem.OpenStream(modelFileIn, FileOpenMode.Create, FileAccessMode.Write))
-            using (BrotliStream brotliStream = new BrotliStream(testGraphOut, CompressionLevel.SmallestSize))
+            logger.Log($"Saving model {modelFile.FullName} with {graph.Count} nodes");
+            using (Stream testGraphOut = _runtimeFileSystem.OpenStream(modelFile, FileOpenMode.Create, FileAccessMode.Write))
+            //using (BrotliStream brotliStream = new BrotliStream(testGraphOut, CompressionLevel.SmallestSize))
             {
-                graph.Save(brotliStream);
+                graph.Save(testGraphOut);
             }
 
             return graph;

@@ -178,7 +178,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                                 trainingFeaturesOut.Add(new TrainingFeature(
                                     ngram,
                                     refNodeId,
-                                    TrainingFeatureType.WordAssociation));
+                                    ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
                             }
                         }
 
@@ -210,7 +210,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                                     trainingFeaturesOut.Add(new TrainingFeature(
                                         ngram,
                                         refNodeId,
-                                        TrainingFeatureType.WordAssociation));
+                                        ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
                                 }
                             }
                         }

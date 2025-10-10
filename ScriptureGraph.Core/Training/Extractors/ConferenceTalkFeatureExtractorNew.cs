@@ -28,7 +28,91 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return;
                 }
 
-                
+                // High-level features
+                // Title of the talk -> Talk
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(parseResult.TalkTitle))
+                {
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        parseResult.DocumentEntityId,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
+
+                // Talk -> Speaker
+                trainingFeaturesOut.Add(new TrainingFeature(
+                    parseResult.DocumentEntityId,
+                    parseResult.SpeakerEntityId,
+                    TrainingFeatureType.EntityReference));
+
+                Paragraph? previousPara = null;
+                foreach (Paragraph para in parseResult.Paragraphs)
+                {
+                    GospelParagraphClass paraClass = StandardizeClass(para.Class, para.Text);
+
+                    // Associate this paragraph with the entire talk
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        para.ParaEntityId,
+                        parseResult.DocumentEntityId,
+                        TrainingFeatureType.BookAssociation));
+
+                    // And with the previous paragraph
+                    if (previousPara != null)
+                    {
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            para.ParaEntityId,
+                            previousPara.ParaEntityId,
+                            TrainingFeatureType.ParagraphAssociation));
+                    }
+
+                    if (paraClass == GospelParagraphClass.Header &&
+                        paraClass == GospelParagraphClass.SubHeader &&
+                        paraClass == GospelParagraphClass.StudySummary)
+                    {
+                        continue;
+                    }
+
+                    previousPara = para;
+
+                    // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
+                    // doing 9x permutations between every single word in the paragraph)
+                    foreach (string sentence in EnglishWordFeatureExtractor.BreakSentence(para.Text))
+                    {
+                        foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(sentence))
+                        {
+                            trainingFeaturesOut.Add(new TrainingFeature(
+                                para.ParaEntityId,
+                                ngram,
+                                ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
+                        }
+                    }
+
+                    foreach (var footnote in para.References)
+                    {
+                        TrainingFeatureType featureType = TrainingFeatureType.ScriptureReference;
+                        if (footnote.ScriptureRef != null && footnote.ScriptureRef.LowEmphasis)
+                        {
+                            featureType = TrainingFeatureType.ScriptureReferenceWithoutEmphasis;
+                        }
+
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            para.ParaEntityId,
+                            footnote.TargetNodeId,
+                            featureType));
+
+                        // Also parse the words actually tagged by the footnote (only applies for links directly embedded in text, which is rare)
+                        if (footnote.ReferenceSpan.HasValue && footnote.ReferenceSpan.Value.Length > 0)
+                        {
+                            string footnoteText = para.Text.Substring(footnote.ReferenceSpan.Value.Start, footnote.ReferenceSpan.Value.Length);
+                            foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(footnoteText))
+                            {
+                                trainingFeaturesOut.Add(new TrainingFeature(
+                                    ngram,
+                                    footnote.TargetNodeId,
+                                    TrainingFeatureType.WordDesignation));
+                            }
+                        }
+                    }
+                }
             }
             catch (Exception e)
             {

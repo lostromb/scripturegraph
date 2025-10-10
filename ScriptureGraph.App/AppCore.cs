@@ -68,7 +68,8 @@ namespace ScriptureGraph.App
             Stopwatch timer = Stopwatch.StartNew();
             VirtualPath smallGraphFileName = new VirtualPath("searchindex.graph.br");
             VirtualPath nameLookupFileName = new VirtualPath("entitynames_eng.map");
-            VirtualPath largeGraphFileName = new VirtualPath("all.graph.br");
+            VirtualPath largeGraphFileName = new VirtualPath("all.graph");
+            VirtualPath largeGraphFileNameBr = new VirtualPath(largeGraphFileName.Name + ".br");
 
             if (!(await _fileSystem.ExistsAsync(smallGraphFileName)))
             {
@@ -80,7 +81,7 @@ namespace ScriptureGraph.App
                 throw new Exception("Can't find name index file");
             }
 
-            if (!(await _fileSystem.ExistsAsync(largeGraphFileName)))
+            if (!(await _fileSystem.ExistsAsync(largeGraphFileName)) && !(await _fileSystem.ExistsAsync(largeGraphFileNameBr)))
             {
                 throw new Exception("Can't find main search graph file");
             }
@@ -99,11 +100,21 @@ namespace ScriptureGraph.App
                 _entityNameLookup = EntityNameIndex.Deserialize(searchIndexIn);
             }
 
-            using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
-            using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
+            _coreLogger.Log("Loading large search index");
+            if (await _fileSystem.ExistsAsync(largeGraphFileName))
             {
-                _coreLogger.Log("Loading large search index");
-                _largeSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, _nativeHeap);
+                using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileName, FileOpenMode.Open, FileAccessMode.Read))
+                {
+                    _largeSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(searchGraphIn, _nativeHeap);
+                }
+            }
+            else
+            {
+                using (Stream searchGraphIn = await _fileSystem.OpenStreamAsync(largeGraphFileNameBr, FileOpenMode.Open, FileAccessMode.Read))
+                using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(searchGraphIn))
+                {
+                    _largeSearchIndex = await UnsafeReadOnlyKnowledgeGraph.Load(brotliStream, _nativeHeap);
+                }
             }
 
             timer.Stop();

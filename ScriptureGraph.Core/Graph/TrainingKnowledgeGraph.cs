@@ -105,23 +105,22 @@ namespace ScriptureGraph.Core.Graph
             Train(feature.NodeB, feature.NodeA, feature.EdgeWeight);
         }
 
-        public void Train(KnowledgeGraphNodeId nodeA, KnowledgeGraphNodeId nodeB, float increment)
+        public void Train(KnowledgeGraphNodeId currentNode, KnowledgeGraphNodeId referenceNode, float increment)
         {
             HashTableLinkedListNode[] bins;
-            AcquireLockToStableHashBin(nodeA, out bins);
+            AcquireLockToStableHashBin(currentNode, out bins);
             try
             {
-                uint keyHash = (uint)nodeA.GetHashCode();
+                uint keyHash = (uint)currentNode.GetHashCode();
                 uint bin = keyHash % (uint)bins.Length;
 
-                
                 if (bins[bin] == null)
                 {
                     // Create a new value
                     KnowledgeGraphNode newNode = new KnowledgeGraphNode(_edgeCapacity);
-                    newNode.Edges.Increment(nodeB, increment);
+                    newNode.Edges.Increment(referenceNode, increment);
                     bins[bin] = new HashTableLinkedListNode(
-                        new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(nodeA, newNode));
+                        new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(currentNode, newNode));
                     Interlocked.Increment(ref _numItemsInDictionary);
                 }
                 else
@@ -131,10 +130,10 @@ namespace ScriptureGraph.Core.Graph
                     HashTableLinkedListNode endOfBin = iter;
                     while (iter != null)
                     {
-                        if (nodeA.Equals(iter.Kvp.Key))
+                        if (currentNode.Equals(iter.Kvp.Key))
                         {
                             // Found it!
-                            iter.Kvp.Value.Edges.Increment(nodeB, increment);
+                            iter.Kvp.Value.Edges.Increment(referenceNode, increment);
                             return;
                         }
 
@@ -147,15 +146,15 @@ namespace ScriptureGraph.Core.Graph
 
                     // If value is not already there, append a new entry to the end of the bin
                     KnowledgeGraphNode newNode = new KnowledgeGraphNode(_edgeCapacity);
-                    newNode.Edges.Increment(nodeB, increment);
+                    newNode.Edges.Increment(referenceNode, increment);
                     endOfBin.Next = new HashTableLinkedListNode(
-                        new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(nodeA, newNode));
+                        new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(currentNode, newNode));
                     Interlocked.Increment(ref _numItemsInDictionary);
                 }
             }
             finally
             {
-                _locks.ReleaseLock(nodeA);
+                _locks.ReleaseLock(currentNode);
             }
         }
 
@@ -419,7 +418,7 @@ namespace ScriptureGraph.Core.Graph
 
         public void Save(Stream outStream)
         {
-            using (BinaryWriter writer = new BinaryWriter(outStream))
+            using (BinaryWriter writer = new BinaryWriter(outStream, StringUtils.UTF8_WITHOUT_BOM, true))
             {
                 writer.Write(_edgeCapacity);
                 writer.Write(_numItemsInDictionary);
@@ -515,7 +514,7 @@ namespace ScriptureGraph.Core.Graph
 
         public static TrainingKnowledgeGraph Load(Stream loadStream)
         {
-            using (BinaryReader reader = new BinaryReader(loadStream))
+            using (BinaryReader reader = new BinaryReader(loadStream, StringUtils.UTF8_WITHOUT_BOM, true))
             using (PooledBuffer<byte> byteScratch = BufferPool<byte>.Rent(65536))
             {
                 ushort edgeCapacity = reader.ReadUInt16();
