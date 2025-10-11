@@ -78,6 +78,9 @@ namespace ScriptureGraph.App
                         Include_PearlGP = FilterCheckBox_PGP.IsChecked.GetValueOrDefault(false),
                         Include_BibleDict = FilterCheckBox_BD.IsChecked.GetValueOrDefault(false),
                         Include_GenConference = FilterCheckBox_GC.IsChecked.GetValueOrDefault(false),
+                        Include_Books = FilterCheckBox_Books.IsChecked.GetValueOrDefault(false),
+                        Include_Hymns = true,
+                        Include_Speeches = true,
                     }
                 };
 
@@ -236,6 +239,8 @@ namespace ScriptureGraph.App
                     return "Topic";
                 case SearchResultEntityType.Book_ATGQ:
                     return "Answers to Gospel Questions";
+                case SearchResultEntityType.Book_MD:
+                    return "Mormon Doctrine";
                 default:
                     return "UNKNOWN_TYPE";
             }
@@ -778,7 +783,6 @@ namespace ScriptureGraph.App
 
                 ReadingPane panel = _currentReadingPanes[panelSource];
 
-
                 SlowSearchQuery query = new SlowSearchQuery()
                 {
                     SearchScopes = new List<KnowledgeGraphNodeId[]>(),
@@ -793,6 +797,9 @@ namespace ScriptureGraph.App
                         Include_PearlGP = FilterCheckBox_PGP.IsChecked.GetValueOrDefault(false),
                         Include_BibleDict = FilterCheckBox_BD.IsChecked.GetValueOrDefault(false),
                         Include_GenConference = FilterCheckBox_GC.IsChecked.GetValueOrDefault(false),
+                        Include_Books = FilterCheckBox_Books.IsChecked.GetValueOrDefault(false),
+                        Include_Hymns = true,
+                        Include_Speeches = true,
                     }
                 };
 
@@ -1354,7 +1361,7 @@ namespace ScriptureGraph.App
             }
 
             GospelParagraph para = chapter.Paragraphs.First(s => s.ParagraphEntityId.Equals(entityId));
-            string text = $"[{parsedRef.Verse.Value}] {para.Text}";
+            string text = $"[{parsedRef.Verse.Value}] {AppCore.StripHtml(para.Text)}";
 
             TextBlock scriptureSearchResult = new TextBlock()
             {
@@ -1413,7 +1420,7 @@ namespace ScriptureGraph.App
                     EntityType = SearchResultEntityType.ConferenceTalk,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = para.Text
+                Text = AppCore.StripHtml(para.Text)
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
@@ -1444,7 +1451,7 @@ namespace ScriptureGraph.App
             UIElementCollection target)
         {
             string[] parts = entityId.Name.Split('|');
-            int paragraph = int.Parse(parts[1]) - 1;
+            int paragraph = int.Parse(parts[1]);
 
             if (paragraph >= document.Paragraphs.Count)
             {
@@ -1466,7 +1473,7 @@ namespace ScriptureGraph.App
                     EntityType = SearchResultEntityType.Topic,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = document.Paragraphs[paragraph].Text
+                Text = AppCore.StripHtml(document.Paragraphs[paragraph].Text)
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;

@@ -20,12 +20,14 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ScriptureGraph.App
 {
     internal class AppCore
     {
+        private static readonly Regex HtmlTagRemover = new Regex("<\\/?[a-z]+(?: [\\w\\W]+?)?>");
         private readonly ILogger _coreLogger;
         private readonly IFileSystem _fileSystem;
         private Dictionary<KnowledgeGraphNodeId, VirtualPath> _documentLibrary;
@@ -498,7 +500,7 @@ namespace ScriptureGraph.App
                     };
                 }
 
-                yield break;
+                //yield break;
             }
 
             _coreLogger.Log("Querying fast graph " + queryString);
@@ -631,6 +633,8 @@ namespace ScriptureGraph.App
                 case KnowledgeGraphNodeType.BookChapter:
                     if (nodeId.Name.StartsWith("atgq|"))
                         return SearchResultEntityType.Book_ATGQ;
+                    if (nodeId.Name.StartsWith("md|"))
+                        return SearchResultEntityType.Book_MD;
                     else
                         return SearchResultEntityType.Unknown;
                 default:
@@ -668,6 +672,11 @@ namespace ScriptureGraph.App
             }
 
             return returnVal;
+        }
+
+        public static string StripHtml(string input)
+        {
+            return HtmlTagRemover.Replace(input, "");
         }
 
         private static bool DoesSameNameMappingApply(KnowledgeGraphNodeType nodeType)
@@ -717,6 +726,9 @@ namespace ScriptureGraph.App
                 case KnowledgeGraphNodeType.BibleDictionaryTopic:
                 case KnowledgeGraphNodeType.BibleDictionaryParagraph:
                     return filters.Include_BibleDict;
+                case KnowledgeGraphNodeType.BookChapter:
+                case KnowledgeGraphNodeType.BookParagraph:
+                    return filters.Include_Books;
                 default:
                     return true;
             }

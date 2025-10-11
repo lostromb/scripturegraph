@@ -36,7 +36,7 @@ namespace ScriptureGraph.Console
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, logger);
 
-            string rootDirectory = @"C:\Code\scripturegraph";
+            string rootDirectory = @"D:\Code\scripturegraph";
             _runtimeFileSystem = new RealFileSystem(logger.Clone("RuntimeFS"), rootDirectory + @"\runtime");
             _webCacheFileSystem = new RealFileSystem(logger.Clone("WebCacheFS"), rootDirectory + @"\runtime\cache");
             _documentCacheFileSystem = new RealFileSystem(logger.Clone("DocumentFS"), rootDirectory + @"\runtime\documents");
@@ -112,9 +112,9 @@ namespace ScriptureGraph.Console
             //BookExtractorMD.ExtractDocuments(_epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger).Count();
 
             //await Test(logger);
-            //await ParseDocuments(logger);
-            //await BuildSearchIndex(logger);
-            //await BuildUniversalGraph(logger);
+            await ParseDocuments(logger);
+            await BuildSearchIndex(logger);
+            await BuildUniversalGraph(logger);
 
             CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
 
@@ -135,7 +135,7 @@ namespace ScriptureGraph.Console
             VirtualPath outputFile = new VirtualPath(inputFile.Name + ".br");
             using (Stream fileIn = fileSystem.OpenStream(inputFile, FileOpenMode.Open, FileAccessMode.Read))
             using (Stream fileOut = fileSystem.OpenStream(outputFile, FileOpenMode.Create, FileAccessMode.Write))
-            using (BrotliStream brotli = new BrotliStream(fileOut, CompressionLevel.Fastest))
+            using (BrotliStream brotli = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
             {
                 fileIn.CopyToPooled(brotli);
             }

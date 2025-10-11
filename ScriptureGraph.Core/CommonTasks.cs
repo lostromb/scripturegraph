@@ -42,14 +42,14 @@ namespace ScriptureGraph.Core
             {
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(startGraph, threadPool);
-                //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                //BookExtractorATGQ.ExtractFeatures(
-                //    epubFileSystem,
-                //    new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"),
-                //    logger, startGraph.Train, threadPool);
+                BookExtractorATGQ.ExtractFeatures(
+                    epubFileSystem,
+                    new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"),
+                    logger, startGraph.Train, threadPool);
 
                 BookExtractorMD.ExtractFeatures(
                     epubFileSystem,
@@ -84,11 +84,11 @@ namespace ScriptureGraph.Core
                 TrainingKnowledgeGraph entitySearchGraph = new TrainingKnowledgeGraph();
                 EntityNameIndex nameIndex = new EntityNameIndex();
                 DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex, threadPool);
-                //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                //BookExtractorATGQ.ExtractSearchIndexFeatures(
-                //    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
+                BookExtractorATGQ.ExtractSearchIndexFeatures(
+                    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
                 BookExtractorMD.ExtractSearchIndexFeatures(
                     epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger, entitySearchGraph.Train, nameIndex);
 
@@ -121,11 +121,11 @@ namespace ScriptureGraph.Core
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
                 logger.Log("Processing documents from webcrawler sources");
-                //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                //Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
+                Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
                 Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
 
                 logger.Log("Winding down training threads");

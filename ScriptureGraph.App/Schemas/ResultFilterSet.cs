@@ -15,5 +15,8 @@ namespace ScriptureGraph.App.Schemas
         public bool Include_PearlGP { get; set; }
         public bool Include_BibleDict { get; set; }
         public bool Include_GenConference { get; set; }
+        public bool Include_Books { get; set; }
+        public bool Include_Hymns { get; set; }
+        public bool Include_Speeches { get; set; }
     }
 }
