@@ -1303,6 +1303,7 @@ namespace ScriptureGraph.App
                             }
                         }
 
+                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
@@ -1360,6 +1361,7 @@ namespace ScriptureGraph.App
                             searchResultLabel.Text = bestPara.Text;
                         }
 
+                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
@@ -1404,6 +1406,7 @@ namespace ScriptureGraph.App
                             searchResultLabel.Text = bestPara.Text;
                         }
 
+                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
@@ -1512,6 +1515,7 @@ namespace ScriptureGraph.App
                 Text = text
             };
 
+            scriptureSearchResult.Text = scriptureSearchResult.Text == null ? string.Empty : AppCore.StripHtml(scriptureSearchResult.Text);
             scriptureSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
             scriptureSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             scriptureSearchResult.MouseDown += SearchResultPreviewDocument_Click;
