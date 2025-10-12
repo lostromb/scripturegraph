@@ -36,7 +36,7 @@ namespace ScriptureGraph.App
         private Dictionary<Guid, KnowledgeGraphNodeId[]> _activeSearchScopes = new Dictionary<Guid, KnowledgeGraphNodeId[]>();
         private Dictionary<Guid, ReadingPane> _currentReadingPanes = new Dictionary<Guid, ReadingPane>();
         private UIElement? _currentSearchResultsPane;
-        private KnowledgeGraphNodeId? _lastRightClickedVerse;
+        private KnowledgeGraphNodeId? _lastRightClickedParagraph;
 
         public MainWindow()
         {
@@ -390,15 +390,21 @@ namespace ScriptureGraph.App
                 Header = "Add this document to search",
                 Tag = panelId
             };
+            MenuItem addParaToSearchItem = new MenuItem()
+            {
+                Header = "Add this paragraph to search",
+                Tag = panelId
+            };
             MenuItem searchTextItem = new MenuItem()
             {
                 Header = "Add selected text to search",
                 Tag = panelId
             };
 
-            addToSearchItem.Click += AddEntireDocumentToSearchMenuItem_Click;
-            searchTextItem.Click += AddSelectionToSearchMenuItem_Click;
             quickFootnotesItem.Click += QuickFootnotesMenuItem_Click;
+            addToSearchItem.Click += AddEntireDocumentToSearchMenuItem_Click;
+            addParaToSearchItem.Click += AddParagraphToSearchMenuItem_Click;
+            searchTextItem.Click += AddSelectionToSearchMenuItem_Click;
 
             documentScrollViewer.ContextMenuOpening += ReadingPane_ContextMenuOpening;
 
@@ -412,6 +418,7 @@ namespace ScriptureGraph.App
             documentScrollViewer.ContextMenu = contextMenu;
             contextMenu.Items.Add(quickFootnotesItem);
             contextMenu.Items.Add(addToSearchItem);
+            contextMenu.Items.Add(addParaToSearchItem);
             contextMenu.Items.Add(searchTextItem);
 
             return new ReadingPane()
@@ -440,23 +447,31 @@ namespace ScriptureGraph.App
                     !scrollViewer.Selection.IsEmpty;
 
                 // Also do a hit bounds check to allow right click -> quick footnotes search (need to figure out which paragraph was clicked though)
-                _lastRightClickedVerse = null;
+                _lastRightClickedParagraph = null;
                 foreach (var block in scrollViewer.Document.Blocks)
                 {
                     if (block.IsMouseOver && block.Tag != null && block.Tag is KnowledgeGraphNodeId selectedParaNodeId)
                     {
-                        _lastRightClickedVerse = selectedParaNodeId;
+                        _lastRightClickedParagraph = selectedParaNodeId;
                         _core.CoreLogger.Log("Detected context menu selection on entity: " + selectedParaNodeId);
                         break;
                     }
                 }
 
                 MenuItem menuItem_QuickFootnotes = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(0);
-                menuItem_QuickFootnotes.IsEnabled = _lastRightClickedVerse.HasValue;
+                menuItem_QuickFootnotes.IsEnabled = _lastRightClickedParagraph.HasValue;
+                MenuItem menuItem_AddPara = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(2);
+                menuItem_AddPara.IsEnabled = _lastRightClickedParagraph.HasValue;
 
-                while (scrollViewer.ContextMenu.Items.Count > 3)
+                while (scrollViewer.ContextMenu.Items.Count > 4)
                 {
-                    scrollViewer.ContextMenu.Items.RemoveAt(3);
+                    scrollViewer.ContextMenu.Items.RemoveAt(4);
+                }
+
+                if (!_lastRightClickedParagraph.HasValue ||
+                    _lastRightClickedParagraph.Value.Type == KnowledgeGraphNodeType.ScriptureVerse)
+                {
+                    return;
                 }
 
                 // Add direct scripture references by doing a quick search
@@ -476,12 +491,12 @@ namespace ScriptureGraph.App
                     }
                 };
 
-                query.SearchScopes.Add(new KnowledgeGraphNodeId[] { _lastRightClickedVerse.Value });
+                query.SearchScopes.Add(new KnowledgeGraphNodeId[] { _lastRightClickedParagraph.Value });
 
                 SlowSearchQueryResult searchResults = await Task.Run(() => _core.RunSlowSearchQuery(query)).ConfigureAwait(true);
 
                 var verses = searchResults.EntityIds
-                    .Where(s => s.Type == KnowledgeGraphNodeType.ScriptureVerse)
+                    .Where(s => s.Type == KnowledgeGraphNodeType.ScriptureVerse || s.Type == KnowledgeGraphNodeType.ScriptureBook)
                     .Select(s => new ScriptureReference(s))
                     .ToList();
                 if (verses.Count > 0)
@@ -489,15 +504,28 @@ namespace ScriptureGraph.App
                     scrollViewer.ContextMenu.Items.Add(new Separator());
                     foreach (ScriptureReference verse in verses)
                     {
-                        
+                        string menuItemText;
+                        if (verse.Chapter.HasValue && verse.Verse.HasValue)
+                        {
+                            menuItemText = $"Open {ScriptureMetadataEnglish.GetNameForBook(verse.Book)} {verse.Chapter.Value}:{verse.Verse.Value}";
+                        }
+                        else if (verse.Chapter.HasValue && string.IsNullOrEmpty(verse.Paragraph))
+                        {
+                            menuItemText = $"Open {ScriptureMetadataEnglish.GetNameForBook(verse.Book)} {verse.Chapter.Value}";
+                        }
+                        else
+                        {
+                            continue;
+                        }
+
                         MenuItem verseLinkItem = new MenuItem()
                         {
-                            Header = $"Open {ScriptureMetadataEnglish.GetNameForBook(verse.Book)} {verse.Chapter.Value}:{verse.Verse.Value}",
+                            Header = menuItemText,
                             Tag = verse
                         };
-
                         verseLinkItem.Click += DirectScriptureLinkMenuItem_Click;
                         scrollViewer.ContextMenu.Items.Add(verseLinkItem);
+                        
                     }
                 }
             }
@@ -677,7 +705,7 @@ namespace ScriptureGraph.App
             });
         }
 
-        private async void ClosePanelButton_Click(object sender, RoutedEventArgs args)
+        private void ClosePanelButton_Click(object sender, RoutedEventArgs args)
         {
             try
             {
@@ -691,7 +719,7 @@ namespace ScriptureGraph.App
             }
         }
 
-        private async void AddEntireDocumentToSearchMenuItem_Click(object sender, RoutedEventArgs args)
+        private void AddEntireDocumentToSearchMenuItem_Click(object sender, RoutedEventArgs args)
         {
             try
             {
@@ -719,7 +747,29 @@ namespace ScriptureGraph.App
             }
         }
 
-        private async void AddSelectionToSearchMenuItem_Click(object sender, RoutedEventArgs args)
+        private void AddParagraphToSearchMenuItem_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                if (!_lastRightClickedParagraph.HasValue)
+                {
+                    return;
+                }
+
+                string documentPrettyName = _core.GetPrettyNameForEntity(_lastRightClickedParagraph.Value);
+
+                CreateNewSearchScope(
+                    AppCore.ConvertEntityTypeToSearchResponseType(_lastRightClickedParagraph.Value),
+                    _core.GetPrettyNameForEntity(_lastRightClickedParagraph.Value),
+                    _lastRightClickedParagraph.Value);
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
+        private void AddSelectionToSearchMenuItem_Click(object sender, RoutedEventArgs args)
         {
             try
             {
@@ -825,7 +875,7 @@ namespace ScriptureGraph.App
         {
             try
             {
-                if (!_lastRightClickedVerse.HasValue)
+                if (!_lastRightClickedParagraph.HasValue)
                 {
                     return;
                 }
@@ -859,7 +909,7 @@ namespace ScriptureGraph.App
                     }
                 };
 
-                query.SearchScopes.Add(new KnowledgeGraphNodeId[] { _lastRightClickedVerse.Value });
+                query.SearchScopes.Add(new KnowledgeGraphNodeId[] { _lastRightClickedParagraph.Value });
 
                 // Tell the search to ignore panels we already have open
                 foreach (var readingPane in _currentReadingPanes)
@@ -873,10 +923,10 @@ namespace ScriptureGraph.App
 
                 SlowSearchQueryResult searchResults = await Task.Run(() => _core.RunSlowSearchQuery(query)).ConfigureAwait(true);
 
-                string title = _lastRightClickedVerse.Value.ToString() ?? "NULL";
-                if (_lastRightClickedVerse.Value.Type == KnowledgeGraphNodeType.ScriptureVerse)
+                string title = _lastRightClickedParagraph.Value.ToString() ?? "NULL";
+                if (_lastRightClickedParagraph.Value.Type == KnowledgeGraphNodeType.ScriptureVerse)
                 {
-                    title = new ScriptureReference(_lastRightClickedVerse.Value).ToString() ?? "NULL";
+                    title = new ScriptureReference(_lastRightClickedParagraph.Value).ToString() ?? "NULL";
                 }
 
                 // todo: better formatting of conference talks, etc.
@@ -912,7 +962,7 @@ namespace ScriptureGraph.App
             }
         }
 
-        private async void CloseSearchPanelButton_Click(object sender, RoutedEventArgs args)
+        private void CloseSearchPanelButton_Click(object sender, RoutedEventArgs args)
         {
             try
             {
@@ -924,7 +974,7 @@ namespace ScriptureGraph.App
             }
         }
 
-        private async void RemoveScopeButton_Click(object sender, RoutedEventArgs args)
+        private void RemoveScopeButton_Click(object sender, RoutedEventArgs args)
         {
             try
             {

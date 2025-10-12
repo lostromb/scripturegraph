@@ -239,7 +239,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     ParagraphEntityId = FeatureToNodeMapping.BibleDictionaryParagraph(topicId, "title"),
                     Text = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, prettyTopicString),
-                    Class = GospelParagraphClass.SubHeader
+                    Class = GospelParagraphClass.Header
                 });
 
                 int paragraph = 0;
