@@ -16,6 +16,7 @@ namespace ScriptureGraph.App.Schemas
         Person,
         ConferenceTalk,
         Topic,
+        BibleDictionary,
         Book_ATGQ,
         Book_MD,
     }

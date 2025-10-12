@@ -36,7 +36,7 @@ namespace ScriptureGraph.Console
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, logger);
 
-            string rootDirectory = @"D:\Code\scripturegraph";
+            string rootDirectory = @"C:\Code\scripturegraph";
             _runtimeFileSystem = new RealFileSystem(logger.Clone("RuntimeFS"), rootDirectory + @"\runtime");
             _webCacheFileSystem = new RealFileSystem(logger.Clone("WebCacheFS"), rootDirectory + @"\runtime\cache");
             _documentCacheFileSystem = new RealFileSystem(logger.Clone("DocumentFS"), rootDirectory + @"\runtime\documents");
@@ -112,11 +112,11 @@ namespace ScriptureGraph.Console
             //BookExtractorMD.ExtractDocuments(_epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger).Count();
 
             //await Test(logger);
-            await ParseDocuments(logger);
+            //await ParseDocuments(logger);
             await BuildSearchIndex(logger);
-            await BuildUniversalGraph(logger);
+            //await BuildUniversalGraph(logger);
 
-            CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
+            //CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
 
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/pgp/abr/1?lang=eng");
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/john/1?lang=eng");

@@ -547,7 +547,7 @@ namespace ScriptureGraph.App
                 }
             }
 
-            HashSet<string> displayedStrings = new HashSet<string>();
+            HashSet<string> displayedSameNameStrings = new HashSet<string>();
             float highestResultScore = 0;
             foreach (var result in results)
             {
@@ -581,10 +581,6 @@ namespace ScriptureGraph.App
                 {
                     prettyName = "UNKNOWN_NAME";
                 }
-                else if (displayedStrings.Contains(prettyName))
-                {
-                    continue;
-                }
 
                 if (maxResults-- <= 0)
                 {
@@ -594,6 +590,13 @@ namespace ScriptureGraph.App
                 List<KnowledgeGraphNodeId>? nodeMappings;
                 if (DoesSameNameMappingApply(result.Key.Type) && sameNameMappings.TryGetValue(prettyName, out nodeMappings))
                 {
+                    if (displayedSameNameStrings.Contains(prettyName))
+                    {
+                        continue;
+                    }
+
+                    displayedSameNameStrings.Add(prettyName);
+
                     // It's a reference to one or more topics with the same name.
                     // Return all of the entities combined under a single search result, for simplicity.
                     // This is intended for things like "TG: Locust, BD: Locust, GS: Locust", where instead
@@ -605,8 +608,6 @@ namespace ScriptureGraph.App
                         DisplayName = prettyName,
                         EntityType = ConvertEntityTypeToSearchResponseType(result.Key),
                     };
-
-                    displayedStrings.Add(prettyName);
                 }
                 else
                 {
@@ -637,6 +638,7 @@ namespace ScriptureGraph.App
                     return SearchResultEntityType.ConferenceTalk;
                 case KnowledgeGraphNodeType.BibleDictionaryTopic:
                 case KnowledgeGraphNodeType.BibleDictionaryParagraph:
+                    return SearchResultEntityType.BibleDictionary;
                 case KnowledgeGraphNodeType.TopicalGuideKeyword:
                 case KnowledgeGraphNodeType.TripleIndexTopic:
                 case KnowledgeGraphNodeType.GuideToScripturesTopic:
@@ -692,8 +694,9 @@ namespace ScriptureGraph.App
 
         private static bool DoesSameNameMappingApply(KnowledgeGraphNodeType nodeType)
         {
-            return nodeType == KnowledgeGraphNodeType.BibleDictionaryParagraph ||
-                nodeType == KnowledgeGraphNodeType.BibleDictionaryTopic ||
+            return
+                //nodeType == KnowledgeGraphNodeType.BibleDictionaryParagraph ||
+                //nodeType == KnowledgeGraphNodeType.BibleDictionaryTopic ||
                 nodeType == KnowledgeGraphNodeType.GuideToScripturesTopic ||
                 nodeType == KnowledgeGraphNodeType.TripleIndexTopic ||
                 nodeType == KnowledgeGraphNodeType.TopicalGuideKeyword;

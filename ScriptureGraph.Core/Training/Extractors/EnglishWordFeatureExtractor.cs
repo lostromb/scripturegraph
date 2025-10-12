@@ -196,7 +196,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     pooledSb.Builder.Append(m.Groups[1].Value);
                     if (m.Groups[3].Success)
                     {
-                        // There's a second comma. Just append it (this group includes the comma itself
+                        // There's a second comma. Just append it (this group includes the comma itself)
                         pooledSb.Builder.Append(m.Groups[3].Value);
                     }
 
@@ -212,16 +212,22 @@ namespace ScriptureGraph.Core.Training.Extractors
         {
             foreach (string sentence in BreakSentenceLowerCase(input))
             {
-                // Word-level ngrams
-                string[] words = BreakWords(sentence).ToArray();
-                for (int startIndex = 0; startIndex < words.Length; startIndex++)
+                // Word-level ngrams, including start of sentence / end of sentence boundaries
+                List<string> words = BreakWords(sentence).ToList();
+                for (int index = 0; index < words.Count; index++)
                 {
-                    yield return FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH);
-                    if (startIndex < words.Length - 1)
+                    yield return FeatureToNodeMapping.Word(words[index], LanguageCode.ENGLISH);
+                }
+
+                words.Insert(0, "STKN");
+                words.Add("ETKN");
+                for (int startIndex = 0; startIndex < words.Count; startIndex++)
+                {
+                    if (startIndex < words.Count - 1)
                     {
                         yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
 
-                        if (startIndex < words.Length - 2)
+                        if (startIndex < words.Count - 2)
                         {
                             yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
                         }

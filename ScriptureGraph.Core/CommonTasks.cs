@@ -638,16 +638,14 @@ namespace ScriptureGraph.Core
             VirtualPath epubPath,
             ILogger logger)
         {
-            documentCacheFileSystem.CreateDirectory(new VirtualPath("atgq"));
             foreach (BookChapterDocument bookChapter in BookExtractorATGQ.ExtractDocuments(epubFileSystem, epubPath, logger))
             {
-                //VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json");
-                //using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
-                //{
-                //    GospelDocument.SerializePolymorphic(fileOut, bookChapter);
-                //}
-
                 VirtualPath fileDestination = new VirtualPath($"{bookChapter.Language.ToBcp47Alpha3String()}\\atgq\\{bookChapter.ChapterId}.json.br");
+                if (!documentCacheFileSystem.Exists(fileDestination.Container))
+                {
+                    documentCacheFileSystem.CreateDirectory(fileDestination.Container);
+                }
+
                 using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
                 using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
                 {
@@ -662,16 +660,14 @@ namespace ScriptureGraph.Core
             VirtualPath epubPath,
             ILogger logger)
         {
-            documentCacheFileSystem.CreateDirectory(new VirtualPath("md"));
             foreach (BookChapterDocument bookChapter in BookExtractorMD.ExtractDocuments(epubFileSystem, epubPath, logger))
             {
-                //VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json");
-                //using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
-                //{
-                //    GospelDocument.SerializePolymorphic(fileOut, bookChapter);
-                //}
-
                 VirtualPath fileDestination = new VirtualPath($"{bookChapter.Language.ToBcp47Alpha3String()}\\md\\{bookChapter.ChapterId}.json.br");
+                if (!documentCacheFileSystem.Exists(fileDestination.Container))
+                {
+                    documentCacheFileSystem.CreateDirectory(fileDestination.Container);
+                }
+
                 using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
                 using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
                 {

@@ -238,6 +238,8 @@ namespace ScriptureGraph.App
                     return "General Conference Address";
                 case SearchResultEntityType.Topic:
                     return "Topic";
+                case SearchResultEntityType.BibleDictionary:
+                    return "Bible Dictionary";
                 case SearchResultEntityType.Book_ATGQ:
                     return "Answers to Gospel Questions";
                 case SearchResultEntityType.Book_MD:
@@ -1398,7 +1400,7 @@ namespace ScriptureGraph.App
                             Tag = new FastSearchQueryResult()
                             {
                                 DisplayName = dictionaryDoc.Title,
-                                EntityType = SearchResultEntityType.Topic,
+                                EntityType = SearchResultEntityType.BibleDictionary,
                                 EntityIds = new KnowledgeGraphNodeId[] { searchResult }
                             },
                             Text = $"Bible Dictionary - {dictionaryDoc.Title}"
@@ -1443,7 +1445,7 @@ namespace ScriptureGraph.App
                             Tag = new FastSearchQueryResult()
                             {
                                 DisplayName = chapterDoc.ChapterName,
-                                EntityType = SearchResultEntityType.Topic,
+                                EntityType = SearchResultEntityType.Topic, // FIXME wrong
                                 EntityIds = new KnowledgeGraphNodeId[] { searchResult }
                             },
                             Text = $"{chapterDoc.BookId} - {chapterDoc.ChapterName}"
@@ -1651,7 +1653,7 @@ namespace ScriptureGraph.App
                 Tag = new FastSearchQueryResult()
                 {
                     DisplayName = document.Title,
-                    EntityType = SearchResultEntityType.Topic,
+                    EntityType = SearchResultEntityType.BibleDictionary,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
                 Text = AppCore.StripHtml(targetPara.Text)
@@ -1690,7 +1692,7 @@ namespace ScriptureGraph.App
                 Tag = new FastSearchQueryResult()
                 {
                     DisplayName = document.ChapterName,
-                    EntityType = SearchResultEntityType.Topic,
+                    EntityType = SearchResultEntityType.Topic, // FIXME wrong
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
                 Text = AppCore.StripHtml(targetPara.Text)
