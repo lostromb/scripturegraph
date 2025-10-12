@@ -141,5 +141,15 @@ namespace ScriptureGraph.Core.Training
 
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookParagraph, $"{documentId.Name}|{paragraph}");
         }
+
+        public static KnowledgeGraphNodeId Conference(Conference conf)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Conference, $"{conf.Year}|{(conf.Phase == ConferencePhase.April ? "04" : "10")}");
+        }
+
+        public static KnowledgeGraphNodeId Year(int year)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Year, year.ToString());
+        }
     }
 }

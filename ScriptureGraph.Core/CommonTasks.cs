@@ -398,7 +398,7 @@ namespace ScriptureGraph.Core
                     }
                     else
                     {
-                        fileDestination = new VirtualPath($"{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.{structuredDoc.Language.ToBcp47Alpha3String()}.json.br");
+                        fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.json.br");
                     }
                 }
                 else
@@ -415,7 +415,7 @@ namespace ScriptureGraph.Core
                         }
                         else
                         {
-                            fileDestination = new VirtualPath($"bd\\{structuredDoc.TopicId}.{structuredDoc.Language.ToBcp47Alpha3String()}.json.br");
+                            fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\bd\\{structuredDoc.TopicId}.json.br");
                         }
                     }
                     else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal) ||
@@ -437,7 +437,7 @@ namespace ScriptureGraph.Core
                             }
                             else
                             {
-                                fileDestination = new VirtualPath($"general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.{structuredDoc.Language.ToBcp47Alpha3String()}.json.br");
+                                fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.json.br");
                             }
                         }
                         else
@@ -647,7 +647,7 @@ namespace ScriptureGraph.Core
                 //    GospelDocument.SerializePolymorphic(fileOut, bookChapter);
                 //}
 
-                VirtualPath fileDestination = new VirtualPath($"atgq\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json.br");
+                VirtualPath fileDestination = new VirtualPath($"{bookChapter.Language.ToBcp47Alpha3String()}\\atgq\\{bookChapter.ChapterId}.json.br");
                 using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
                 using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
                 {
@@ -671,7 +671,7 @@ namespace ScriptureGraph.Core
                 //    GospelDocument.SerializePolymorphic(fileOut, bookChapter);
                 //}
 
-                VirtualPath fileDestination = new VirtualPath($"md\\{bookChapter.ChapterId}.{bookChapter.Language.ToBcp47Alpha3String()}.json.br");
+                VirtualPath fileDestination = new VirtualPath($"{bookChapter.Language.ToBcp47Alpha3String()}\\md\\{bookChapter.ChapterId}.json.br");
                 using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
                 using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
                 {

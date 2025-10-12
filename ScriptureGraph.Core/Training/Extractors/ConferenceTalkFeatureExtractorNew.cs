@@ -44,6 +44,24 @@ namespace ScriptureGraph.Core.Training.Extractors
                     parseResult.SpeakerEntityId,
                     TrainingFeatureType.EntityReference));
 
+                // Talk -> Conference
+                trainingFeaturesOut.Add(new TrainingFeature(
+                    parseResult.DocumentEntityId,
+                    FeatureToNodeMapping.Conference(parseResult.Conference),
+                    TrainingFeatureType.EntityReference));
+
+                // Conference -> Year
+                trainingFeaturesOut.Add(new TrainingFeature(
+                    FeatureToNodeMapping.Year(parseResult.Conference.Year),
+                    FeatureToNodeMapping.Conference(parseResult.Conference),
+                    TrainingFeatureType.EntityReference));
+
+                // Year -> Year whatever
+                trainingFeaturesOut.Add(new TrainingFeature(
+                   FeatureToNodeMapping.Year(parseResult.Conference.Year - 1),
+                   FeatureToNodeMapping.Year(parseResult.Conference.Year),
+                   TrainingFeatureType.EntityReference));
+
                 Paragraph? previousPara = null;
                 foreach (Paragraph para in parseResult.Paragraphs)
                 {

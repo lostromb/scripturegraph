@@ -97,6 +97,10 @@ namespace ScriptureGraph.Core.Graph
 
         BookChapter,
 
-        BookParagraph
+        BookParagraph,
+
+        Conference,
+
+        Year
     }
 }
