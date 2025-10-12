@@ -13,5 +13,6 @@ namespace ScriptureGraph.App.Schemas
         public required HashSet<KnowledgeGraphNodeId> IgnoredDocumentScopes;
         public ResultFilterSet? CategoryFilters;
         public int MaxResults;
+        public float MinConfidence;
     }
 }

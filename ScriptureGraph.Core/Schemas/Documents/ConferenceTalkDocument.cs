@@ -27,5 +27,8 @@ namespace ScriptureGraph.Core.Schemas.Documents
         [JsonPropertyName("conference")]
         [JsonConverter(typeof(ConferenceSerializer))]
         public required Conference Conference { get; set; }
+
+        [JsonPropertyName("kicker")]
+        public string? Kicker { get; set; }
     }
 }

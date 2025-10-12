@@ -228,6 +228,7 @@ namespace ScriptureGraph.Core.Training
             { "esth", "esth" },
             { "job", "job" },
             { "psalms", "ps" },
+            { "psalm", "ps" },
             { "psa", "ps" },
             { "ps", "ps" },
             { "proverbs", "prov" },

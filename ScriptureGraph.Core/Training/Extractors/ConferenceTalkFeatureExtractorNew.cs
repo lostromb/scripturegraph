@@ -179,7 +179,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                     Title = parseResult.TalkTitle,
                     Language = LanguageCode.ENGLISH,
                     Paragraphs = new List<GospelParagraph>(),
-                    DocumentEntityId = parseResult.DocumentEntityId
+                    DocumentEntityId = parseResult.DocumentEntityId,
+                    Kicker = parseResult.Kicker
                 };
 
                 foreach (var paragraph in parseResult.Headers)

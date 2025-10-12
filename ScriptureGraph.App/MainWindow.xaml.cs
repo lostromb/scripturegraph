@@ -69,6 +69,7 @@ namespace ScriptureGraph.App
                     SearchScopes = new List<KnowledgeGraphNodeId[]>(),
                     IgnoredDocumentScopes = new HashSet<KnowledgeGraphNodeId>(),
                     MaxResults = 50,
+                    MinConfidence = 0.1f,
                     CategoryFilters = new ResultFilterSet()
                     {
                         Include_OldTestament = FilterCheckBox_OT.IsChecked.GetValueOrDefault(false),
@@ -423,33 +424,87 @@ namespace ScriptureGraph.App
             };
         }
 
-        private void ReadingPane_ContextMenuOpening(object sender, ContextMenuEventArgs args)
+        private async void ReadingPane_ContextMenuOpening(object sender, ContextMenuEventArgs args)
         {
-            // See if the current reading pane has any currently selected text, and enable / disable menu items based on that
-            FlowDocumentScrollViewer scrollViewer = (FlowDocumentScrollViewer)sender;
-            //Guid sourcePanelId = (Guid)scrollViewer.Tag;
-            // Access the "add selection to search" menu item based on hardcoded index
-            // wish there was a better way to access this, oh well (tag is already taken by the panel guid)
-            MenuItem menuItem_AddSelectionToSearch = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(2);
-            menuItem_AddSelectionToSearch.IsEnabled =
-                scrollViewer.IsSelectionActive &&
-                scrollViewer.Selection != null &&
-                !scrollViewer.Selection.IsEmpty;
-
-            // Also do a hit bounds check to allow right click -> quick footnotes search (need to figure out which paragraph was clicked though)
-            _lastRightClickedVerse = null;
-            foreach (var block in scrollViewer.Document.Blocks)
+            try
             {
-                if (block.IsMouseOver && block.Tag != null && block.Tag is KnowledgeGraphNodeId selectedParaNodeId)
+                // See if the current reading pane has any currently selected text, and enable / disable menu items based on that
+                FlowDocumentScrollViewer scrollViewer = (FlowDocumentScrollViewer)sender;
+                //Guid sourcePanelId = (Guid)scrollViewer.Tag;
+                // Access the "add selection to search" menu item based on hardcoded index
+                // wish there was a better way to access this, oh well (tag is already taken by the panel guid)
+                MenuItem menuItem_AddSelectionToSearch = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(2);
+                menuItem_AddSelectionToSearch.IsEnabled =
+                    scrollViewer.IsSelectionActive &&
+                    scrollViewer.Selection != null &&
+                    !scrollViewer.Selection.IsEmpty;
+
+                // Also do a hit bounds check to allow right click -> quick footnotes search (need to figure out which paragraph was clicked though)
+                _lastRightClickedVerse = null;
+                foreach (var block in scrollViewer.Document.Blocks)
                 {
-                    _lastRightClickedVerse = selectedParaNodeId;
-                    _core.CoreLogger.Log("Detected context menu selection on entity: " + selectedParaNodeId);
-                    break;
+                    if (block.IsMouseOver && block.Tag != null && block.Tag is KnowledgeGraphNodeId selectedParaNodeId)
+                    {
+                        _lastRightClickedVerse = selectedParaNodeId;
+                        _core.CoreLogger.Log("Detected context menu selection on entity: " + selectedParaNodeId);
+                        break;
+                    }
+                }
+
+                MenuItem menuItem_QuickFootnotes = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(0);
+                menuItem_QuickFootnotes.IsEnabled = _lastRightClickedVerse.HasValue;
+
+                while (scrollViewer.ContextMenu.Items.Count > 3)
+                {
+                    scrollViewer.ContextMenu.Items.RemoveAt(3);
+                }
+
+                // Add direct scripture references by doing a quick search
+                SlowSearchQuery query = new SlowSearchQuery()
+                {
+                    SearchScopes = new List<KnowledgeGraphNodeId[]>(),
+                    IgnoredDocumentScopes = new HashSet<KnowledgeGraphNodeId>(),
+                    MaxResults = 10,
+                    MinConfidence = 2.0f,
+                    CategoryFilters = new ResultFilterSet()
+                    {
+                        Include_OldTestament = true,
+                        Include_NewTestament = true,
+                        Include_BookOfMormon = true,
+                        Include_DC = true,
+                        Include_PearlGP = true,
+                    }
+                };
+
+                query.SearchScopes.Add(new KnowledgeGraphNodeId[] { _lastRightClickedVerse.Value });
+
+                SlowSearchQueryResult searchResults = await Task.Run(() => _core.RunSlowSearchQuery(query)).ConfigureAwait(true);
+
+                var verses = searchResults.EntityIds
+                    .Where(s => s.Type == KnowledgeGraphNodeType.ScriptureVerse)
+                    .Select(s => new ScriptureReference(s))
+                    .ToList();
+                if (verses.Count > 0)
+                {
+                    scrollViewer.ContextMenu.Items.Add(new Separator());
+                    foreach (ScriptureReference verse in verses)
+                    {
+                        
+                        MenuItem verseLinkItem = new MenuItem()
+                        {
+                            Header = $"Open {ScriptureMetadataEnglish.GetNameForBook(verse.Book)} {verse.Chapter.Value}:{verse.Verse.Value}",
+                            Tag = verse
+                        };
+
+                        verseLinkItem.Click += DirectScriptureLinkMenuItem_Click;
+                        scrollViewer.ContextMenu.Items.Add(verseLinkItem);
+                    }
                 }
             }
-
-            MenuItem menuItem_QuickFootnotes = (MenuItem)scrollViewer.ContextMenu.Items.GetItemAt(0);
-            menuItem_QuickFootnotes.IsEnabled = _lastRightClickedVerse.HasValue;
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
         }
 
         private async Task<Grid> CreateNewSearchResultsPane(SlowSearchQueryResult searchResults, string? title = null)
@@ -788,6 +843,7 @@ namespace ScriptureGraph.App
                     SearchScopes = new List<KnowledgeGraphNodeId[]>(),
                     IgnoredDocumentScopes = new HashSet<KnowledgeGraphNodeId>(),
                     MaxResults = 50,
+                    MinConfidence = 0.1f,
                     CategoryFilters = new ResultFilterSet()
                     {
                         Include_OldTestament = FilterCheckBox_OT.IsChecked.GetValueOrDefault(false),
@@ -836,6 +892,19 @@ namespace ScriptureGraph.App
                 BrowseArea.Children.Add(searchResultsPane);
                 BrowseArea.UpdateLayout();
                 searchResultsPane.BringIntoView();
+            }
+            catch (Exception e)
+            {
+                _core.CoreLogger.Log(e);
+            }
+        }
+
+        private async void DirectScriptureLinkMenuItem_Click(object sender, RoutedEventArgs args)
+        {
+            try
+            {
+                ScriptureReference panelSource = (ScriptureReference)((FrameworkElement)sender).Tag;
+                await LoadDocumentForEntity(panelSource.ToNodeId());
             }
             catch (Exception e)
             {
@@ -1221,11 +1290,17 @@ namespace ScriptureGraph.App
                             Text = $"{conferenceDoc.Speaker} - {conferenceDoc.Title}"
                         };
 
-                        // See if there's a best match paragraph within the document based on the search query
-                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(conferenceDoc, activatedWords);
-                        if (bestPara != null)
+                        // Use the kicker as the search preview
+                        searchResultLabel.Text = conferenceDoc.Kicker;
+
+                        if (string.IsNullOrEmpty(searchResultLabel.Text))
                         {
-                            searchResultLabel.Text = bestPara.Text;
+                            // If no kicker, see if there's a best match paragraph within the document based on the search query
+                            GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(conferenceDoc, activatedWords);
+                            if (bestPara != null)
+                            {
+                                searchResultLabel.Text = bestPara.Text;
+                            }
                         }
 
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
@@ -1297,6 +1372,62 @@ namespace ScriptureGraph.App
                     else
                     {
                         throw new Exception("Invalid loaded document type: expected BibleDictionaryDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.BookChapter)
+                {
+                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
+                    if (dictionaryEntry is BookChapterDocument chapterDoc)
+                    {
+                        TextBlock searchResultLabel = new TextBlock()
+                        {
+                            Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                            FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                            FontSize = (double)TryFindResource("Para_FontSize_Verse"),
+                            TextWrapping = TextWrapping.Wrap,
+                            TextAlignment = TextAlignment.Justify,
+                            Padding = new Thickness(5),
+                            IsManipulationEnabled = false,
+                            Tag = new FastSearchQueryResult()
+                            {
+                                DisplayName = chapterDoc.ChapterName,
+                                EntityType = SearchResultEntityType.Topic,
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                            },
+                            Text = $"{chapterDoc.BookId} - {chapterDoc.ChapterName}"
+                        };
+
+                        // See if there's a best match paragraph within the document based on the search query
+                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(dictionaryEntry, activatedWords);
+                        if (bestPara != null)
+                        {
+                            searchResultLabel.Text = bestPara.Text;
+                        }
+
+                        searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                        searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                        searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+
+                        TextBlock searchResultHeader = CreateSearchResultHeader($"{chapterDoc.BookId} - {chapterDoc.ChapterName}");
+
+                        target.Add(searchResultHeader);
+                        target.Add(searchResultLabel);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected BookChapterDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.BookParagraph)
+                {
+                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
+                    if (dictionaryEntry is BookChapterDocument chapterDoc)
+                    {
+                        CreateUiElementsForBookChapterResult(searchResult, chapterDoc, target);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected BookChapterDocument");
                     }
                 }
                 else
@@ -1395,15 +1526,13 @@ namespace ScriptureGraph.App
             ConferenceTalkDocument document,
             UIElementCollection target)
         {
-            string[] parts = entityId.Name.Split('|');
-            string paragraphLabel = parts[3];
-
-            if (!document.Paragraphs.Any(s => s.ParagraphEntityId.Equals(entityId)))
+            GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
+            if (targetPara == null)
             {
                 throw new Exception("Verse reference to invalid paragraph " + entityId.ToString());
             }
 
-            GospelParagraph para = document.Paragraphs.Single(s => s.ParagraphEntityId.Equals(entityId));
+            int paraNumber = document.Paragraphs.IndexOf(targetPara) + 1;
 
             TextBlock conferenceTalkResult = new TextBlock()
             {
@@ -1416,11 +1545,11 @@ namespace ScriptureGraph.App
                 IsManipulationEnabled = false,
                 Tag = new FastSearchQueryResult()
                 {
-                    DisplayName = $"{document.Title} ¶{paragraphLabel}",
+                    DisplayName = $"{document.Title} ¶{paraNumber}",
                     EntityType = SearchResultEntityType.ConferenceTalk,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = AppCore.StripHtml(para.Text)
+                Text = AppCore.StripHtml(targetPara.Text)
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
@@ -1450,10 +1579,8 @@ namespace ScriptureGraph.App
             BibleDictionaryDocument document,
             UIElementCollection target)
         {
-            string[] parts = entityId.Name.Split('|');
-            int paragraph = int.Parse(parts[1]);
-
-            if (paragraph >= document.Paragraphs.Count)
+            GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
+            if (targetPara == null)
             {
                 throw new Exception("Verse reference to invalid paragraph " + entityId.ToString());
             }
@@ -1473,7 +1600,7 @@ namespace ScriptureGraph.App
                     EntityType = SearchResultEntityType.Topic,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = AppCore.StripHtml(document.Paragraphs[paragraph].Text)
+                Text = AppCore.StripHtml(targetPara.Text)
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
@@ -1481,6 +1608,45 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
             TextBlock searchResultHeader = CreateSearchResultHeader($"Bible Dictionary - {document.Title}");
+
+            target.Add(searchResultHeader);
+            target.Add(conferenceTalkResult);
+        }
+
+        private void CreateUiElementsForBookChapterResult(
+            KnowledgeGraphNodeId entityId,
+            BookChapterDocument document,
+            UIElementCollection target)
+        {
+            GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
+            if (targetPara == null)
+            {
+                throw new Exception("Verse reference to invalid paragraph " + entityId.ToString());
+            }
+
+            TextBlock conferenceTalkResult = new TextBlock()
+            {
+                Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                FontSize = (double)TryFindResource("Para_FontSize_Verse"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Justify,
+                Padding = new Thickness(5),
+                IsManipulationEnabled = false,
+                Tag = new FastSearchQueryResult()
+                {
+                    DisplayName = document.ChapterName,
+                    EntityType = SearchResultEntityType.Topic,
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                },
+                Text = AppCore.StripHtml(targetPara.Text)
+            };
+
+            conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+            conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+            conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
+
+            TextBlock searchResultHeader = CreateSearchResultHeader($"{document.BookId} - {document.ChapterName}");
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);

@@ -49,7 +49,7 @@ namespace ScriptureGraph.App
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, _coreLogger);
 
 #if DEBUG
-            string contentPath = @"C:\Code\scripturegraph\runtime";
+            string contentPath = @"C:\Program Files\Scripture Roots\content";
 #else
             string contentPath = Path.Combine(Environment.CurrentDirectory, "content");
             if (!Directory.Exists(contentPath))
@@ -150,6 +150,11 @@ namespace ScriptureGraph.App
                 // Map GC talk paragraph -> talk
                 return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalk, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
             }
+            else if (entityId.Type == KnowledgeGraphNodeType.BookParagraph)
+            {
+                // Map book paragraph -> chapter
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookChapter, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
 
             return entityId;
         }
@@ -165,6 +170,11 @@ namespace ScriptureGraph.App
             {
                 // Map GC talk paragraph -> talk
                 return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalk, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.BookParagraph)
+            {
+                // Map GC talk paragraph -> talk
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookChapter, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
             }
 
             return entityId;
@@ -219,7 +229,7 @@ namespace ScriptureGraph.App
 
             if (await _fileSystem.ExistsAsync(indexFile))
             {
-                // LoadLegacyFormat cached file
+                // Load cached file
                 _coreLogger.Log("Loading cached document index");
                 using (Stream cacheIn = await _fileSystem.OpenStreamAsync(indexFile, FileOpenMode.Open, FileAccessMode.Read))
                 {
@@ -367,7 +377,9 @@ namespace ScriptureGraph.App
                     result.Key.Type == KnowledgeGraphNodeType.ConferenceTalk ||
                     result.Key.Type == KnowledgeGraphNodeType.ConferenceTalkParagraph ||
                     result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryTopic ||
-                    result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph))
+                    result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph ||
+                    result.Key.Type == KnowledgeGraphNodeType.BookChapter ||
+                    result.Key.Type == KnowledgeGraphNodeType.BookParagraph))
                 {
                     continue;
                 }
@@ -391,7 +403,7 @@ namespace ScriptureGraph.App
 
                 if (result.Value > highestResultScore)
                 {
-                    // assumes highest scoring result is first
+                    // assumes highest scoring result is first in iteration
                     highestResultScore = result.Value;
                 }
                 else if (result.Value < highestResultScore * 0.01f) // very lenient confidence threshold
@@ -401,13 +413,12 @@ namespace ScriptureGraph.App
                     break;
                 }
 
-                if (maxResults-- <= 0)
+                if (maxResults > 0 && (result.Value * 1000) > query.MinConfidence)
                 {
-                    break;
+                    maxResults--;
+                    returnVal.EntityIds.Add(result.Key);
+                    _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value * 1000, result.Key.ToString());
                 }
-
-                returnVal.EntityIds.Add(result.Key);
-                _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value * 1000, result.Key.ToString());
             }
 
             return returnVal;
@@ -547,12 +558,12 @@ namespace ScriptureGraph.App
                     continue;
                 }
 
-                if (result.Key.Type == KnowledgeGraphNodeType.GuideToScripturesTopic ||
-                    result.Key.Type == KnowledgeGraphNodeType.TripleIndexTopic)
-                {
-                    // These entities likely won't actually end up turning search results so ignore them
-                    continue;
-                }
+                //if (result.Key.Type == KnowledgeGraphNodeType.GuideToScripturesTopic ||
+                //    result.Key.Type == KnowledgeGraphNodeType.TripleIndexTopic)
+                //{
+                //    // These entities likely won't actually end up turning search results so ignore them
+                //    continue;
+                //}
 
                 if (result.Value > highestResultScore)
                 {
