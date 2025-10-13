@@ -80,8 +80,8 @@ namespace ScriptureGraph.App
                         Include_BibleDict = FilterCheckBox_BD.IsChecked.GetValueOrDefault(false),
                         Include_GenConference = FilterCheckBox_GC.IsChecked.GetValueOrDefault(false),
                         Include_Books = FilterCheckBox_Books.IsChecked.GetValueOrDefault(false),
-                        Include_Hymns = true,
-                        Include_Speeches = true,
+                        Include_Hymns = FilterCheckBox_Hymns.IsChecked.GetValueOrDefault(false),
+                        Include_Speeches = FilterCheckBox_Speeches.IsChecked.GetValueOrDefault(false),
                     }
                 };
 
@@ -909,8 +909,8 @@ namespace ScriptureGraph.App
                         Include_BibleDict = FilterCheckBox_BD.IsChecked.GetValueOrDefault(false),
                         Include_GenConference = FilterCheckBox_GC.IsChecked.GetValueOrDefault(false),
                         Include_Books = FilterCheckBox_Books.IsChecked.GetValueOrDefault(false),
-                        Include_Hymns = true,
-                        Include_Speeches = true,
+                        Include_Hymns = FilterCheckBox_Hymns.IsChecked.GetValueOrDefault(false),
+                        Include_Speeches = FilterCheckBox_Speeches.IsChecked.GetValueOrDefault(false),
                     }
                 };
 

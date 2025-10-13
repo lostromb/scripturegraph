@@ -756,6 +756,9 @@ namespace ScriptureGraph.App
                 case KnowledgeGraphNodeType.ByuSpeech:
                 case KnowledgeGraphNodeType.ByuSpeechParagraph:
                     return filters.Include_Speeches;
+                case KnowledgeGraphNodeType.Hymn:
+                case KnowledgeGraphNodeType.HymnVerse:
+                    return filters.Include_Hymns;
                 default:
                     return true;
             }

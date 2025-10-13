@@ -106,5 +106,9 @@ namespace ScriptureGraph.Core.Graph
         ByuSpeech,
 
         ByuSpeechParagraph,
+
+        Hymn,
+
+        HymnVerse,
     }
 }
