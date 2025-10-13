@@ -47,11 +47,11 @@ namespace ScriptureGraph.Core.Graph
             ExpandTableIfNeeded();
             HashTableLinkedListNode[] bins;
             KnowledgeGraphNodeId nodeId = item.Key;
-            AcquireLockToStableHashBin(nodeId, out bins);
+            AcquireLockToStableHashBin(in nodeId, out bins);
 
             try
             {
-                uint keyHash = (uint)nodeId.GetHashCode();
+                uint keyHash = (uint)nodeId._cachedHashCode;
                 uint bin = keyHash % (uint)bins.Length;
 
                 if (bins[bin] == null)
@@ -68,7 +68,7 @@ namespace ScriptureGraph.Core.Graph
                     while (iter != null)
                     {
                         // Does an entry already exist with this same key?
-                        if (item.Key.Equals(iter.Kvp.Key))
+                        if (KnowledgeGraphNodeId.Equals(item.Key, iter.Kvp.Key))
                         {
                             // Update the value of the existing item
                             iter.Kvp = item;
@@ -108,10 +108,10 @@ namespace ScriptureGraph.Core.Graph
         public void Train(KnowledgeGraphNodeId currentNode, KnowledgeGraphNodeId referenceNode, float increment)
         {
             HashTableLinkedListNode[] bins;
-            AcquireLockToStableHashBin(currentNode, out bins);
+            AcquireLockToStableHashBin(in currentNode, out bins);
             try
             {
-                uint keyHash = (uint)currentNode.GetHashCode();
+                uint keyHash = (uint)currentNode._cachedHashCode;
                 uint bin = keyHash % (uint)bins.Length;
 
                 if (bins[bin] == null)
@@ -130,7 +130,7 @@ namespace ScriptureGraph.Core.Graph
                     HashTableLinkedListNode endOfBin = iter;
                     while (iter != null)
                     {
-                        if (currentNode.Equals(iter.Kvp.Key))
+                        if (KnowledgeGraphNodeId.Equals(currentNode, iter.Kvp.Key))
                         {
                             // Found it!
                             iter.Kvp.Value.Edges.Increment(referenceNode, increment);
@@ -165,9 +165,9 @@ namespace ScriptureGraph.Core.Graph
 
         private bool TryGetInternal(KnowledgeGraphNodeId key, out KnowledgeGraphNode node)
         {
-            uint keyHash = (uint)key.GetHashCode();
+            uint keyHash = (uint)key._cachedHashCode;
             HashTableLinkedListNode[] bins;
-            AcquireLockToStableHashBin(key, out bins);
+            AcquireLockToStableHashBin(in key, out bins);
             try
             {
                 uint bin = keyHash % (uint)bins.Length;
@@ -183,7 +183,7 @@ namespace ScriptureGraph.Core.Graph
                     HashTableLinkedListNode iter = bins[bin];
                     while (iter != null)
                     {
-                        if (key.Equals(iter.Kvp.Key))
+                        if (KnowledgeGraphNodeId.Equals(key, iter.Kvp.Key))
                         {
                             // Found it!
                             node = iter.Kvp.Value;
@@ -204,7 +204,7 @@ namespace ScriptureGraph.Core.Graph
         }
 
         private void AcquireLockToStableHashBin(
-            KnowledgeGraphNodeId node,
+            in KnowledgeGraphNodeId node,
             out HashTableLinkedListNode[] hashTable)
         {
             // Copy a local reference of the table in case another thread tries to resize it while we are accessing
@@ -257,7 +257,7 @@ namespace ScriptureGraph.Core.Graph
                         sourceIterNext = sourceIter.Next;
                         sourceIter.Next = null;
 
-                        uint targetBin = ((uint)sourceIter.Kvp.Key.GetHashCode()) % newTableLength;
+                        uint targetBin = ((uint)sourceIter.Kvp.Key._cachedHashCode) % newTableLength;
                         if (targetBin < moduloFactor)
                         {
                             // Sort to low bin
@@ -416,6 +416,33 @@ namespace ScriptureGraph.Core.Graph
             public HashTableLinkedListNode Next;
         }
 
+        private static int GetSizeOf(KnowledgeGraphNodeId nodeId)
+        {
+            int nameByteCount = Encoding.UTF8.GetByteCount(nodeId.Name);
+            return
+                sizeof(KnowledgeGraphNodeType) +
+                sizeof(byte) +
+                (nameByteCount > 254 ? sizeof(ushort) : 0) +
+                nameByteCount;
+        }
+
+        private static int GetSizeOf(GraphEdgeList edges)
+        {
+            int returnVal = 0;
+            returnVal +=
+                sizeof(float) + // edges.TotalMass
+                sizeof(ushort); // edges.NumEdges - edges are written in packed format so there's no need to write edges.Capacity, it won't be used
+            var enumerator = edges.GetEnumerator();
+            while (enumerator.MoveNext())
+            {
+                ref KnowledgeGraphEdge edge = ref enumerator.CurrentByRef();
+                returnVal += sizeof(float); // edge.Mass
+                returnVal += GetSizeOf(edge.Target);
+            }
+
+            return returnVal;
+        }
+
         public void Save(Stream outStream)
         {
             using (BinaryWriter writer = new BinaryWriter(outStream, StringUtils.UTF8_WITHOUT_BOM, true))
@@ -445,71 +472,6 @@ namespace ScriptureGraph.Core.Graph
                     WriteEdges(enumerator.Current.Value.Edges, writer);
                 }
             }
-        }
-
-        private static void WriteNodeId(KnowledgeGraphNodeId nodeId, BinaryWriter writer)
-        {
-            writer.Write((ushort)nodeId.Type);
-            using (PooledBuffer<byte> byteScratch = BufferPool<byte>.Rent())
-            {
-                int encodedBytes = Encoding.UTF8.GetBytes(nodeId.Name, 0, nodeId.Name.Length, byteScratch.Buffer, 0);
-                // Cheap variable length encoding scheme
-                // If the UTF8 is 254 bytes or less, just write the length as a byte.
-                // If it's over 254 bytes, then write 255 byte, followed by a two-byte extended length.
-                // Could also use 0 as a signifier since node IDs shouldn't allow empty names
-                if (encodedBytes > 254)
-                {
-                    writer.Write((byte)255);
-                    writer.Write((ushort)encodedBytes);
-                }
-                else
-                {
-                    writer.Write((byte)encodedBytes);
-                }
-
-                writer.Write(byteScratch.Buffer, 0, encodedBytes);
-            }
-        }
-
-        private static int GetSizeOf(KnowledgeGraphNodeId nodeId)
-        {
-            int nameByteCount = Encoding.UTF8.GetByteCount(nodeId.Name);
-            return
-                sizeof(KnowledgeGraphNodeType) +
-                sizeof(byte) +
-                (nameByteCount > 254 ? sizeof(ushort) : 0) +
-                nameByteCount;
-        }
-
-        private static void WriteEdges(GraphEdgeList edges, BinaryWriter writer)
-        {
-            writer.Write(edges.TotalMass);
-            writer.Write(edges.NumEdges);
-            //writer.Write(edges.MaxCapacity);
-            var enumerator = edges.GetEnumerator();
-            while (enumerator.MoveNext())
-            {
-                ref KnowledgeGraphEdge edge = ref enumerator.CurrentByRef();
-                writer.Write(edge.Mass);
-                WriteNodeId(edge.Target, writer);
-            }
-        }
-
-        private static int GetSizeOf(GraphEdgeList edges)
-        {
-            int returnVal = 0;
-            returnVal +=
-                sizeof(float) + // edges.TotalMass
-                sizeof(ushort); // edges.NumEdges - edges are written in packed format so there's no need to write edges.Capacity, it won't be used
-            var enumerator = edges.GetEnumerator();
-            while (enumerator.MoveNext())
-            {
-                ref KnowledgeGraphEdge edge = ref enumerator.CurrentByRef();
-                returnVal += sizeof(float); // edge.Mass
-                returnVal += GetSizeOf(edge.Target);
-            }
-
-            return returnVal;
         }
 
         public static TrainingKnowledgeGraph Load(Stream loadStream)
@@ -545,6 +507,29 @@ namespace ScriptureGraph.Core.Graph
                 return returnVal;
             }
         }
+        private static void WriteNodeId(KnowledgeGraphNodeId nodeId, BinaryWriter writer)
+        {
+            writer.Write((ushort)nodeId.Type);
+            using (PooledBuffer<byte> byteScratch = BufferPool<byte>.Rent())
+            {
+                int encodedBytes = Encoding.UTF8.GetBytes(nodeId.Name, 0, nodeId.Name.Length, byteScratch.Buffer, 0);
+                // Cheap variable length encoding scheme
+                // If the UTF8 is 254 bytes or less, just write the length as a byte.
+                // If it's over 254 bytes, then write 255 byte, followed by a two-byte extended length.
+                // Could also use 0 as a signifier since node IDs shouldn't allow empty names
+                if (encodedBytes > 254)
+                {
+                    writer.Write((byte)255);
+                    writer.Write((ushort)encodedBytes);
+                }
+                else
+                {
+                    writer.Write((byte)encodedBytes);
+                }
+
+                writer.Write(byteScratch.Buffer, 0, encodedBytes);
+            }
+        }
 
         private static KnowledgeGraphNodeId ReadNodeId(BinaryReader reader, byte[] scratchBuf)
         {
@@ -562,6 +547,20 @@ namespace ScriptureGraph.Core.Graph
 
             string name = Encoding.UTF8.GetString(scratchBuf, 0, byteLength);
             return new KnowledgeGraphNodeId(type, name);
+        }
+
+        private static void WriteEdges(GraphEdgeList edges, BinaryWriter writer)
+        {
+            writer.Write(edges.TotalMass);
+            writer.Write(edges.NumEdges);
+            //writer.Write(edges.MaxCapacity);
+            var enumerator = edges.GetEnumerator();
+            while (enumerator.MoveNext())
+            {
+                ref KnowledgeGraphEdge edge = ref enumerator.CurrentByRef();
+                writer.Write(edge.Mass);
+                WriteNodeId(edge.Target, writer);
+            }
         }
 
         private static GraphEdgeList ReadEdgeList(BinaryReader reader, ushort edgeCapacity, byte[] scratch)

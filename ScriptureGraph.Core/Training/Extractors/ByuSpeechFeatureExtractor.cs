@@ -22,7 +22,7 @@ namespace ScriptureGraph.Core.Training.Extractors
     {
         private static readonly Regex UrlPathParser = new Regex("\\/talks\\/(.+?)\\/(.+?)(?:\\/|$)");
 
-        public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, List<TrainingFeature> trainingFeaturesOut)
+        public static void ExtractFeatures(string htmlPage, Uri pageUrl, ILogger logger, Action<TrainingFeature> trainingFeaturesOut)
         {
             try
             {
@@ -38,7 +38,63 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return;
                 }
 
+                // High-level features
+                // Title of the talk -> Talk
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(parseResult.TalkTitle))
+                {
+                    trainingFeaturesOut(new TrainingFeature(
+                        parseResult.DocumentEntityId,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
 
+                List<TrainingFeature> scratch = new List<TrainingFeature>();
+                Paragraph? previousPara = null;
+                foreach (Paragraph para in parseResult.Paragraphs)
+                {
+                    // Associate this paragraph with the entire talk
+                    trainingFeaturesOut(new TrainingFeature(
+                        parseResult.DocumentEntityId,
+                        para.ParaEntityId,
+                        TrainingFeatureType.BookAssociation));
+
+                    // And with the previous paragraph
+                    if (previousPara != null)
+                    {
+                        trainingFeaturesOut(new TrainingFeature(
+                            para.ParaEntityId,
+                            previousPara.ParaEntityId,
+                            TrainingFeatureType.ParagraphAssociation));
+                    }
+
+                    previousPara = para;
+
+                    foreach (KnowledgeGraphNodeId reference in para.References)
+                    {
+                        trainingFeaturesOut(new TrainingFeature(
+                            para.ParaEntityId,
+                            reference,
+                            TrainingFeatureType.EntityReference));
+                    }
+
+                    // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
+                    // doing 9x permutations between every single word in the paragraph)
+                    List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
+
+                    foreach (string sentence in sentences)
+                    {
+                        string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
+
+                        // Common word and ngram level features associated with this paragraph entity
+                        scratch.Clear();
+                        EnglishWordFeatureExtractor.ExtractTrainingFeatures(thisSentenceWordBreakerText, scratch, para.ParaEntityId);
+
+                        foreach (var f in scratch)
+                        {
+                            trainingFeaturesOut(f);
+                        }
+                    }
+                }
             }
             catch (Exception e)
             {

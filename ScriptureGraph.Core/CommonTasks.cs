@@ -45,8 +45,9 @@ namespace ScriptureGraph.Core
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(startGraph, threadPool);
                 await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
                 //BookExtractorATGQ.ExtractFeatures(
                 //    epubFileSystem,
@@ -61,11 +62,15 @@ namespace ScriptureGraph.Core
                 logger.Log("Winding down training threads");
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
                 {
-                    CancellationToken cancelToken = cts.Token;
-                    while (!cts.Token.IsCancellationRequested && threadPool.RunningWorkItems > 0)
+                    try
                     {
-                        await threadPool.WaitForCurrentTasksToFinish(cts.Token, DefaultRealTimeProvider.Singleton);
+                        CancellationToken cancelToken = cts.Token;
+                        while (!cts.Token.IsCancellationRequested && threadPool.RunningWorkItems > 0)
+                        {
+                            await threadPool.WaitForCurrentTasksToFinish(cts.Token, DefaultRealTimeProvider.Singleton);
+                        }
                     }
+                    catch (OperationCanceledException) { }
                 }
             }
         }
@@ -102,11 +107,15 @@ namespace ScriptureGraph.Core
                 logger.Log("Winding down training threads");
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
                 {
-                    CancellationToken cancelToken = cts.Token;
-                    while (!cts.Token.IsCancellationRequested && threadPool.RunningWorkItems > 0)
+                    try
                     {
-                        await threadPool.WaitForCurrentTasksToFinish(cts.Token, DefaultRealTimeProvider.Singleton);
+                        CancellationToken cancelToken = cts.Token;
+                        while (!cts.Token.IsCancellationRequested && threadPool.RunningWorkItems > 0)
+                        {
+                            await threadPool.WaitForCurrentTasksToFinish(cts.Token, DefaultRealTimeProvider.Singleton);
+                        }
                     }
+                    catch (OperationCanceledException) { }
                 }
 
                 return new Tuple<TrainingKnowledgeGraph, EntityNameIndex>(entitySearchGraph, nameIndex);
@@ -132,7 +141,7 @@ namespace ScriptureGraph.Core
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
                 logger.Log("Processing documents from webcrawler sources");
-                //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
@@ -143,11 +152,15 @@ namespace ScriptureGraph.Core
                 logger.Log("Winding down training threads");
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
                 {
-                    CancellationToken cancelToken = cts.Token;
-                    while (!cts.Token.IsCancellationRequested && threadPool.RunningWorkItems > 0)
+                    try
                     {
-                        await threadPool.WaitForCurrentTasksToFinish(cts.Token, DefaultRealTimeProvider.Singleton);
+                        CancellationToken cancelToken = cts.Token;
+                        while (!cts.Token.IsCancellationRequested && threadPool.RunningWorkItems > 0)
+                        {
+                            await threadPool.WaitForCurrentTasksToFinish(cts.Token, DefaultRealTimeProvider.Singleton);
+                        }
                     }
+                    catch (OperationCanceledException) { }
                 }
             }
         }
@@ -183,57 +196,68 @@ namespace ScriptureGraph.Core
 
             public Task<bool> ProcessFromWebCrawler(WebCrawler.CrawledPage page, ILogger logger)
             {
-                List<TrainingFeature> features = new List<TrainingFeature>(50000);
-                Match match = ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath);
-                if (match.Success)
+                try
                 {
-                    logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
-                    ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
-                }
-                else
-                {
-                    match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
-                    if (match.Success)
+                    List<TrainingFeature> features = new List<TrainingFeature>(50000);
+                    if (ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath).Success)
                     {
+                        logger.Log($"Featurizing scripture page {page.Url.AbsolutePath}");
+                        ScripturePageFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    }
+                    else if (ReferenceUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        Match match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
                         if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal))
                         {
-                            logger.Log($"Parsing TG page {page.Url.AbsolutePath}");
+                            logger.Log($"Featurizing TG page {page.Url.AbsolutePath}");
                             TopicalGuideFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
                         }
                         else if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
                         {
-                            logger.Log($"Parsing BD page {page.Url.AbsolutePath}");
+                            logger.Log($"Featurizing BD page {page.Url.AbsolutePath}");
                             BibleDictionaryFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
                         }
                         else if (string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal))
                         {
-                            logger.Log($"Parsing GS page {page.Url.AbsolutePath}");
+                            logger.Log($"Featurizing GS page {page.Url.AbsolutePath}");
                             GuideToScripturesFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
                         }
                         else if (string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
                         {
-                            logger.Log($"Parsing index page {page.Url.AbsolutePath}");
+                            logger.Log($"Featurizing index page {page.Url.AbsolutePath}");
                             TripleIndexFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
-                        }
-                    }
-                    else
-                    {
-                        match = ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath);
-                        if (match.Success)
-                        {
-                            logger.Log($"Parsing conference talk {page.Url.AbsolutePath}");
-                            ConferenceTalkFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
                         }
                         else
                         {
                             logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
                         }
                     }
-                }
+                    else if (ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Featurizing conference talk {page.Url.AbsolutePath}");
+                        ConferenceTalkFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, features);
+                    }
+                    else if (ByuSpeakerUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                    }
+                    else if (ByuSpeechUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Featurizing BYU speech {page.Url.AbsolutePath}");
+                        ByuSpeechFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, _trainingGraph.Train);
+                    }
+                    else
+                    {
+                        logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                    }
 
-                foreach (var feature in features)
+                    foreach (var feature in features)
+                    {
+                        _trainingGraph.Train(feature);
+                    }
+                }
+                catch (Exception e)
                 {
-                    _trainingGraph.Train(feature);
+                    logger.Log(e);
                 }
 
                 return Task.FromResult<bool>(true);

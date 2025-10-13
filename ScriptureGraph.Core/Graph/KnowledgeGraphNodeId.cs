@@ -1,10 +1,10 @@
 ﻿namespace ScriptureGraph.Core.Graph
 {
-    public struct KnowledgeGraphNodeId
+    public struct KnowledgeGraphNodeId : IEquatable<KnowledgeGraphNodeId>
     {
         public KnowledgeGraphNodeType Type;
         public string Name;
-        private int _cachedHashCode;
+        internal int _cachedHashCode;
 
         public KnowledgeGraphNodeId(KnowledgeGraphNodeType type, string name)
         {
@@ -30,6 +30,11 @@
             }
 
             KnowledgeGraphNodeId other = (KnowledgeGraphNodeId)obj;
+            return Equals(other);
+        }
+
+        public bool Equals(KnowledgeGraphNodeId other)
+        {
             return Type == other.Type && string.Equals(Name, other.Name, StringComparison.Ordinal);
         }
 

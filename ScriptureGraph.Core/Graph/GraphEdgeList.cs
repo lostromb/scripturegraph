@@ -35,7 +35,7 @@ namespace ScriptureGraph.Core.Graph
         internal GraphEdgeList(ushort maxCapacity, ushort numEdges)
         {
             _maxCapacity = maxCapacity;
-            _currentCapacity = (ushort)BitOperations.RoundUpToPowerOf2((uint)numEdges);
+            _currentCapacity = (ushort)(ushort)Math.Min(_maxCapacity, BitOperations.RoundUpToPowerOf2((uint)numEdges));
             _currentLength = 0;
             _list = new KnowledgeGraphEdge[_currentCapacity];
             _totalMass = 0;
@@ -52,7 +52,7 @@ namespace ScriptureGraph.Core.Graph
             while (idx < _currentLength)
             {
                 ref KnowledgeGraphEdge cur = ref _list[idx];
-                if (cur.Target.Equals(nodeRef))
+                if (KnowledgeGraphNodeId.Equals(cur.Target, nodeRef))
                 {
                     // Found the right node. Increase its mass
                     cur.Mass += massIncrease;

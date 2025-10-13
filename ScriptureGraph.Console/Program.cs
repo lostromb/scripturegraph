@@ -115,7 +115,7 @@ namespace ScriptureGraph.Console
             //await Test(logger);
             await ParseDocuments(logger);
             await BuildSearchIndex(logger);
-            //await BuildUniversalGraph(logger);
+            await BuildUniversalGraph(logger);
 
             //CompressFile(_runtimeFileSystem, new VirtualPath("scriptures.graph"));
 

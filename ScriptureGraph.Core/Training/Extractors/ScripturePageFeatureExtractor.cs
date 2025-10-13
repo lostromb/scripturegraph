@@ -141,6 +141,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         {
             {"title", GospelParagraphClass.Header },
             {"subtitle", GospelParagraphClass.SubHeader },
+            {"intro", GospelParagraphClass.SubHeader },
             {"title-number", GospelParagraphClass.ChapterNum },
             {"study-intro", GospelParagraphClass.StudySummary },
             {"study-summary", GospelParagraphClass.StudySummary },
@@ -285,6 +286,11 @@ namespace ScriptureGraph.Core.Training.Extractors
                         returnVal.Titles.Add(para);
                     }
                     else if (string.Equals(paraClassRaw, "subtitle", StringComparison.OrdinalIgnoreCase))
+                    {
+                        para.Text = para.Text.Trim();
+                        returnVal.Titles.Add(para);
+                    }
+                    else if (string.Equals(paraClassRaw, "intro", StringComparison.OrdinalIgnoreCase))
                     {
                         para.Text = para.Text.Trim();
                         returnVal.Titles.Add(para);
