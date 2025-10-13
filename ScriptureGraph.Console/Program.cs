@@ -16,6 +16,7 @@ using ScriptureGraph.Core.Training.Extractors;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
+using static Durandal.Common.Audio.WebRtc.RingBuffer;
 
 namespace ScriptureGraph.Console
 {
@@ -36,7 +37,7 @@ namespace ScriptureGraph.Console
             NativePlatformUtils.SetGlobalResolver(new NativeLibraryResolverImpl());
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, logger);
 
-            string rootDirectory = @"C:\Code\scripturegraph";
+            string rootDirectory = @"D:\Code\scripturegraph";
             _runtimeFileSystem = new RealFileSystem(logger.Clone("RuntimeFS"), rootDirectory + @"\runtime");
             _webCacheFileSystem = new RealFileSystem(logger.Clone("WebCacheFS"), rootDirectory + @"\runtime\cache");
             _documentCacheFileSystem = new RealFileSystem(logger.Clone("DocumentFS"), rootDirectory + @"\runtime\documents");
@@ -113,10 +114,10 @@ namespace ScriptureGraph.Console
 
             //await Test(logger);
             //await ParseDocuments(logger);
-            await BuildSearchIndex(logger);
+            //await BuildSearchIndex(logger);
             //await BuildUniversalGraph(logger);
 
-            //CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
+            //CompressFile(_runtimeFileSystem, new VirtualPath("scriptures.graph"));
 
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/pgp/abr/1?lang=eng");
             //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/john/1?lang=eng");
@@ -128,6 +129,33 @@ namespace ScriptureGraph.Console
             //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/general-conference/2025/10/54godoy?lang=eng");
             //string webPage = new WebClient().DownloadString(talkUrl);
             //ConferenceTalkFeatureExtractorNew.ParseDocument(webPage, talkUrl, logger);
+
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/cast-not-away-therefore-your-confidence/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/anthony-sweat/we-need-an-endowment/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/hugh-b-brown/god-gardener/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/sarah-clark/jesus-christ-the-master-teacher/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/geoffrey-j-germane/inertia-entropy-good-cheer/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/david-w-hart/be-excellent-becoming-who-you-are-in-todays-world/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/r-lanier-britsch/nobility-failure/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/noel-b-reynolds/authorship-book-mormon/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/legrand-richards/value-testimony/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/robert-l-backman/looking-to-the-future/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/ezra-taft-benson/constitution-heavenly-banner/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/neil-l-andersen/hold-fast-words-prophets/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/bitter-cup-bloody-baptism/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/souls-symbols-sacraments/", logger);
+            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/robe-ring-fatted-calf/", logger);
+
+            //Uri talkUrl = new Uri("https://speeches.byu.edu/talks/neil-l-andersen/hold-fast-words-prophets/");
+            //string webPage = new WebClient().DownloadString(talkUrl);
+            //ByuSpeechFeatureExtractor.ParseDocument(webPage, talkUrl, logger);
+        }
+
+        private static async void DownloadSpeechAndEvaluateScore(string url, ILogger logger)
+        {
+            Uri talkUrl = new Uri(url);
+            string webPage = new WebClient().DownloadString(talkUrl);
+            ByuSpeechFeatureExtractor.ParseDocument(webPage, talkUrl, logger);
         }
 
         private static void CompressFile(IFileSystem fileSystem, VirtualPath inputFile)
@@ -318,7 +346,7 @@ namespace ScriptureGraph.Console
         private static async Task<TrainingKnowledgeGraph> BuildUniversalGraph(ILogger logger)
         {
             TrainingKnowledgeGraph graph;
-            VirtualPath modelFile = new VirtualPath("all.graph");
+            VirtualPath modelFile = new VirtualPath("scriptures.graph");
             WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
 
             if (_runtimeFileSystem.Exists(modelFile))

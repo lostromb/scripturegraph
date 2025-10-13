@@ -151,5 +151,20 @@ namespace ScriptureGraph.Core.Training
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Year, year.ToString());
         }
+
+        public static KnowledgeGraphNodeId ByuSpeech(string speakerId, string talkId)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeech, $"{speakerId}|{talkId}");
+        }
+
+        public static KnowledgeGraphNodeId ByuSpeechParagraph(string speakerId, string talkId, string para)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeechParagraph, $"{speakerId}|{talkId}|{para}");
+        }
+
+        public static KnowledgeGraphNodeId ByuSpeechParagraph(string speakerId, string talkId, int index)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeechParagraph, $"{speakerId}|{talkId}|{index}");
+        }
     }
 }

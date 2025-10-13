@@ -24,11 +24,14 @@ namespace ScriptureGraph.Core.Training
             //IPrimitiveInternalizer<char> internalizer = InternalizerFactory.CreateInternalizer(new InternedKeySource<ReadOnlyMemory<char>>(),
             //    InternalizerFeature.CaseInsensitive | InternalizerFeature.OnlyMatchesWithinSet);
 
+
             bool first = true;
             StringBuilder singleRefRegexBuilder = new StringBuilder();
             StringBuilder bookNameRegexBuilder = new StringBuilder();
+            // example single ref matcher: ^\s*(mosiah|1 nephi|enos)(?:\s*(\d+)\s*(?:\:\s*(\d+))?)?$
             singleRefRegexBuilder.Append("^\\s*(");
-            bookNameRegexBuilder.Append("(");
+            // example book matcher: (?:^|\W)(mosiah|1 nephi|enos)
+            bookNameRegexBuilder.Append("(?:^|\\W)(");
             foreach (string englishBookName in NAME_TO_ID.Keys)
             {
                 if (!first)
@@ -45,7 +48,7 @@ namespace ScriptureGraph.Core.Training
             }
 
             singleRefRegexBuilder.Append(")(?:\\s*(\\d+)\\s*(?:\\:\\s*(\\d+))?)?$");
-            bookNameRegexBuilder.Append(")");
+            bookNameRegexBuilder.Append(")(?:$|\\s)");
             EnglishScriptureRefMatcher = new Regex(singleRefRegexBuilder.ToString(), RegexOptions.IgnoreCase);
             EnglishScriptureBookNameMatcher = new Regex(bookNameRegexBuilder.ToString(), RegexOptions.IgnoreCase);
         }
@@ -591,14 +594,14 @@ namespace ScriptureGraph.Core.Training
                 {
                     foreach (ScriptureReference r in ParseSingleReference(
                         inputText.Substring(lastIndex, lastLength),
-                        inputText.Substring(lastIndex, m.Index - lastIndex)))
+                        inputText.Substring(lastIndex, m.Groups[1].Index - lastIndex)))
                     {
                         yield return r;
                     }
                 }
 
-                lastIndex = m.Index;
-                lastLength = m.Length;
+                lastIndex = m.Groups[1].Index;
+                lastLength = m.Groups[1].Length;
             }
 
             if (lastIndex >= 0)

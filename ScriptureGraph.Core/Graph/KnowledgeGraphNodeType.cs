@@ -101,6 +101,10 @@ namespace ScriptureGraph.Core.Graph
 
         Conference,
 
-        Year
+        Year,
+
+        ByuSpeech,
+
+        ByuSpeechParagraph,
     }
 }

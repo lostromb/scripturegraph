@@ -40,8 +40,17 @@ namespace ScriptureGraph.Core.Training.Extractors
         /// Capture group 5: The "span" string, for very long ranges
         /// Capture group 6: The fragment, often the emphasis verse such as "p14"
         /// </summary>
-        // \/study\/scriptures\/(.+?)\/(.+?)(?:\/(\d+?))?\?lang=\w+(?:&id=(.+?))?(?:&span=(.+?))?(?:#(.+?))?(?:$|\")
-        private static readonly Regex ScriptureRefParser = new Regex("\\/study\\/scriptures\\/(.+?)\\/(.+?)(?:\\/(\\d+?))?\\?lang=\\w+(?:&id=(.+?))?(?:&span=(.+?))?(?:#(.+?))?(?:$|\\\")");
+        // \/study\/scriptures\/([^\/]+)\/([^\/]+)(?:\/(\d+?))?\?lang=\w+(?:&id=(.+?))?(?:&span=(.+?))?(?:#(.+?))?(?:$|\")
+        private static readonly Regex ScriptureRefParser = new Regex("\\/study\\/scriptures\\/([^\\/]+)\\/([^\\/]+)(?:\\/(\\d+?))?\\?lang=\\w+(?:&id=(.+?))?(?:&span=(.+?))?(?:#(.+?))?(?:$|\\\")");
+
+        // Input: https://www.churchofjesuschrist.org/scriptures/dc-testament/dc/128.22-23?lang=eng
+        /// Capture group 1: canon (from URL, e.g. "bofm")
+        /// Capture group 2: book (from URL, e.g. "alma") OR for TG or BD, this is the article name (e.g. "god-knowledge-about")
+        /// Capture group 3: The chapter integer being referenced
+        /// Capture group 4: Single verse, or start of range of verses (required)
+        /// Capture group 5: End of range of verses (optional)
+        /// \/scriptures\/(.+?)\/(.+?)\/(\d+)\.(\d+)(?:-(\d+))?
+        private static readonly Regex ScriptureRefParserAlternate = new Regex("\\/scriptures\\/(.+?)\\/(.+?)\\/(\\d+)\\.(\\d+)(?:-(\\d+))?");
 
         // \/study\/general-conference\/(\d+?)\/(\d+?)\/(.+?)\?lang=\w+(?:&id=(.+?))?(?:#(.+?))?(?:$|\")
         private static readonly Regex ConferenceLinkParser = new Regex("\\/study\\/general-conference\\/(\\d+?)\\/(\\d+?)\\/(.+?)\\?lang=\\w+(?:&id=(.+?))?(?:#(.+?))?(?:$|\\\")");
@@ -230,7 +239,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             foreach (Match footnotScriptureRef in ScriptureRefParser.Matches(scriptureHtmlPage))
             {
                 string refCanon = footnotScriptureRef.Groups[1].Value;
-                string refBook = footnotScriptureRef.Groups[2].Value;
+                string refBook = ScriptureMetadata.NormalizeBookId(footnotScriptureRef.Groups[2].Value);
                 if (!footnotScriptureRef.Groups[3].Success)
                 {
                     // It's a reference without chapter or verse info (usually TG or BD)
@@ -248,8 +257,8 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                     int? emphasisVerse = null;
                     int eParse;
-                    if (footnotScriptureRef.Groups[6].Success && footnotScriptureRef.Groups[6].Value.StartsWith("#p") &&
-                        int.TryParse(footnotScriptureRef.Groups[6].Value.TrimStart('#').TrimStart('p'), out eParse))
+                    if (footnotScriptureRef.Groups[6].Success && footnotScriptureRef.Groups[6].Value.StartsWith("p") &&
+                        int.TryParse(footnotScriptureRef.Groups[6].Value.TrimStart('p'), out eParse))
                     {
                         emphasisVerse = eParse;
                     }
@@ -330,6 +339,35 @@ namespace ScriptureGraph.Core.Training.Extractors
                             dedup.Add(toReturn);
                             yield return toReturn;
                         }
+                    }
+                }
+            }
+
+            // Handle alternate URL format
+            foreach (Match footnotScriptureRef in ScriptureRefParserAlternate.Matches(scriptureHtmlPage))
+            {
+                string refCanon = footnotScriptureRef.Groups[1].Value;
+                string refBook = ScriptureMetadata.NormalizeBookId(footnotScriptureRef.Groups[2].Value);
+                int refChapter = int.Parse(footnotScriptureRef.Groups[3].Value);
+                int verseStart = int.Parse(footnotScriptureRef.Groups[4].Value);
+                int? verseEnd = null;
+
+                if (footnotScriptureRef.Groups[5].Success)
+                {
+                    verseEnd = int.Parse(footnotScriptureRef.Groups[5].Value);
+                }
+                else
+                {
+                    verseEnd = verseStart;
+                }
+
+                for (int verse = verseStart; verse <= verseEnd; verse++)
+                {
+                    toReturn = new ScriptureReference(refCanon, refBook, refChapter, verse);
+                    if (!dedup.Contains(toReturn))
+                    {
+                        dedup.Add(toReturn);
+                        yield return toReturn;
                     }
                 }
             }

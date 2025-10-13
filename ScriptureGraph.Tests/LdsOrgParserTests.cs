@@ -154,6 +154,61 @@ namespace ScriptureGraph.Tests
         }
 
         [TestMethod]
+        public void TestParseScriptureRef_AlternateFormat_SingleVerse()
+        {
+            string html = "<a href=\"https://www.churchofjesuschrist.org/scriptures/dc-testament/dc/128.22?lang=eng\" target=\"_blank\" rel=\"noopener noreferrer\">D&amp;C 128:22</a>";
+            List<ScriptureReference> dest = new List<ScriptureReference>();
+            LdsDotOrgCommonParsers.ParseAllScriptureReferences(html, dest, DebugLogger.Default);
+            Assert.AreEqual(1, dest.Count);
+            Assert.AreEqual("dc-testament dc 128:22", dest[0].ToString());
+            Assert.AreEqual(false, dest[0].LowEmphasis);
+        }
+
+        [TestMethod]
+        public void TestParseScriptureRef_AlternateFormat_VerseRange()
+        {
+            string html = "<a href=\"https://www.churchofjesuschrist.org/scriptures/pgp/moses/1.13-16?lang=eng\" target=\"_blank\" rel=\"noopener noreferrer\">Moses 1:13–16</a>";
+            List<ScriptureReference> dest = new List<ScriptureReference>();
+            LdsDotOrgCommonParsers.ParseAllScriptureReferences(html, dest, DebugLogger.Default);
+            Assert.AreEqual(4, dest.Count);
+            Assert.AreEqual("pgp moses 1:13", dest[0].ToString());
+            Assert.AreEqual(false, dest[0].LowEmphasis);
+            Assert.AreEqual("pgp moses 1:14", dest[1].ToString());
+            Assert.AreEqual(false, dest[1].LowEmphasis);
+            Assert.AreEqual("pgp moses 1:15", dest[2].ToString());
+            Assert.AreEqual(false, dest[2].LowEmphasis);
+            Assert.AreEqual("pgp moses 1:16", dest[3].ToString());
+            Assert.AreEqual(false, dest[3].LowEmphasis);
+        }
+
+        [TestMethod]
+        public void TestParseScriptureRef_AlternateFormat_JSMatt()
+        {
+            string html = "https://www.churchofjesuschrist.org/study/scriptures/pgp/jst-matt/1.10?lang=eng";
+            List<ScriptureReference> dest = new List<ScriptureReference>();
+            LdsDotOrgCommonParsers.ParseAllScriptureReferences(html, dest, DebugLogger.Default);
+            Assert.AreEqual(1, dest.Count);
+            Assert.AreEqual("pgp js-m 1:10", dest[0].ToString());
+            Assert.AreEqual(false, dest[0].LowEmphasis);
+        }
+
+        [TestMethod]
+        public void TestParseScriptureRef_Complicated()
+        {
+            string html =
+"""
+[They] <em>have the privilege of receiving the mysteries of the kingdom of heaven, to have the heavens opened unto them, to commune with the general assembly and church of the Firstborn, and to enjoy the communion and presence of God the Father, and Jesus the mediator of the new covenant. </em>
+[<a href="https://www.churchofjesuschrist.org/study/scriptures/dc-testament/dc/107.19?lang=eng&id=18" rel="noopener" target="_blank">Doctrine </a>
+<a href="https://www.churchofjesuschrist.org/study/scriptures/dc-testament/dc/107?lang=eng&id=19" rel="noopener" target="_blank">and</a>
+<a href="https://www.churchofjesuschrist.org/study/scriptures/dc-testament/dc/107.19?lang=eng&id=18" rel="noopener" target="_blank"> Covenants 107:19</a>; see also
+<a href="https://www.churchofjesuschrist.org/study/scriptures/dc-testament/dc/107?lang=eng&id=18" rel="noopener" target="_blank">verse 18</a>]
+""";
+            List<ScriptureReference> dest = new List<ScriptureReference>();
+            LdsDotOrgCommonParsers.ParseAllScriptureReferences(html, dest, DebugLogger.Default);
+            Assert.AreEqual(2, dest.Count);
+        }
+
+        [TestMethod]
         public void TestParseAndFormatHtml_PassthroughText()
         {
             string html = "His purposes fail not, neither are there any who can stay his hand.";

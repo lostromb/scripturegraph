@@ -268,6 +268,23 @@ namespace ScriptureGraph.Core.Training
             }
         }
 
+        /// <summary>
+        /// Handles legacy IDs like "jst-matt", changing them to their more current "js-m"
+        /// </summary>
+        /// <param name="bookId"></param>
+        /// <returns></returns>
+        public static string NormalizeBookId(string bookId)
+        {
+            if (string.Equals(bookId, "jst-matt", StringComparison.OrdinalIgnoreCase))
+            {
+                return "js-m";
+            }
+            else
+            {
+                return bookId;
+            }   
+        }
+
         public static string GetCanonForBook(string bookId)
         {
             return BOOK_TO_CANON[bookId];
