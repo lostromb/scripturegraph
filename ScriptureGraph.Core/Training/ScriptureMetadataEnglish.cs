@@ -586,6 +586,7 @@ namespace ScriptureGraph.Core.Training
         {
             // Start by parsing all book names, and divide those into spans of "(book name) (whatever...) (verse references or ranges within this book)"
             // So the separated spans might be "Moro. 7:1-5", or "D & C 76:11, see also 22" or "John 17:3-5; see also verses 24, 25"
+            const int MaxDistBetweenBookAndVerse = 100;
             int lastIndex = -1;
             int lastLength = -1;
             foreach (Match m in EnglishScriptureBookNameMatcher.Matches(inputText))
@@ -594,7 +595,7 @@ namespace ScriptureGraph.Core.Training
                 {
                     foreach (ScriptureReference r in ParseSingleReference(
                         inputText.Substring(lastIndex, lastLength),
-                        inputText.Substring(lastIndex, m.Groups[1].Index - lastIndex)))
+                        inputText.Substring(lastIndex, Math.Min(MaxDistBetweenBookAndVerse, m.Groups[1].Index - lastIndex))))
                     {
                         yield return r;
                     }

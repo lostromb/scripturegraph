@@ -155,6 +155,11 @@ namespace ScriptureGraph.App
                 // Map book paragraph -> chapter
                 return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookChapter, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
             }
+            else if (entityId.Type == KnowledgeGraphNodeType.ByuSpeechParagraph)
+            {
+                // Map speech paragraph -> speech
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeech, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
 
             return entityId;
         }

@@ -716,6 +716,7 @@ namespace ScriptureGraph.App
                 Guid panelIdToRemove = (Guid)((FrameworkElement)sender).Tag;
                 ReadingPane panelToRemove = _currentReadingPanes[panelIdToRemove];
                 BrowseArea.Children.Remove(panelToRemove.Container);
+                _currentReadingPanes.Remove(panelIdToRemove);
             }
             catch (Exception e)
             {
@@ -1538,8 +1539,8 @@ namespace ScriptureGraph.App
                 }
                 else if (searchResult.Type == KnowledgeGraphNodeType.ByuSpeechParagraph)
                 {
-                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
-                    if (dictionaryEntry is ByuSpeechDocument speechDoc)
+                    GospelDocument document = await _core.LoadDocument(searchResult);
+                    if (document is ByuSpeechDocument speechDoc)
                     {
                         CreateUiElementsForByuSpeechParaResult(searchResult, speechDoc, target);
                     }

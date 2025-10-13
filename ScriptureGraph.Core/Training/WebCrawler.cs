@@ -209,6 +209,7 @@ namespace ScriptureGraph.Core.Training
                 catch (UriFormatException e)
                 {
                     logger.Log(e, LogLevel.Err);
+                    logger.Log($"Url was \"{x}\"", LogLevel.Err);
                 }
             }
         }
