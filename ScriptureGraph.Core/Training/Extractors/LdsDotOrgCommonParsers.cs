@@ -49,8 +49,8 @@ namespace ScriptureGraph.Core.Training.Extractors
         /// Capture group 3: The chapter integer being referenced
         /// Capture group 4: Single verse, or start of range of verses (required)
         /// Capture group 5: End of range of verses (optional)
-        /// \/scriptures\/(.+?)\/(.+?)\/(\d+)\.(\d+)(?:-(\d+))?
-        private static readonly Regex ScriptureRefParserAlternate = new Regex("\\/scriptures\\/(.+?)\\/(.+?)\\/(\\d+)\\.(\\d+)(?:-(\\d+))?");
+        /// \/scriptures\/([^\/]+)\/([^\/]+)\/(\d+)\.(\d+)(?:-(\d+))?
+        private static readonly Regex ScriptureRefParserAlternate = new Regex("\\/scriptures\\/([^\\/]+)\\/([^\\/]+)\\/(\\d+)\\.(\\d+)(?:-(\\d+))?");
 
         // \/study\/general-conference\/(\d+?)\/(\d+?)\/(.+?)\?lang=\w+(?:&id=(.+?))?(?:#(.+?))?(?:$|\")
         private static readonly Regex ConferenceLinkParser = new Regex("\\/study\\/general-conference\\/(\\d+?)\\/(\\d+?)\\/(.+?)\\?lang=\\w+(?:&id=(.+?))?(?:#(.+?))?(?:$|\\\")");
@@ -239,7 +239,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             foreach (Match footnotScriptureRef in ScriptureRefParser.Matches(scriptureHtmlPage))
             {
                 string refCanon = footnotScriptureRef.Groups[1].Value;
-                string refBook = ScriptureMetadata.NormalizeBookId(footnotScriptureRef.Groups[2].Value);
+                string refBook = ScriptureMetadata.NormalizeBookId(footnotScriptureRef.Groups[2].Value, ref refCanon);
                 if (!footnotScriptureRef.Groups[3].Success)
                 {
                     // It's a reference without chapter or verse info (usually TG or BD)
@@ -347,7 +347,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             foreach (Match footnotScriptureRef in ScriptureRefParserAlternate.Matches(scriptureHtmlPage))
             {
                 string refCanon = footnotScriptureRef.Groups[1].Value;
-                string refBook = ScriptureMetadata.NormalizeBookId(footnotScriptureRef.Groups[2].Value);
+                string refBook = ScriptureMetadata.NormalizeBookId(footnotScriptureRef.Groups[2].Value, ref refCanon);
                 int refChapter = int.Parse(footnotScriptureRef.Groups[3].Value);
                 int verseStart = int.Parse(footnotScriptureRef.Groups[4].Value);
                 int? verseEnd = null;

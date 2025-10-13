@@ -49,7 +49,7 @@ namespace ScriptureGraph.App
             AssemblyReflector.ApplyAccelerators(typeof(CRC32CAccelerator).Assembly, _coreLogger);
 
 #if DEBUG
-            string contentPath = @"C:\Program Files\Scripture Roots\content";
+            string contentPath = @"D:\Code\scripturegraph\runtime";
 #else
             string contentPath = Path.Combine(Environment.CurrentDirectory, "content");
             if (!Directory.Exists(contentPath))
@@ -379,7 +379,9 @@ namespace ScriptureGraph.App
                     result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryTopic ||
                     result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph ||
                     result.Key.Type == KnowledgeGraphNodeType.BookChapter ||
-                    result.Key.Type == KnowledgeGraphNodeType.BookParagraph))
+                    result.Key.Type == KnowledgeGraphNodeType.BookParagraph ||
+                    result.Key.Type == KnowledgeGraphNodeType.ByuSpeech ||
+                    result.Key.Type == KnowledgeGraphNodeType.ByuSpeechParagraph))
                 {
                     continue;
                 }
@@ -650,6 +652,9 @@ namespace ScriptureGraph.App
                         return SearchResultEntityType.Book_MD;
                     else
                         return SearchResultEntityType.Unknown;
+                case KnowledgeGraphNodeType.ByuSpeech:
+                case KnowledgeGraphNodeType.ByuSpeechParagraph:
+                    return SearchResultEntityType.ByuSpeech;
                 default:
                     return SearchResultEntityType.Unknown;
             }
@@ -743,6 +748,9 @@ namespace ScriptureGraph.App
                 case KnowledgeGraphNodeType.BookChapter:
                 case KnowledgeGraphNodeType.BookParagraph:
                     return filters.Include_Books;
+                case KnowledgeGraphNodeType.ByuSpeech:
+                case KnowledgeGraphNodeType.ByuSpeechParagraph:
+                    return filters.Include_Speeches;
                 default:
                     return true;
             }

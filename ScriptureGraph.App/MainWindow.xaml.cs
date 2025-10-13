@@ -244,6 +244,8 @@ namespace ScriptureGraph.App
                     return "Answers to Gospel Questions";
                 case SearchResultEntityType.Book_MD:
                     return "Mormon Doctrine";
+                case SearchResultEntityType.ByuSpeech:
+                    return "BYU Speeches";
                 default:
                     return "UNKNOWN_TYPE";
             }
@@ -1088,6 +1090,9 @@ namespace ScriptureGraph.App
                 case GospelDocumentType.ScriptureChapter:
                     ScriptureChapterDocument scriptureDocument = (ScriptureChapterDocument)document;
                     return $"{ScriptureMetadata.GetNameForCanon(scriptureDocument.Canon, LanguageCode.ENGLISH)} - {ScriptureMetadata.GetNameForBook(scriptureDocument.Book, LanguageCode.ENGLISH)} - {scriptureDocument.Chapter}";
+                case GospelDocumentType.ByuSpeech:
+                    ByuSpeechDocument speechDocument = (ByuSpeechDocument)document;
+                    return $"BYU Speeches - {speechDocument.Title} - {speechDocument.Speaker}";
                 default:
                     return "UNKNOWN_DOCUMENT";
             }
@@ -1485,6 +1490,64 @@ namespace ScriptureGraph.App
                         throw new Exception("Invalid loaded document type: expected BookChapterDocument");
                     }
                 }
+
+                else if (searchResult.Type == KnowledgeGraphNodeType.ByuSpeech)
+                {
+                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
+                    if (dictionaryEntry is ByuSpeechDocument speechDoc)
+                    {
+                        TextBlock searchResultLabel = new TextBlock()
+                        {
+                            Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                            FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                            FontSize = (double)TryFindResource("Para_FontSize_Verse"),
+                            TextWrapping = TextWrapping.Wrap,
+                            TextAlignment = TextAlignment.Justify,
+                            Padding = new Thickness(5),
+                            IsManipulationEnabled = false,
+                            Tag = new FastSearchQueryResult()
+                            {
+                                DisplayName = speechDoc.Title,
+                                EntityType = SearchResultEntityType.ByuSpeech,
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                            },
+                            Text = $"{speechDoc.Speaker} - {speechDoc.Title}"
+                        };
+
+                        // See if there's a best match paragraph within the document based on the search query
+                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(dictionaryEntry, activatedWords);
+                        if (bestPara != null)
+                        {
+                            searchResultLabel.Text = bestPara.Text;
+                        }
+
+                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
+                        searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                        searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                        searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+
+                        TextBlock searchResultHeader = CreateSearchResultHeader($"{speechDoc.Speaker} - {speechDoc.Title}");
+
+                        target.Add(searchResultHeader);
+                        target.Add(searchResultLabel);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected BookChapterDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.ByuSpeechParagraph)
+                {
+                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
+                    if (dictionaryEntry is ByuSpeechDocument speechDoc)
+                    {
+                        CreateUiElementsForByuSpeechParaResult(searchResult, speechDoc, target);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected BookChapterDocument");
+                    }
+                }
                 else
                 {
                     TextBlock placeholderSearchResult = new TextBlock()
@@ -1703,6 +1766,45 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
             TextBlock searchResultHeader = CreateSearchResultHeader($"{document.BookId} - {document.ChapterName}");
+
+            target.Add(searchResultHeader);
+            target.Add(conferenceTalkResult);
+        }
+
+        private void CreateUiElementsForByuSpeechParaResult(
+            KnowledgeGraphNodeId entityId,
+            ByuSpeechDocument document,
+            UIElementCollection target)
+        {
+            GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
+            if (targetPara == null)
+            {
+                throw new Exception("Verse reference to invalid paragraph " + entityId.ToString());
+            }
+
+            TextBlock conferenceTalkResult = new TextBlock()
+            {
+                Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                FontSize = (double)TryFindResource("Para_FontSize_Verse"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Justify,
+                Padding = new Thickness(5),
+                IsManipulationEnabled = false,
+                Tag = new FastSearchQueryResult()
+                {
+                    DisplayName = document.Title,
+                    EntityType = SearchResultEntityType.ByuSpeech,
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                },
+                Text = AppCore.StripHtml(targetPara.Text)
+            };
+
+            conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+            conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+            conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
+
+            TextBlock searchResultHeader = CreateSearchResultHeader($"{document.Speaker} - {document.Title}");
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);

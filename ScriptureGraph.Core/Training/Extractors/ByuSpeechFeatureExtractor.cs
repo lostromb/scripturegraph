@@ -15,6 +15,9 @@ using System.Xml.XPath;
 
 namespace ScriptureGraph.Core.Training.Extractors
 {
+    // A good omniparser test case (check that it captures the conference talk reference too):
+    // https://speeches.byu.edu/talks/keith-b-mcmullin/make-god-and-his-kingdom-center-life/
+
     public class ByuSpeechFeatureExtractor
     {
         private static readonly Regex UrlPathParser = new Regex("\\/talks\\/(.+?)\\/(.+?)(?:\\/|$)");
@@ -30,7 +33,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return;
                 }
 
-                
+                if (EvaluateScripturalScore(parseResult, logger) < 1.0f)
+                {
+                    return;
+                }
+
+
             }
             catch (Exception e)
             {
@@ -46,6 +54,11 @@ namespace ScriptureGraph.Core.Training.Extractors
                 if (parseResult == null)
                 {
                     //logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
+                    return;
+                }
+
+                if (EvaluateScripturalScore(parseResult, logger) < 1.0f)
+                {
                     return;
                 }
 
@@ -76,77 +89,6 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        private static float EvaluateScripturalScoreSlow(DocumentParseModel parseResult, IKnowledgeGraph scriptureKnowledgeGraph, ILogger logger)
-        {
-            StaticAverageFloat returnVal = new StaticAverageFloat();
-            foreach (Paragraph para in parseResult.Paragraphs)
-            {
-                KnowledgeGraphQuery query = new KnowledgeGraphQuery()
-                {
-                    MaxSearchTime = TimeSpan.FromMilliseconds(50),
-                };
-
-                // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
-                // doing 9x permutations between every single word in the paragraph)
-                //foreach (string sentence in EnglishWordFeatureExtractor.BreakSentence(para.Text))
-                //{
-                //    foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(sentence))
-                //    {
-                //        query.AddRootNode(ngram, 0);
-                //    }
-                //}
-
-                foreach (var footnote in para.References)
-                {
-                    query.AddRootNode(footnote, 0);
-                }
-
-                float sum = 0;
-                List<KeyValuePair<KnowledgeGraphNodeId, float>> scores = scriptureKnowledgeGraph.Query(query, logger);
-                foreach (var score in scores)
-                {
-                    if (score.Key.Type == KnowledgeGraphNodeType.ScriptureVerse ||
-                        score.Key.Type == KnowledgeGraphNodeType.ScriptureChapter ||
-                        score.Key.Type == KnowledgeGraphNodeType.ScriptureBook)
-                    {
-                        sum += score.Value;
-                    }
-                }
-
-                returnVal.Add(sum);
-            }
-
-            return returnVal.Average * 1000;
-        }
-
-        private static float EvaluateScripturalScore(DocumentParseModel parseResult, ILogger logger)
-        {
-            StaticAverageFloat returnVal = new StaticAverageFloat();
-            HashSet<KnowledgeGraphNodeId> chapterNodes = new HashSet<KnowledgeGraphNodeId>();
-            foreach (Paragraph para in parseResult.Paragraphs)
-            {
-                float sum = 0;
-                foreach (var footnote in para.References)
-                {
-                    // this is intended to even out the weight of very broad references
-                    if (footnote.Type == KnowledgeGraphNodeType.ScriptureVerse)
-                    {
-                        ScriptureReference parsedRef = new ScriptureReference(footnote);
-                        var chapterNode = FeatureToNodeMapping.ScriptureChapter(parsedRef.Book, parsedRef.Chapter.Value);
-                        if (!chapterNodes.Contains(chapterNode))
-                        {
-                            chapterNodes.Add(chapterNode);
-                            sum += 1.0f;
-                        }
-                    }
-                }
-
-                returnVal.Add(sum);
-            }
-
-            return returnVal.Average * 7;
-        }
-
         public static ByuSpeechDocument? ParseDocument(string htmlPage, Uri pageUrl, ILogger logger)
         {
             try
@@ -159,9 +101,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                 }
 
                 // Evaluate how "scriptural" this talk is
-                logger.Log($"Parsed talk {parseResult.TalkTitle}, forum is {parseResult.Forum}");
-                float score = EvaluateScripturalScore(parseResult, logger);
-                logger.Log($"Score is {score}");
+                if (EvaluateScripturalScore(parseResult, logger) < 1.0f)
+                {
+                    return null;
+                }
+
+                //float score = EvaluateScripturalScore(parseResult, logger);
+                //logger.Log($"Score is {score:F3} for {parseResult.TalkTitle}");
 
                 ByuSpeechDocument returnVal = new ByuSpeechDocument()
                 {
@@ -175,8 +121,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                     Kicker = parseResult.Kicker,
                     TalkId = parseResult.TalkId,
                 };
-
-                return returnVal;
 
                 foreach (var paragraph in parseResult.Headers)
                 {
@@ -207,16 +151,39 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        private static readonly IReadOnlyDictionary<string, GospelParagraphClass> CLASS_MAPPING = new Dictionary<string, GospelParagraphClass>(StringComparer.OrdinalIgnoreCase)
+        private static float EvaluateScripturalScore(DocumentParseModel parseResult, ILogger logger)
         {
-            {"single-speech__title", GospelParagraphClass.Header },
-            {"single-speech__speaker", GospelParagraphClass.SubHeader },
-            {"single-speech__speaker-subtext", GospelParagraphClass.SubHeader },
-        };
+            float uniqueScriptureRefs = 0;
+            float words = 0;
+
+            HashSet<KnowledgeGraphNodeId> chapterNodes = new HashSet<KnowledgeGraphNodeId>();
+            foreach (Paragraph para in parseResult.Paragraphs)
+            {
+                chapterNodes.Clear();
+                words += EnglishWordFeatureExtractor.BreakWords(para.Text).Count();
+
+                foreach (var footnote in para.References)
+                {
+                    // this is intended to even out the weight of very broad references to the same chapter within one paragraph
+                    if (footnote.Type == KnowledgeGraphNodeType.ScriptureVerse)
+                    {
+                        ScriptureReference parsedRef = new ScriptureReference(footnote);
+                        var chapterNode = FeatureToNodeMapping.ScriptureChapter(parsedRef.Book, parsedRef.Chapter!.Value);
+                        if (!chapterNodes.Contains(chapterNode))
+                        {
+                            chapterNodes.Add(chapterNode);
+                            uniqueScriptureRefs += 1.0f;
+                        }
+                    }
+                }
+            }
+
+            return (uniqueScriptureRefs * 600) / words;
+        }
 
         private static GospelParagraphClass StandardizeClass(string rawClass, string debugText)
         {
-            if (string.IsNullOrEmpty(rawClass))
+            if (string.IsNullOrEmpty(rawClass) || string.Equals("body", rawClass, StringComparison.OrdinalIgnoreCase))
             {
                 return GospelParagraphClass.Default;
             }
@@ -224,6 +191,10 @@ namespace ScriptureGraph.Core.Training.Extractors
             if (rawClass.Contains("single-speech__title")) return GospelParagraphClass.Header;
             if (rawClass.Contains("single-speech__speaker")) return GospelParagraphClass.SubHeader;
             if (rawClass.Contains("single-speech__speaker-subtext")) return GospelParagraphClass.SubHeader;
+            if (rawClass.Contains("single-speech__speaker-position")) return GospelParagraphClass.SubHeader;
+            if (rawClass.Contains("single-speech__callout")) return GospelParagraphClass.StudySummary;
+            if (rawClass.Contains("single-speech__date")) return GospelParagraphClass.SubHeader;
+            if (rawClass.Contains("subheading")) return GospelParagraphClass.SubHeader;
 
             Console.WriteLine("Found a new class " + rawClass + " " + debugText);
             return GospelParagraphClass.Default;

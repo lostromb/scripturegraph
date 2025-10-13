@@ -113,8 +113,8 @@ namespace ScriptureGraph.Console
             //BookExtractorMD.ExtractDocuments(_epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger).Count();
 
             //await Test(logger);
-            //await ParseDocuments(logger);
-            //await BuildSearchIndex(logger);
+            await ParseDocuments(logger);
+            await BuildSearchIndex(logger);
             //await BuildUniversalGraph(logger);
 
             //CompressFile(_runtimeFileSystem, new VirtualPath("scriptures.graph"));
@@ -130,23 +130,24 @@ namespace ScriptureGraph.Console
             //string webPage = new WebClient().DownloadString(talkUrl);
             //ConferenceTalkFeatureExtractorNew.ParseDocument(webPage, talkUrl, logger);
 
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/cast-not-away-therefore-your-confidence/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/anthony-sweat/we-need-an-endowment/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/hugh-b-brown/god-gardener/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/sarah-clark/jesus-christ-the-master-teacher/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/geoffrey-j-germane/inertia-entropy-good-cheer/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/david-w-hart/be-excellent-becoming-who-you-are-in-todays-world/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/r-lanier-britsch/nobility-failure/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/noel-b-reynolds/authorship-book-mormon/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/legrand-richards/value-testimony/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/robert-l-backman/looking-to-the-future/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/ezra-taft-benson/constitution-heavenly-banner/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/neil-l-andersen/hold-fast-words-prophets/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/bitter-cup-bloody-baptism/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/souls-symbols-sacraments/", logger);
-            DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/robe-ring-fatted-calf/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/cast-not-away-therefore-your-confidence/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/anthony-sweat/we-need-an-endowment/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/hugh-b-brown/god-gardener/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/sarah-clark/jesus-christ-the-master-teacher/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/geoffrey-j-germane/inertia-entropy-good-cheer/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/david-w-hart/be-excellent-becoming-who-you-are-in-todays-world/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/r-lanier-britsch/nobility-failure/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/noel-b-reynolds/authorship-book-mormon/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/legrand-richards/value-testimony/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/robert-l-backman/looking-to-the-future/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/ezra-taft-benson/constitution-heavenly-banner/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/neil-l-andersen/hold-fast-words-prophets/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/bitter-cup-bloody-baptism/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/souls-symbols-sacraments/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/robe-ring-fatted-calf/", logger);
+            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/bruce-c-hafen/gospel-romantic-love/", logger);
 
-            //Uri talkUrl = new Uri("https://speeches.byu.edu/talks/neil-l-andersen/hold-fast-words-prophets/");
+            //Uri talkUrl = new Uri("https://speeches.byu.edu/talks/keith-b-mcmullin/make-god-and-his-kingdom-center-life/");
             //string webPage = new WebClient().DownloadString(talkUrl);
             //ByuSpeechFeatureExtractor.ParseDocument(webPage, talkUrl, logger);
         }

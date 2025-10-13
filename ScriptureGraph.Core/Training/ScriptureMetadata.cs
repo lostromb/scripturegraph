@@ -273,11 +273,34 @@ namespace ScriptureGraph.Core.Training
         /// </summary>
         /// <param name="bookId"></param>
         /// <returns></returns>
-        public static string NormalizeBookId(string bookId)
+        public static string NormalizeBookId(string bookId, ref string canon)
         {
             if (string.Equals(bookId, "jst-matt", StringComparison.OrdinalIgnoreCase))
             {
                 return "js-m";
+            }
+            // ??????
+            else if (string.Equals(bookId, "jst-mark", StringComparison.OrdinalIgnoreCase))
+            {
+                canon = "nt";
+                return "mark";
+            }
+            else if (string.Equals(bookId, "jst-heb", StringComparison.OrdinalIgnoreCase))
+            {
+                canon = "nt";
+                return "heb";
+            }
+            else if (string.Equals(bookId, "moroni", StringComparison.OrdinalIgnoreCase))
+            {
+                return "moro";
+            }
+            else if (string.Equals(bookId, "numb", StringComparison.OrdinalIgnoreCase))
+            {
+                return "num";
+            }
+            else if (string.Equals(bookId, "abraham", StringComparison.OrdinalIgnoreCase))
+            {
+                return "abr";
             }
             else
             {

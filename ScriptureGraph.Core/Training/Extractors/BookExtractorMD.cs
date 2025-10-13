@@ -168,10 +168,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 topicId = topicId.Replace('\"', '_');
                 topicId = topicId.Replace('(', '_');
                 topicId = topicId.Replace(')', '_');
-                foreach (char c in Path.GetInvalidFileNameChars())
-                {
-                    topicId = topicId.Replace(c, '_');
-                }
+                topicId = FilePathSanitizer.SanitizeFileName(topicId);
 
                 BookChapterDocument parsedChapter = new BookChapterDocument()
                 {

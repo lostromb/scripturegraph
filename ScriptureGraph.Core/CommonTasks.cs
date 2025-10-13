@@ -90,13 +90,14 @@ namespace ScriptureGraph.Core
                 TrainingKnowledgeGraph entitySearchGraph = new TrainingKnowledgeGraph();
                 EntityNameIndex nameIndex = new EntityNameIndex();
                 DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex, threadPool);
-                await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                BookExtractorATGQ.ExtractSearchIndexFeatures(
-                    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
-                BookExtractorMD.ExtractSearchIndexFeatures(
-                    epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger, entitySearchGraph.Train, nameIndex);
+                //BookExtractorATGQ.ExtractSearchIndexFeatures(
+                //    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
+                //BookExtractorMD.ExtractSearchIndexFeatures(
+                //    epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger, entitySearchGraph.Train, nameIndex);
 
                 logger.Log("Winding down training threads");
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
@@ -159,6 +160,8 @@ namespace ScriptureGraph.Core
             private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
             private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
+            private static readonly Regex ByuSpeechUrlMatcher = new Regex("\\/talks\\/.+?\\/.+?(?:/?|$)");
+            private static readonly Regex ByuSpeakerUrlMatcher = new Regex("\\/speakers\\/.+?(?:/?|$)");
             private readonly TrainingKnowledgeGraph _trainingGraph;
             private readonly IThreadPool _trainingThreadPool;
 
@@ -245,6 +248,8 @@ namespace ScriptureGraph.Core
             private static readonly Regex ScriptureChapterUrlMatcher = new Regex("\\/study\\/scriptures\\/(?:bofm|ot|nt|dc-testament|pgp)\\/.+?\\/\\d+");
             private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
+            private static readonly Regex ByuSpeechUrlMatcher = new Regex("\\/talks\\/.+?\\/.+?(?:/?|$)");
+            private static readonly Regex ByuSpeakerUrlMatcher = new Regex("\\/speakers\\/.+?(?:/?|$)");
             private readonly TrainingKnowledgeGraph _trainingGraph;
             private readonly EntityNameIndex _nameIndex;
             private readonly IThreadPool _trainingThreadPool;
@@ -268,49 +273,67 @@ namespace ScriptureGraph.Core
 
             public Task<bool> ProcessFromWebCrawler(WebCrawler.CrawledPage page, ILogger logger)
             {
-                List<TrainingFeature> features = new List<TrainingFeature>();
-                Match match = ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath);
-                if (!match.Success)
+                try
                 {
-                    match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
-                    if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
+                    List<TrainingFeature> features = new List<TrainingFeature>();
+
+                    if (ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath).Success)
                     {
-                        logger.Log($"Building search index from BD page {page.Url.AbsolutePath}");
-                        BibleDictionaryFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
                     }
-                    else if (string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal))
+                    else if (ReferenceUrlMatcher.Match(page.Url.AbsolutePath).Success)
                     {
-                        logger.Log($"Building search index from GS page {page.Url.AbsolutePath}");
-                        GuideToScripturesFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
-                    }
-                    else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal))
-                    {
-                        logger.Log($"Building search index from TG page {page.Url.AbsolutePath}");
-                        TopicalGuideFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
-                    }
-                    else if (string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
-                    {
-                        logger.Log($"Building search index from triple index page {page.Url.AbsolutePath}");
-                        TripleIndexFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
-                    }
-                    else
-                    {
-                        match = ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath);
-                        if (match.Success)
+                        Match match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
+                        if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
                         {
-                            logger.Log($"Building search index from conference talk {page.Url.AbsolutePath}");
-                            ConferenceTalkFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
+                            logger.Log($"Building search index from BD page {page.Url.AbsolutePath}");
+                            BibleDictionaryFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
+                        }
+                        else if (string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal))
+                        {
+                            logger.Log($"Building search index from GS page {page.Url.AbsolutePath}");
+                            GuideToScripturesFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
+                        }
+                        else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal))
+                        {
+                            logger.Log($"Building search index from TG page {page.Url.AbsolutePath}");
+                            TopicalGuideFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
+                        }
+                        else if (string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
+                        {
+                            logger.Log($"Building search index from triple index page {page.Url.AbsolutePath}");
+                            TripleIndexFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, features, _nameIndex);
                         }
                         else
                         {
                             logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
                         }
                     }
-                }
+                    else if (ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Building search index from conference talk {page.Url.AbsolutePath}");
+                        ConferenceTalkFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
+                    }
+                    else if (ByuSpeakerUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                    }
+                    else if (ByuSpeechUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Building search index from BYU speech {page.Url.AbsolutePath}");
+                        ByuSpeechFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
+                    }
+                    else
+                    {
+                        logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                    }
 
-                foreach (var feature in features)
+                    foreach (var feature in features)
+                    {
+                        _trainingGraph.Train(feature);
+                    }
+                }
+                catch (Exception e)
                 {
-                    _trainingGraph.Train(feature);
+                    logger.Log(e);
                 }
 
                 return Task.FromResult<bool>(true);
@@ -326,6 +349,7 @@ namespace ScriptureGraph.Core
             private static readonly Regex ReferenceUrlMatcher = new Regex("\\/study\\/scriptures\\/(tg|bd|gs|triple-index)\\/.+?(?:\\?|$)");
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
             private static readonly Regex ByuSpeechUrlMatcher = new Regex("\\/talks\\/.+?\\/.+?(?:/?|$)");
+            private static readonly Regex ByuSpeakerUrlMatcher = new Regex("\\/speakers\\/.+?(?:/?|$)");
             private readonly IThreadPool _trainingThreadPool;
             private readonly IFileSystem _documentCacheFileSystem;
 
@@ -352,30 +376,14 @@ namespace ScriptureGraph.Core
 
             public Task<bool> ProcessFromWebCrawler(WebCrawler.CrawledPage page, ILogger logger)
             {
-                VirtualPath fileDestination = VirtualPath.Root;
-                GospelDocument? parsedDoc = null;
-                Match match = ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath);
-                if (match.Success)
+                try
                 {
-                    logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
-                    ScriptureChapterDocument? structuredDoc = ScripturePageFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
-                    parsedDoc = structuredDoc;
-                    if (structuredDoc == null)
+                    VirtualPath fileDestination = VirtualPath.Root;
+                    GospelDocument? parsedDoc = null;
+                    if (ScriptureChapterUrlMatcher.Match(page.Url.AbsolutePath).Success)
                     {
-                        logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
-                    }
-                    else
-                    {
-                        fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.json.br");
-                    }
-                }
-                else
-                {
-                    match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
-                    if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
-                    {
-                        logger.Log($"Parsing BD page {page.Url.AbsolutePath}");
-                        BibleDictionaryDocument? structuredDoc = BibleDictionaryFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                        logger.Log($"Parsing scripture page {page.Url.AbsolutePath}");
+                        ScriptureChapterDocument? structuredDoc = ScripturePageFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
                         parsedDoc = structuredDoc;
                         if (structuredDoc == null)
                         {
@@ -383,65 +391,86 @@ namespace ScriptureGraph.Core
                         }
                         else
                         {
-                            fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\bd\\{structuredDoc.TopicId}.json.br");
+                            fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\{structuredDoc.Canon}\\{structuredDoc.Book}-{structuredDoc.Chapter}.json.br");
                         }
                     }
-                    else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal) ||
-                        string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal) ||
-                        string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
+                    else if (ReferenceUrlMatcher.Match(page.Url.AbsolutePath).Success)
                     {
-                    }
-                    else
-                    {
-                        match = ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath);
-                        if (match.Success)
+                        Match match = ReferenceUrlMatcher.Match(page.Url.AbsolutePath);
+                        if (string.Equals(match.Groups[1].Value, "bd", StringComparison.Ordinal))
                         {
-                            logger.Log($"Parsing conference talk {page.Url.AbsolutePath}");
-                            ConferenceTalkDocument? structuredDoc = ConferenceTalkFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                            logger.Log($"Parsing BD page {page.Url.AbsolutePath}");
+                            BibleDictionaryDocument? structuredDoc = BibleDictionaryFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
                             parsedDoc = structuredDoc;
                             if (structuredDoc == null)
                             {
-                                //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                                logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
                             }
                             else
                             {
-                                fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.json.br");
+                                fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\bd\\{FilePathSanitizer.SanitizeFileName(structuredDoc.TopicId)}.json.br");
                             }
+                        }
+                        else if (string.Equals(match.Groups[1].Value, "tg", StringComparison.Ordinal) ||
+                                 string.Equals(match.Groups[1].Value, "gs", StringComparison.Ordinal) ||
+                                 string.Equals(match.Groups[1].Value, "triple-index", StringComparison.Ordinal))
+                        {
                         }
                         else
                         {
-                            match = ByuSpeechUrlMatcher.Match(page.Url.AbsolutePath);
-                            if (match.Success)
-                            {
-                                logger.Log($"Parsing BYU speech talk {page.Url.AbsolutePath}");
-                                ByuSpeechDocument? structuredDoc = ByuSpeechFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
-                                parsedDoc = structuredDoc;
-                                if (structuredDoc == null)
-                                {
-                                    //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
-                                }
-                                else
-                                {
-                                    fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\byu\\{structuredDoc.TalkId}.json.br");
-                                }
-                            }
-                            else
-                            {
-                                logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
-                            }
+                            logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                        }
+                    }
+                    else if (ConferenceTalkUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Parsing conference talk {page.Url.AbsolutePath}");
+                        ConferenceTalkDocument? structuredDoc = ConferenceTalkFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                        parsedDoc = structuredDoc;
+                        if (structuredDoc == null)
+                        {
+                            //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                        }
+                        else
+                        {
+                            fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\general-conference\\{structuredDoc.Conference}\\{structuredDoc.TalkId}.json.br");
+                        }
+                    }
+                    else if (ByuSpeakerUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                    }
+                    else if (ByuSpeechUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Parsing BYU speech talk {page.Url.AbsolutePath}");
+                        ByuSpeechDocument? structuredDoc = ByuSpeechFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                        parsedDoc = structuredDoc;
+                        if (structuredDoc == null)
+                        {
+                            //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                        }
+                        else
+                        {
+                            fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\byu\\{FilePathSanitizer.SanitizeFileName(structuredDoc.TalkId)}.json.br");
+                        }
+                    }
+                    else
+                    {
+                        logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
+                    }
+
+                    if (parsedDoc != null)
+                    {
+                        _documentCacheFileSystem.CreateDirectory(fileDestination.Container);
+
+                        using (Stream fileOut = _documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                        using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
+                        {
+                            GospelDocument.SerializePolymorphic(brotliStream, parsedDoc);
                         }
                     }
                 }
-
-                if (parsedDoc != null)
+                catch (Exception e)
                 {
-                    _documentCacheFileSystem.CreateDirectory(fileDestination.Container);
-
-                    using (Stream fileOut = _documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
-                    using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
-                    {
-                        GospelDocument.SerializePolymorphic(brotliStream, parsedDoc);
-                    }
+                    logger.Log(e);
                 }
 
                 return Task.FromResult<bool>(true);
@@ -623,12 +652,13 @@ namespace ScriptureGraph.Core
             HashSet<Regex> allowedUrls =
             [
                 new Regex("^https://speeches.byu.edu/speakers/?$"),
-                new Regex("^https://speeches.byu.edu/speakers/.+?/?$"),
-                new Regex("^https://speeches.byu.edu/talks/.+?/.+?/?$"),
+                new Regex("^https://speeches.byu.edu/speakers/[^\\/]+/?$"),
+                new Regex("^https://speeches.byu.edu/talks/[^\\/]+/[^\\/]+/?$"),
             ];
 
             await crawler.Crawl(
                 new Uri("https://speeches.byu.edu/speakers/"),
+                //new Uri("https://speeches.byu.edu/speakers/jeffrey-r-holland/"),
                 pageAction,
                 logger.Clone("WebCrawler-BYU"),
                 allowedUrls);
