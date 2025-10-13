@@ -68,7 +68,7 @@ namespace ScriptureGraph.Core.Graph
                     while (iter != null)
                     {
                         // Does an entry already exist with this same key?
-                        if (KnowledgeGraphNodeId.Equals(item.Key, iter.Kvp.Key))
+                        if (item.Key.Equals(iter.Kvp.Key))
                         {
                             // Update the value of the existing item
                             iter.Kvp = item;
@@ -130,7 +130,7 @@ namespace ScriptureGraph.Core.Graph
                     HashTableLinkedListNode endOfBin = iter;
                     while (iter != null)
                     {
-                        if (KnowledgeGraphNodeId.Equals(currentNode, iter.Kvp.Key))
+                        if (currentNode.Equals(iter.Kvp.Key))
                         {
                             // Found it!
                             iter.Kvp.Value.Edges.Increment(referenceNode, increment);
@@ -183,7 +183,7 @@ namespace ScriptureGraph.Core.Graph
                     HashTableLinkedListNode iter = bins[bin];
                     while (iter != null)
                     {
-                        if (KnowledgeGraphNodeId.Equals(key, iter.Kvp.Key))
+                        if (key.Equals(iter.Kvp.Key))
                         {
                             // Found it!
                             node = iter.Kvp.Value;

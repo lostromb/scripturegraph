@@ -629,6 +629,11 @@ namespace ScriptureGraph.Core.Training.Extractors
                 return false;
             }
 
+            if (talkTitle.Contains("Welfare Services Meeting", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
             return true;
         }
 

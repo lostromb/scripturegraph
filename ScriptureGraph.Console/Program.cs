@@ -1,4 +1,5 @@
-﻿using Durandal.Common.File;
+﻿using BenchmarkDotNet.Running;
+using Durandal.Common.File;
 using Durandal.Common.IO;
 using Durandal.Common.Logger;
 using Durandal.Common.MathExt;
@@ -29,6 +30,9 @@ namespace ScriptureGraph.Console
 
         public static async Task Main(string[] args)
         {
+            BenchmarkRunner.Run<Benchmarks>();
+            return;
+
 #if DEBUG
             ILogger logger = new ConsoleLogger("Main", LogLevel.All);
 #else

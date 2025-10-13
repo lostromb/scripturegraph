@@ -52,7 +52,7 @@ namespace ScriptureGraph.Core.Graph
             while (idx < _currentLength)
             {
                 ref KnowledgeGraphEdge cur = ref _list[idx];
-                if (KnowledgeGraphNodeId.Equals(cur.Target, nodeRef))
+                if (cur.Target.Equals(nodeRef))
                 {
                     // Found the right node. Increase its mass
                     cur.Mass += massIncrease;
