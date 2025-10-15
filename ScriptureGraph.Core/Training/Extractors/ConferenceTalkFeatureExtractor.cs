@@ -38,6 +38,15 @@ namespace ScriptureGraph.Core.Training.Extractors
                         TrainingFeatureType.WordDesignation));
                 }
 
+                // Name of the speaker -> Speaker
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(parseResult.SpeakerName))
+                {
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        parseResult.SpeakerEntityId,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
+
                 // Talk -> Speaker
                 trainingFeaturesOut.Add(new TrainingFeature(
                     parseResult.DocumentEntityId,

@@ -1,4 +1,5 @@
-﻿using Durandal.Common.IO;
+﻿using Durandal.Common.File;
+using Durandal.Common.IO;
 using Durandal.Common.Logger;
 using Durandal.Common.MathExt;
 using Durandal.Common.Time;
@@ -507,6 +508,76 @@ namespace ScriptureGraph.Core.Graph
             }
         }
 
+        public void SaveToFile(IFileSystem fileSystem, VirtualPath outFile, ILogger logger)
+        {
+            if (_trainingCount > 0)
+            {
+                logger.Log("Saving graph while training is still happening!", LogLevel.Wrn);
+            }
+
+            _locks.GetAllLocks();
+            try
+            {
+                VirtualPath tempMapFileName = outFile.Container.Combine("map.tmp");
+                VirtualPath tempNodeFileName = outFile.Container.Combine("node.tmp");
+                using (Stream mapOut = fileSystem.OpenStream(tempMapFileName, FileOpenMode.Create, FileAccessMode.Write))
+                using (Stream nodeOut = fileSystem.OpenStream(tempNodeFileName, FileOpenMode.Create, FileAccessMode.Write))
+                {
+                    int lastReportedProgress = 0;
+                    using (BinaryWriter mapWriter = new BinaryWriter(mapOut, StringUtils.UTF8_WITHOUT_BOM, true))
+                    using (BinaryWriter nodeWriter = new BinaryWriter(nodeOut, StringUtils.UTF8_WITHOUT_BOM, true))
+                    {
+                        // Write the pointer map at the start, this is not strictly necessary but will speed up unmanaged code loading later
+                        long currentPointerPosition = 0;
+                        int nodeIdx = 0;
+                        var enumerator = GetUnsafeEnumerator();
+                        while (enumerator.MoveNext())
+                        {
+                            currentPointerPosition += GetSizeOf(enumerator.Current.Key);
+                            currentPointerPosition += GetSizeOf(enumerator.Current.Value.Edges);
+                            // for list index 0 this will be the byte offset that the next entry (1) begins,
+                            // which is an indirect way of saying how long the current entry is in the list,
+                            // without having to rely on Stream.Length for the last bit - this might make
+                            // things easier if e.g. we wanted to append other data to the same stream afterwards
+                            mapWriter.Write(currentPointerPosition);
+
+                            WriteNodeId(enumerator.Current.Key, nodeWriter);
+                            WriteEdges(enumerator.Current.Value.Edges, nodeWriter);
+                            nodeIdx++;
+                            int currentProgress = (nodeIdx * 100 / _numItemsInDictionary);
+                            if (currentProgress != lastReportedProgress)
+                            {
+                                logger.Log($"Saving graph... {currentProgress}%");
+                                lastReportedProgress = currentProgress;
+                            }
+                        }
+                    }
+                }
+
+                // Now zip the two temp files together
+                using (Stream finalFileOut = fileSystem.OpenStream(outFile, FileOpenMode.Create, FileAccessMode.Write))
+                using (Stream mapIn = fileSystem.OpenStream(tempMapFileName, FileOpenMode.Open, FileAccessMode.Read))
+                using (Stream nodeIn = fileSystem.OpenStream(tempNodeFileName, FileOpenMode.Open, FileAccessMode.Read))
+                {
+                    using (BinaryWriter writer = new BinaryWriter(finalFileOut, StringUtils.UTF8_WITHOUT_BOM, true))
+                    {
+                        writer.Write((uint)_edgeCapacity);
+                        writer.Write(_numItemsInDictionary);
+                    }
+
+                    mapIn.CopyToPooled(finalFileOut);
+                    nodeIn.CopyToPooled(finalFileOut);
+                }
+
+                fileSystem.Delete(tempMapFileName);
+                fileSystem.Delete(tempNodeFileName);
+            }
+            finally
+            {
+                _locks.ReleaseAllLocks();
+            }
+        }
+
         public static TrainingKnowledgeGraph Load(Stream loadStream)
         {
             using (BinaryReader reader = new BinaryReader(loadStream, StringUtils.UTF8_WITHOUT_BOM, true))
@@ -586,7 +657,7 @@ namespace ScriptureGraph.Core.Graph
         {
             writer.Write(edges.TotalMass);
             writer.Write(edges.NumEdges);
-            //writer.Write(edges.MaxCapacity);
+            //mapWriter.Write(edges.MaxCapacity);
             var enumerator = edges.GetEnumerator();
             while (enumerator.MoveNext())
             {

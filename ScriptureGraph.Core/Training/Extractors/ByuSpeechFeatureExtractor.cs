@@ -43,6 +43,30 @@ namespace ScriptureGraph.Core.Training.Extractors
                         TrainingFeatureType.WordDesignation));
                 }
 
+                // Name of the speaker -> Speaker
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(parseResult.SpeakerName))
+                {
+                    trainingFeaturesOut(new TrainingFeature(
+                        parseResult.SpeakerEntityId,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
+
+                // Talk -> Speaker
+                trainingFeaturesOut(new TrainingFeature(
+                    parseResult.DocumentEntityId,
+                    parseResult.SpeakerEntityId,
+                    TrainingFeatureType.EntityReference));
+
+                // Talk -> Year
+                if (parseResult.SpeechDate.HasValue)
+                {
+                    trainingFeaturesOut(new TrainingFeature(
+                        parseResult.DocumentEntityId,
+                        FeatureToNodeMapping.Year(parseResult.SpeechDate.Value.Year),
+                        TrainingFeatureType.EntityReference));
+                }
+
                 List<TrainingFeature> scratch = new List<TrainingFeature>();
                 Paragraph? previousPara = null;
                 foreach (Paragraph para in parseResult.Paragraphs)

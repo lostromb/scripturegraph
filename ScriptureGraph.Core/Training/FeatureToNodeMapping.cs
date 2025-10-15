@@ -20,19 +20,19 @@ namespace ScriptureGraph.Core.Training
         public static KnowledgeGraphNodeId Word(string word, LanguageCode lang)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Word,
-                $"{word}|{lang.ToBcp47Alpha3String()}");
+                $"{word}|{lang.ToString()}");
         }
 
         public static KnowledgeGraphNodeId NGram(string word1, string word2, LanguageCode lang)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.NGram,
-                $"{word1}|{word2}|{lang.ToBcp47Alpha3String()}");
+                $"{word1}|{word2}|{lang.ToString()}");
         }
 
         public static KnowledgeGraphNodeId NGram(string word1, string word2, string word3, LanguageCode lang)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.NGram,
-                $"{word1}|{word2}|{word3}|{lang.ToBcp47Alpha3String()}");
+                $"{word1}|{word2}|{word3}|{lang.ToString()}");
         }
 
         public static KnowledgeGraphNodeId ScriptureVerse(string book, int chapter, int verse)

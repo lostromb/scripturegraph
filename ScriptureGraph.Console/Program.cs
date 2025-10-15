@@ -123,9 +123,9 @@ namespace ScriptureGraph.Console
             await BuildSearchIndex(logger);
             await BuildUniversalGraph(logger);
 
-            logger.Log("Compressing graph");
-            CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
-            //DecompressFile(_runtimeFileSystem, new VirtualPath("searchindex.graph.br"));
+            //logger.Log("Compressing graph");
+            //CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
+            //DecompressFile(_runtimeFileSystem, new VirtualPath("big.graph.br"));
 
             //using (NativeMemoryHeap graphHeap = new NativeMemoryHeap())
             //using (Stream searchGraphIn = await _runtimeFileSystem.OpenStreamAsync(new VirtualPath("searchindex.graph"), FileOpenMode.Open, FileAccessMode.Read))
@@ -345,13 +345,14 @@ namespace ScriptureGraph.Console
         private static async Task<TrainingKnowledgeGraph> BuildUniversalGraph(ILogger logger)
         {
             TrainingKnowledgeGraph graph;
-            VirtualPath modelFile = new VirtualPath("all.graph");
+            VirtualPath outputModelFile = new VirtualPath("all.graph");
+            VirtualPath inputModelFile = new VirtualPath("SW_BD.graph");
             WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
 
-            if (_runtimeFileSystem.Exists(modelFile))
+            if (_runtimeFileSystem.Exists(inputModelFile))
             {
-                logger.Log("Loading existing model " + modelFile.FullName);
-                using (Stream testGraphIn = _runtimeFileSystem.OpenStream(modelFile, FileOpenMode.Open, FileAccessMode.Read))
+                logger.Log("Loading existing model " + inputModelFile.FullName);
+                using (Stream testGraphIn = _runtimeFileSystem.OpenStream(inputModelFile, FileOpenMode.Open, FileAccessMode.Read))
                 //using (BrotliDecompressorStream brotliStream = new BrotliDecompressorStream(testGraphIn))
                 {
                     graph = TrainingKnowledgeGraph.Load(testGraphIn);
@@ -365,13 +366,8 @@ namespace ScriptureGraph.Console
 
             // Update and save graph
             await CommonTasks.BuildUniversalGraph(logger, graph, pageCache, _epubFileSystem);
-            logger.Log($"Saving model {modelFile.FullName} with {graph.Count} nodes");
-            using (Stream testGraphOut = _runtimeFileSystem.OpenStream(modelFile, FileOpenMode.Create, FileAccessMode.Write))
-            //using (BrotliStream brotliStream = new BrotliStream(testGraphOut, CompressionLevel.SmallestSize))
-            {
-                graph.Save(testGraphOut, logger);
-            }
-
+            logger.Log($"Saving model {outputModelFile.FullName} with {graph.Count} nodes");
+            graph.SaveToFile(_runtimeFileSystem, outputModelFile, logger);
             logger.Log($"Model saved.");
 
             return graph;

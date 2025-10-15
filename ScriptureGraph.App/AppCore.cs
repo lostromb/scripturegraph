@@ -57,6 +57,7 @@ namespace ScriptureGraph.App
                 throw new DirectoryNotFoundException(contentPath);
             }
 #endif
+            contentPath = @"D:\Code\scripturegraph\runtime";
 
             _fileSystem = new RealFileSystem(_coreLogger.Clone("FileSystem"), contentPath);
             _documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>();
