@@ -48,6 +48,16 @@ namespace ScriptureGraph.Core.Training.Extractors
                         TrainingFeatureType.WordDesignation));
                 }
 
+                // High-level features
+                // Song scripture references -> Song
+                foreach (var parsedRef in parseResult.References)
+                {
+                    trainingFeaturesOut(new TrainingFeature(
+                        parseResult.DocumentEntityId,
+                        parsedRef.Node,
+                        parsedRef.LowEmphasis ? TrainingFeatureType.ScriptureReferenceWithoutEmphasis : TrainingFeatureType.ScriptureReference));
+                }
+
                 List<TrainingFeature> scratch = new List<TrainingFeature>();
                 Verse? previousVerse = null;
                 foreach (Verse verse in parseResult.Verses)
@@ -259,9 +269,9 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 foreach (var scripture in parsedDoc.data.songData.scriptures)
                 {
-                    foreach (var scriptureRef in LdsDotOrgCommonParsers.ParseAllScriptureReferences(scripture.linkText, logger))
+                    foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(scripture.linkText, logger))
                     {
-                        returnVal.References.Add(scriptureRef.ToNodeId());
+                        returnVal.References.Add(scriptureRef);
                     }
                 }
 
@@ -289,7 +299,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             public required string SongId;
             public required string Credits;
             public readonly List<Verse> Verses = new List<Verse>();
-            public readonly List<KnowledgeGraphNodeId> References = new List<KnowledgeGraphNodeId>();
+            public readonly List<OmniParserOutput> References = new List<OmniParserOutput>();
         }
 
         private class Verse

@@ -56,6 +56,9 @@ namespace ScriptureGraph.App
         {
             try
             {
+                await LoadDocumentForEntity(FeatureToNodeMapping.BookChapter("messiah2", "1"));
+                return;
+
                 if (_activeSearchScopes.Count == 0)
                 {
                     CloseSearchResultsIfPresent();
@@ -244,6 +247,12 @@ namespace ScriptureGraph.App
                     return "Answers to Gospel Questions";
                 case SearchResultEntityType.Book_MD:
                     return "Mormon Doctrine";
+                case SearchResultEntityType.Book_Messiah1:
+                    return "Promised Messiah";
+                case SearchResultEntityType.Book_Messiah2:
+                    return "Mortal Messiah";
+                case SearchResultEntityType.Book_Messiah3:
+                    return "Millennial Messiah";
                 case SearchResultEntityType.ByuSpeech:
                     return "BYU Speeches";
                 case SearchResultEntityType.Hymn:

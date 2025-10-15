@@ -88,12 +88,12 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                     previousPara = para;
 
-                    foreach (KnowledgeGraphNodeId reference in para.References)
+                    foreach (OmniParserOutput reference in para.References)
                     {
                         trainingFeaturesOut(new TrainingFeature(
                             para.ParaEntityId,
-                            reference,
-                            TrainingFeatureType.EntityReference));
+                            reference.Node,
+                            reference.LowEmphasis ? TrainingFeatureType.ScriptureReferenceWithoutEmphasis : TrainingFeatureType.ScriptureReference));
                     }
 
                     // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
@@ -226,9 +226,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                 foreach (var footnote in para.References)
                 {
                     // this is intended to even out the weight of very broad references to the same chapter within one paragraph
-                    if (footnote.Type == KnowledgeGraphNodeType.ScriptureVerse)
+                    if (footnote.Node.Type == KnowledgeGraphNodeType.ScriptureVerse)
                     {
-                        ScriptureReference parsedRef = new ScriptureReference(footnote);
+                        ScriptureReference parsedRef = new ScriptureReference(footnote.Node);
                         var chapterNode = FeatureToNodeMapping.ScriptureChapter(parsedRef.Book, parsedRef.Chapter!.Value);
                         if (!chapterNodes.Contains(chapterNode))
                         {
@@ -432,10 +432,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                             Text = parsedHtml.TextWithInlineFormatTags,
                         };
 
-                        foreach (ScriptureReference scriptureRef in LdsDotOrgCommonParsers.ParseAllScriptureReferences(content, logger))
+                        foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(content, logger))
                         {
                             //Console.WriteLine($"Links to {scriptureRef}");
-                            para.References.Add(scriptureRef.ToNodeId());
+                            para.References.Add(scriptureRef);
                         }
 
                         returnVal.Paragraphs.Add(para);
@@ -498,7 +498,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             public required KnowledgeGraphNodeId ParaEntityId;
             public required string Class;
             public required string Text;
-            public readonly List<KnowledgeGraphNodeId> References = new List<KnowledgeGraphNodeId>();
+            public readonly List<OmniParserOutput> References = new List<OmniParserOutput>();
 
             public override string ToString()
             {

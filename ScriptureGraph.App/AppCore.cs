@@ -71,7 +71,7 @@ namespace ScriptureGraph.App
             Stopwatch timer = Stopwatch.StartNew();
             VirtualPath smallGraphFileName = new VirtualPath("searchindex.graph.br");
             VirtualPath nameLookupFileName = new VirtualPath("entitynames_eng.map");
-            VirtualPath largeGraphFileName = new VirtualPath("all.graph");
+            VirtualPath largeGraphFileName = new VirtualPath("eng.graph");
             VirtualPath largeGraphFileNameBr = new VirtualPath(largeGraphFileName.Name + ".br");
 
             if (!(await _fileSystem.ExistsAsync(smallGraphFileName)))
@@ -663,6 +663,12 @@ namespace ScriptureGraph.App
                         return SearchResultEntityType.Book_ATGQ;
                     if (nodeId.Name.StartsWith("md|"))
                         return SearchResultEntityType.Book_MD;
+                    if (nodeId.Name.StartsWith("messiah1|"))
+                        return SearchResultEntityType.Book_Messiah1;
+                    if (nodeId.Name.StartsWith("messiah2|"))
+                        return SearchResultEntityType.Book_Messiah2;
+                    if (nodeId.Name.StartsWith("messiah3|"))
+                        return SearchResultEntityType.Book_Messiah3;
                     else
                         return SearchResultEntityType.Unknown;
                 case KnowledgeGraphNodeType.ByuSpeech:

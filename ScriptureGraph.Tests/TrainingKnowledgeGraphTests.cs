@@ -31,7 +31,7 @@ namespace ScriptureGraph.Tests
             while (enumerator.MoveNext())
             {
                 // Edges should be in order of weight
-                Assert.AreEqual($"Word|{9 - edgesEnumerated}|eng", enumerator.Current().Target.ToString());
+                Assert.AreEqual($"Word|{9 - edgesEnumerated}|en", enumerator.Current().Target.ToString());
                 edgesEnumerated++;
             }
 
@@ -70,7 +70,7 @@ namespace ScriptureGraph.Tests
             while (enumerator.MoveNext())
             {
                 // Edges should be in order of weight
-                Assert.AreEqual($"Word|{9 - edgesEnumerated}|eng", enumerator.Current().Target.ToString());
+                Assert.AreEqual($"Word|{9 - edgesEnumerated}|en", enumerator.Current().Target.ToString());
                 edgesEnumerated++;
             }
 

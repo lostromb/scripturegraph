@@ -116,14 +116,14 @@ namespace ScriptureGraph.Core.Training.Extractors
                     foreach (var footnote in para.References)
                     {
                         TrainingFeatureType featureType = TrainingFeatureType.ScriptureReference;
-                        if (footnote.ScriptureRef != null && footnote.ScriptureRef.LowEmphasis)
+                        if (footnote.ParserMatch.LowEmphasis)
                         {
                             featureType = TrainingFeatureType.ScriptureReferenceWithoutEmphasis;
                         }
 
                         trainingFeaturesOut.Add(new TrainingFeature(
                             para.ParaEntityId,
-                            footnote.TargetNodeId,
+                            footnote.ParserMatch.Node,
                             featureType));
 
                         // Also parse the words actually tagged by the footnote (only applies for links directly embedded in text, which is rare)
@@ -134,7 +134,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                             {
                                 trainingFeaturesOut.Add(new TrainingFeature(
                                     ngram,
-                                    footnote.TargetNodeId,
+                                    footnote.ParserMatch.Node,
                                     TrainingFeatureType.WordDesignation));
                             }
                         }
@@ -367,13 +367,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                     List<FootnoteReference> footnoteRefs = new List<FootnoteReference>();
                     foreach (var inlineRef in parsedHtml.Links)
                     {
-                        foreach (ScriptureReference scriptureRef in LdsDotOrgCommonParsers.ParseAllScriptureReferences(inlineRef.Item2, logger))
+                        foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Item2, logger))
                         {
                             //Console.WriteLine($"Links to {inlineRef.Item2}");
                             footnoteRefs.Add(new FootnoteReference()
                             {
-                                TargetNodeId = scriptureRef.ToNodeId(),
-                                ScriptureRef = scriptureRef,
+                                ParserMatch = scriptureRef,
                                 ReferenceSpan = inlineRef.Item1
                             });
                         }
@@ -451,8 +450,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                                 {
                                     footnoteRefs.Add(new FootnoteReference()
                                     {
-                                        TargetNodeId = nodeId,
-                                        ScriptureRef = null,
+                                        ParserMatch = new OmniParserOutput(nodeId),
                                         ReferenceSpan = inlineRef.Item1
                                     });
                                 }
@@ -466,13 +464,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                         {
                             // This could be an href that links directly to another scripture verse
                             // example D&C 76:15
-                            foreach (ScriptureReference scriptureRef in LdsDotOrgCommonParsers.ParseAllScriptureReferences(inlineRef.Item2, logger))
+                            foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Item2, logger))
                             {
                                 //Console.WriteLine($"Links to {scriptureRef}");
                                 footnoteRefs.Add(new FootnoteReference()
                                 {
-                                    TargetNodeId = scriptureRef.ToNodeId(),
-                                    ScriptureRef = scriptureRef,
+                                    ParserMatch = scriptureRef,
                                     ReferenceSpan = inlineRef.Item1
                                 });
                             }
@@ -555,14 +552,14 @@ namespace ScriptureGraph.Core.Training.Extractors
             foreach (var footnote in currentParagraph.References)
             {
                 TrainingFeatureType featureType = TrainingFeatureType.ScriptureReference;
-                if (footnote.ScriptureRef != null && footnote.ScriptureRef.LowEmphasis)
+                if (footnote.ParserMatch.LowEmphasis)
                 {
                     featureType = TrainingFeatureType.ScriptureReferenceWithoutEmphasis;
                 }
 
                 trainingFeaturesOut.Add(new TrainingFeature(
                     currentParagraph.ParaEntityId,
-                    footnote.TargetNodeId,
+                    footnote.ParserMatch.Node,
                     featureType));
 
                 // Also parse the words actually tagged by the footnote - this is why we had to do very careful
@@ -574,7 +571,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         trainingFeaturesOut.Add(new TrainingFeature(
                             ngram,
-                            footnote.TargetNodeId,
+                            footnote.ParserMatch.Node,
                             TrainingFeatureType.WordDesignation));
                     }
                 }
@@ -675,8 +672,8 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private class FootnoteReference
         {
-            public required KnowledgeGraphNodeId TargetNodeId;
-            public ScriptureReference? ScriptureRef;
+            public required OmniParserOutput ParserMatch;
+            //public ScriptureReference? ScriptureRef;
             public IntRange? ReferenceSpan;
         }
     }

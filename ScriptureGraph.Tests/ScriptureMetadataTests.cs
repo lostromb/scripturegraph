@@ -90,5 +90,12 @@ namespace ScriptureGraph.Tests
                 Assert.AreEqual(expectedOutputs[idx], actualOutputs[idx]);
             }
         }
+
+        [TestMethod]
+        public void TestParseScriptureRef_WordBoundaries()
+        {
+            List<ScriptureReference> refs = ScriptureMetadataEnglish.ParseAllReferences("joseph smith 1:29").ToList();
+            Assert.AreEqual(0, refs.Count);
+        }
     }
 }

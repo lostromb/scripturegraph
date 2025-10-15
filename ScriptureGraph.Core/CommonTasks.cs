@@ -18,7 +18,6 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using static Durandal.Common.Audio.WebRtc.RingBuffer;
 
 namespace ScriptureGraph.Core
 {
@@ -105,6 +104,8 @@ namespace ScriptureGraph.Core
                 //    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
                 //BookExtractorMD.ExtractSearchIndexFeatures(
                 //    epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger, entitySearchGraph.Train, nameIndex);
+                BookExtractorMessiah.ExtractSearchIndexFeatures(
+                    epubFileSystem, new VirtualPath(@"The Messiah Series_ Promised Me - Bruce R. McConkie.epub"), logger, entitySearchGraph.Train, nameIndex);
 
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
                 {
@@ -151,6 +152,7 @@ namespace ScriptureGraph.Core
                 logger.Log("Processing documents from local sources");
                 //Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
                 //Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
+                Book_Messiah_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"The Messiah Series_ Promised Me - Bruce R. McConkie.epub"), logger);
 
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(1)))
                 {
@@ -746,7 +748,7 @@ namespace ScriptureGraph.Core
         {
             foreach (BookChapterDocument bookChapter in BookExtractorATGQ.ExtractDocuments(epubFileSystem, epubPath, logger))
             {
-                VirtualPath fileDestination = new VirtualPath($"{bookChapter.Language.ToBcp47Alpha3String()}\\atgq\\{bookChapter.ChapterId}.json.br");
+                VirtualPath fileDestination = new VirtualPath($"{bookChapter.Language.ToBcp47Alpha3String()}\\{bookChapter.BookId}\\{bookChapter.ChapterId}.json.br");
                 if (!documentCacheFileSystem.Exists(fileDestination.Container))
                 {
                     documentCacheFileSystem.CreateDirectory(fileDestination.Container);
@@ -768,7 +770,29 @@ namespace ScriptureGraph.Core
         {
             foreach (BookChapterDocument bookChapter in BookExtractorMD.ExtractDocuments(epubFileSystem, epubPath, logger))
             {
-                VirtualPath fileDestination = new VirtualPath($"{bookChapter.Language.ToBcp47Alpha3String()}\\md\\{bookChapter.ChapterId}.json.br");
+                VirtualPath fileDestination = new VirtualPath($"{bookChapter.Language.ToBcp47Alpha3String()}\\{bookChapter.BookId}\\{bookChapter.ChapterId}.json.br");
+                if (!documentCacheFileSystem.Exists(fileDestination.Container))
+                {
+                    documentCacheFileSystem.CreateDirectory(fileDestination.Container);
+                }
+
+                using (Stream fileOut = documentCacheFileSystem.OpenStream(fileDestination, FileOpenMode.Create, FileAccessMode.Write))
+                using (BrotliStream brotliStream = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
+                {
+                    GospelDocument.SerializePolymorphic(brotliStream, bookChapter);
+                }
+            }
+        }
+
+        private static void Book_Messiah_ExtractDocuments(
+            IFileSystem documentCacheFileSystem,
+            IFileSystem epubFileSystem,
+            VirtualPath epubPath,
+            ILogger logger)
+        {
+            foreach (BookChapterDocument bookChapter in BookExtractorMessiah.ExtractDocuments(epubFileSystem, epubPath, logger))
+            {
+                VirtualPath fileDestination = new VirtualPath($"{bookChapter.Language.ToBcp47Alpha3String()}\\{bookChapter.BookId}\\{bookChapter.ChapterId}.json.br");
                 if (!documentCacheFileSystem.Exists(fileDestination.Container))
                 {
                     documentCacheFileSystem.CreateDirectory(fileDestination.Container);

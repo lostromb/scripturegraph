@@ -21,5 +21,8 @@ namespace ScriptureGraph.App.Schemas
         Hymn,
         Book_ATGQ,
         Book_MD,
+        Book_Messiah1,
+        Book_Messiah2,
+        Book_Messiah3,
     }
 }

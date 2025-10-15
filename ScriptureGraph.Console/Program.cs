@@ -19,7 +19,6 @@ using System.Configuration;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
-using static Durandal.Common.Audio.WebRtc.RingBuffer;
 
 namespace ScriptureGraph.Console
 {
@@ -121,7 +120,7 @@ namespace ScriptureGraph.Console
             //await Test(logger);
             await ParseDocuments(logger);
             await BuildSearchIndex(logger);
-            await BuildUniversalGraph(logger);
+            //await BuildUniversalGraph(logger);
 
             //logger.Log("Compressing graph");
             //CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
