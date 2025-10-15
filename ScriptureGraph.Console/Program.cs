@@ -3,6 +3,7 @@ using Durandal.Common.File;
 using Durandal.Common.IO;
 using Durandal.Common.Logger;
 using Durandal.Common.MathExt;
+using Durandal.Common.Net.Http;
 using Durandal.Common.NLP.Language;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
@@ -14,6 +15,7 @@ using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
+using System.Configuration;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
@@ -30,8 +32,8 @@ namespace ScriptureGraph.Console
 
         public static async Task Main(string[] args)
         {
-            BenchmarkRunner.Run<Benchmarks>();
-            return;
+            //BenchmarkRunner.Run<Benchmarks>();
+            //return;
 
 #if DEBUG
             ILogger logger = new ConsoleLogger("Main", LogLevel.All);
@@ -117,43 +119,19 @@ namespace ScriptureGraph.Console
             //BookExtractorMD.ExtractDocuments(_epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger).Count();
 
             //await Test(logger);
-            //await ParseDocuments(logger);
-            //await BuildSearchIndex(logger);
+            await ParseDocuments(logger);
+            await BuildSearchIndex(logger);
             await BuildUniversalGraph(logger);
 
-            //CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
+            logger.Log("Compressing graph");
+            CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
+            //DecompressFile(_runtimeFileSystem, new VirtualPath("searchindex.graph.br"));
 
-            //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/pgp/abr/1?lang=eng");
-            //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/nt/john/1?lang=eng");
-            //Uri scriptureUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/dc-testament/od/1?lang=eng");
-            //string webPage = new WebClient().DownloadString(scriptureUrl);
-            //ScripturePageFeatureExtractorNew.ParseDocument(webPage, scriptureUrl, logger);
-
-            //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/general-conference/2025/10/41holland?lang=eng");
-            //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/general-conference/2025/10/54godoy?lang=eng");
-            //string webPage = new WebClient().DownloadString(talkUrl);
-            //ConferenceTalkFeatureExtractorNew.ParseDocument(webPage, talkUrl, logger);
-
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/cast-not-away-therefore-your-confidence/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/anthony-sweat/we-need-an-endowment/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/hugh-b-brown/god-gardener/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/sarah-clark/jesus-christ-the-master-teacher/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/geoffrey-j-germane/inertia-entropy-good-cheer/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/david-w-hart/be-excellent-becoming-who-you-are-in-todays-world/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/r-lanier-britsch/nobility-failure/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/noel-b-reynolds/authorship-book-mormon/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/legrand-richards/value-testimony/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/robert-l-backman/looking-to-the-future/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/ezra-taft-benson/constitution-heavenly-banner/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/neil-l-andersen/hold-fast-words-prophets/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/bitter-cup-bloody-baptism/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/souls-symbols-sacraments/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/jeffrey-r-holland/robe-ring-fatted-calf/", logger);
-            //DownloadSpeechAndEvaluateScore("https://speeches.byu.edu/talks/bruce-c-hafen/gospel-romantic-love/", logger);
-
-            //Uri talkUrl = new Uri("https://speeches.byu.edu/talks/keith-b-mcmullin/make-god-and-his-kingdom-center-life/");
-            //string webPage = new WebClient().DownloadString(talkUrl);
-            //ByuSpeechFeatureExtractor.ParseDocument(webPage, talkUrl, logger);
+            //using (NativeMemoryHeap graphHeap = new NativeMemoryHeap())
+            //using (Stream searchGraphIn = await _runtimeFileSystem.OpenStreamAsync(new VirtualPath("searchindex.graph"), FileOpenMode.Open, FileAccessMode.Read))
+            //{
+            //    UnsafeReadOnlyKnowledgeGraph graph = await UnsafeReadOnlyKnowledgeGraph.Load(searchGraphIn, graphHeap);
+            //}
         }
 
         private static async void DownloadSpeechAndEvaluateScore(string url, ILogger logger)
@@ -171,6 +149,22 @@ namespace ScriptureGraph.Console
             using (BrotliStream brotli = new BrotliStream(fileOut, CompressionLevel.SmallestSize))
             {
                 fileIn.CopyToPooled(brotli);
+            }
+        }
+
+        private static void DecompressFile(IFileSystem fileSystem, VirtualPath inputFile)
+        {
+            if (!string.Equals(".br", inputFile.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("Input file must be a .br");
+            }
+
+            VirtualPath outputFile = new VirtualPath(inputFile.FullName.Substring(0, inputFile.FullName.Length - 3));
+            using (Stream fileIn = fileSystem.OpenStream(inputFile, FileOpenMode.Open, FileAccessMode.Read))
+            using (Stream fileOut = fileSystem.OpenStream(outputFile, FileOpenMode.CreateNew, FileAccessMode.Write))
+            using (BrotliDecompressorStream brotli = new BrotliDecompressorStream(fileIn))
+            {
+                brotli.CopyToPooled(fileOut);
             }
         }
 
@@ -269,7 +263,7 @@ namespace ScriptureGraph.Console
                 using (Stream searchGraphOut = _runtimeFileSystem.OpenStream(modelFileName, FileOpenMode.Create, FileAccessMode.Write))
                 using (BrotliStream brotliStream = new BrotliStream(searchGraphOut, CompressionLevel.SmallestSize))
                 {
-                    entitySearchGraph.Save(brotliStream);
+                    entitySearchGraph.Save(brotliStream, logger);
                 }
 
                 using (Stream nameMappingOut = _runtimeFileSystem.OpenStream(entityMapFileName, FileOpenMode.Create, FileAccessMode.Write))
@@ -375,8 +369,10 @@ namespace ScriptureGraph.Console
             using (Stream testGraphOut = _runtimeFileSystem.OpenStream(modelFile, FileOpenMode.Create, FileAccessMode.Write))
             //using (BrotliStream brotliStream = new BrotliStream(testGraphOut, CompressionLevel.SmallestSize))
             {
-                graph.Save(testGraphOut);
+                graph.Save(testGraphOut, logger);
             }
+
+            logger.Log($"Model saved.");
 
             return graph;
         }

@@ -37,42 +37,13 @@ namespace ScriptureGraph.Core.Training
             public List<Uri> Links;
         }
 
-        //public async Task DownloadFile(Uri uri, FileInfo target, ILogger logger, string referer = "")
-        //{
-        //    try
-        //    {
-        //        IHttpClient httpClient = _httpClientFactory.CreateHttpClient(uri, logger);
-        //        HttpRequest request = HttpRequest.CreateOutgoing(uri.PathAndQuery);
-        //        request.RequestHeaders["User-Agent"] = USER_AGENT;
-        //        if (!string.IsNullOrEmpty(referer))
-        //        {
-        //            request.RequestHeaders["Referer"] = referer;
-        //        }
-
-        //        using (HttpResponse response = await httpClient.SendRequestAsync(request))
-        //        {
-        //            if (response.ResponseCode == 200)
-        //            {
-        //                using (FileStream writeStream = new FileStream(target.FullName, FileMode.Create, FileAccess.Write))
-        //                {
-        //                    using (Stream httpStream = response.ReadContentAsStream())
-        //                    {
-        //                        await httpStream.CopyToAsync(writeStream);
-        //                    }
-        //                }
-        //            }
-        //            else
-        //            {
-        //                string responseString = await response.ReadContentAsStringAsync(CancellationToken.None, DefaultRealTimeProvider.Singleton);
-        //                logger.Log("Failed to download " + uri.AbsoluteUri + ": " + response.ResponseCode + " " + responseString, LogLevel.Err);
-        //            }
-        //        }
-        //    }
-        //    catch (Exception e)
-        //    {
-        //        logger.Log(e, LogLevel.Err);
-        //    }
-        //}
+        public async Task<CrawledPage?> DirectDownload(Uri uri, ILogger logger, string referer = "")
+        {
+            using (IHttpClient httpClient = _httpClientFactory.CreateHttpClient(uri, logger))
+            {
+                return await DownloadInternal(uri, httpClient, logger, referer).ConfigureAwait(false);
+            }
+        }
 
         //public async Task<HttpResponse?> MakeRequest(Uri uri, ILogger logger, string referer = "")
         //{
@@ -115,48 +86,17 @@ namespace ScriptureGraph.Core.Training
 
             while (urlQueue.Count > 0)
             {
-                CrawledPage thisPage = new CrawledPage(urlQueue.Dequeue(), string.Empty);
-                logger.Log("Crawling " + thisPage.Url, LogLevel.Vrb);
+                Uri uri = urlQueue.Dequeue();
+                logger.Log("Crawling " + uri, LogLevel.Vrb);
                 try
                 {
-                    bool crawlSucceeded = true;
-                    string? cachedPage = await _pageCache.GetCachedWebpageIfExists(thisPage.Url);
-                    if (cachedPage != null)
+                    CrawledPage? thisPage = null;
+                    using (IHttpClient httpClient = _httpClientFactory.CreateHttpClient(uri, logger))
                     {
-                        thisPage.Html = cachedPage;
-                        ExtractUrls(thisPage.Links, thisPage.Url, thisPage.Html, logger);
-                        crawlSucceeded = true;
-                        logger.Log("Using cached page", LogLevel.Vrb);
-                    }
-                    else
-                    {
-                        await _rateLimiter.LimitAsync(DefaultRealTimeProvider.Singleton, CancellationToken.None);
-                        IHttpClient httpClient = _httpClientFactory.CreateHttpClient(thisPage.Url, logger);
-                        HttpRequest request = HttpRequest.CreateOutgoing(thisPage.Url.PathAndQuery);
-                        request.RequestHeaders["User-Agent"] = USER_AGENT;
-                        //request.RequestHeaders["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8";
-                        //request.RequestHeaders["Accept-Language"] = "en-US,en;q=0.5";
-                        //request.RequestHeaders["Cache-Control"] = "max-age=0";
-                        //request.RequestHeaders["Host"] = "www.webtoons.com";
-                        //request.RequestHeaders["Upgrade-Insecure-Requests"] = "1";
-                        using (HttpResponse response = await httpClient.SendRequestAsync(request))
-                        {
-                            if (response.ResponseCode < 300)
-                            {
-                                thisPage.Html = await response.ReadContentAsStringAsync(CancellationToken.None, DefaultRealTimeProvider.Singleton);
-                                ExtractUrls(thisPage.Links, thisPage.Url, thisPage.Html, logger);
-                                await _pageCache.StorePage(thisPage.Url, thisPage.Html);
-                            }
-                            else
-                            {
-                                crawlSucceeded = false;
-                                string responseString = await response.ReadContentAsStringAsync(CancellationToken.None, DefaultRealTimeProvider.Singleton);
-                                logger.Log("Failed to download " + thisPage.Url.AbsoluteUri + ": " + response.ResponseCode + " " + responseString, LogLevel.Err);
-                            }
-                        }
+                        thisPage = await DownloadInternal(uri, httpClient, logger, string.Empty).ConfigureAwait(false);
                     }
 
-                    if (crawlSucceeded)
+                    if (thisPage != null)
                     {
                         bool continueCrawling = await pageAction(thisPage, logger);
                         if (!continueCrawling)
@@ -210,6 +150,52 @@ namespace ScriptureGraph.Core.Training
                 {
                     logger.Log(e, LogLevel.Err);
                     logger.Log($"Url was \"{x}\"", LogLevel.Err);
+                }
+            }
+        }
+
+        private async Task<CrawledPage?> DownloadInternal(Uri uri, IHttpClient httpClient, ILogger logger, string referer)
+        {
+            CrawledPage thisPage = new CrawledPage(uri, string.Empty);
+            string? cachedPage = await _pageCache.GetCachedWebpageIfExists(uri);
+            if (cachedPage != null)
+            {
+                thisPage.Html = cachedPage;
+                ExtractUrls(thisPage.Links, thisPage.Url, thisPage.Html, logger);
+                logger.Log("Using cached page", LogLevel.Vrb);
+                return thisPage;
+            }
+            else
+            {
+                await _rateLimiter.LimitAsync(DefaultRealTimeProvider.Singleton, CancellationToken.None);
+                HttpRequest request = HttpRequest.CreateOutgoing(thisPage.Url.PathAndQuery);
+                request.RequestHeaders["User-Agent"] = USER_AGENT;
+                if (!string.IsNullOrEmpty(referer))
+                {
+                    request.RequestHeaders["Referer"] = referer;
+                }   
+
+                //request.RequestHeaders["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8";
+                //request.RequestHeaders["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8";
+                //request.RequestHeaders["Accept-Language"] = "en-US,en;q=0.5";
+                //request.RequestHeaders["Cache-Control"] = "max-age=0";
+                //request.RequestHeaders["Host"] = "www.webtoons.com";
+                //request.RequestHeaders["Upgrade-Insecure-Requests"] = "1";
+                using (HttpResponse response = await httpClient.SendRequestAsync(request))
+                {
+                    if (response.ResponseCode < 300)
+                    {
+                        thisPage.Html = await response.ReadContentAsStringAsync(CancellationToken.None, DefaultRealTimeProvider.Singleton);
+                        ExtractUrls(thisPage.Links, thisPage.Url, thisPage.Html, logger);
+                        await _pageCache.StorePage(thisPage.Url, thisPage.Html);
+                        return thisPage;
+                    }
+                    else
+                    {
+                        string responseString = await response.ReadContentAsStringAsync(CancellationToken.None, DefaultRealTimeProvider.Singleton);
+                        logger.Log("Failed to download " + thisPage.Url.AbsoluteUri + ": " + response.ResponseCode + " " + responseString, LogLevel.Err);
+                        return null;
+                    }
                 }
             }
         }

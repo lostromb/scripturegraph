@@ -290,7 +290,7 @@ namespace ScriptureGraph.Core.Graph
             long[] nodeOffsets;
             using (BinaryReader tempReader = new BinaryReader(inputStream, Encoding.UTF8, leaveOpen: true))
             {
-                edgeCapacity = tempReader.ReadUInt16();
+                edgeCapacity = (ushort)tempReader.ReadUInt32();
                 numItemsInDict = tempReader.ReadInt32();
                 nodeOffsets = new long[numItemsInDict];
                 for (int offset = 0; offset < numItemsInDict; offset++)

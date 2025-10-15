@@ -246,6 +246,8 @@ namespace ScriptureGraph.App
                     return "Mormon Doctrine";
                 case SearchResultEntityType.ByuSpeech:
                     return "BYU Speeches";
+                case SearchResultEntityType.Hymn:
+                    return "Hymns";
                 default:
                     return "UNKNOWN_TYPE";
             }
@@ -1094,6 +1096,17 @@ namespace ScriptureGraph.App
                 case GospelDocumentType.ByuSpeech:
                     ByuSpeechDocument speechDocument = (ByuSpeechDocument)document;
                     return $"BYU Speeches - {speechDocument.Title} - {speechDocument.Speaker}";
+                case GospelDocumentType.Hymn:
+                    HymnDocument hymnDocument = (HymnDocument)document;
+                    return $"Hymns {hymnDocument.SongNum} - {hymnDocument.Title}";
+                case GospelDocumentType.GospelBookChapter:
+                    BookChapterDocument chapterDocument = (BookChapterDocument)document;
+                    string normalBookName = "UNKNOWN_BOOK";
+                    if (chapterDocument.BookId.Equals("atgq", StringComparison.OrdinalIgnoreCase))
+                        normalBookName = "Answers to Gospel Questions";
+                    else if (chapterDocument.BookId.Equals("md", StringComparison.OrdinalIgnoreCase))
+                        normalBookName = "Mormon Doctrine";
+                    return $"{normalBookName} - {chapterDocument.ChapterName}";
                 default:
                     return "UNKNOWN_DOCUMENT";
             }
@@ -1491,7 +1504,6 @@ namespace ScriptureGraph.App
                         throw new Exception("Invalid loaded document type: expected BookChapterDocument");
                     }
                 }
-
                 else if (searchResult.Type == KnowledgeGraphNodeType.ByuSpeech)
                 {
                     GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
@@ -1547,6 +1559,63 @@ namespace ScriptureGraph.App
                     else
                     {
                         throw new Exception("Invalid loaded document type: expected BookChapterDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.Hymn)
+                {
+                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
+                    if (dictionaryEntry is HymnDocument hymnDoc)
+                    {
+                        TextBlock searchResultLabel = new TextBlock()
+                        {
+                            Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                            FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                            FontSize = (double)TryFindResource("Para_FontSize_Verse"),
+                            TextWrapping = TextWrapping.Wrap,
+                            TextAlignment = TextAlignment.Justify,
+                            Padding = new Thickness(5),
+                            IsManipulationEnabled = false,
+                            Tag = new FastSearchQueryResult()
+                            {
+                                DisplayName = hymnDoc.Title,
+                                EntityType = SearchResultEntityType.Hymn,
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                            },
+                            Text = $"Hymns {hymnDoc.SongNum} - {hymnDoc.Title}"
+                        };
+
+                        // See if there's a best match paragraph within the document based on the search query
+                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(dictionaryEntry, activatedWords);
+                        if (bestPara != null)
+                        {
+                            searchResultLabel.Text = bestPara.Text;
+                        }
+
+                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
+                        searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                        searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                        searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+
+                        TextBlock searchResultHeader = CreateSearchResultHeader($"Hymns {hymnDoc.SongNum} - {hymnDoc.Title}");
+
+                        target.Add(searchResultHeader);
+                        target.Add(searchResultLabel);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected HymnDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.HymnVerse)
+                {
+                    GospelDocument document = await _core.LoadDocument(searchResult);
+                    if (document is HymnDocument hymnDoc)
+                    {
+                        CreateUiElementsForHymnVerseResult(searchResult, hymnDoc, target);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected HymnDocument");
                     }
                 }
                 else
@@ -1806,6 +1875,45 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
             TextBlock searchResultHeader = CreateSearchResultHeader($"{document.Speaker} - {document.Title}");
+
+            target.Add(searchResultHeader);
+            target.Add(conferenceTalkResult);
+        }
+
+        private void CreateUiElementsForHymnVerseResult(
+            KnowledgeGraphNodeId entityId,
+            HymnDocument document,
+            UIElementCollection target)
+        {
+            GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
+            if (targetPara == null)
+            {
+                throw new Exception("Reference to invalid verse " + entityId.ToString());
+            }
+
+            TextBlock conferenceTalkResult = new TextBlock()
+            {
+                Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                FontSize = (double)TryFindResource("Para_FontSize_Verse"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Justify,
+                Padding = new Thickness(5),
+                IsManipulationEnabled = false,
+                Tag = new FastSearchQueryResult()
+                {
+                    DisplayName = document.Title,
+                    EntityType = SearchResultEntityType.Hymn,
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                },
+                Text = AppCore.StripHtml(targetPara.Text)
+            };
+
+            conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+            conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+            conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
+
+            TextBlock searchResultHeader = CreateSearchResultHeader($"Hymns {document.SongNum} - {document.Title}");
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);

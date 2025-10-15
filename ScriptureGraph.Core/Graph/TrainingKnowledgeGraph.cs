@@ -21,6 +21,7 @@ namespace ScriptureGraph.Core.Graph
         private HashTableLinkedListNode[] _bins;
         private volatile int _numItemsInDictionary;
         private readonly ushort _edgeCapacity;
+        private int _trainingCount = 0;
 
         public TrainingKnowledgeGraph(ushort edgeCapacity = 96)
         {
@@ -37,12 +38,12 @@ namespace ScriptureGraph.Core.Graph
 
         public int Count => _numItemsInDictionary;
 
-        public void Add(KnowledgeGraphNodeId key, KnowledgeGraphNode value)
+        private void Add(KnowledgeGraphNodeId key, KnowledgeGraphNode value)
         {
             Add(new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(key, value));
         }
 
-        public void Add(KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode> item)
+        private void Add(KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode> item)
         {
             ExpandTableIfNeeded();
             HashTableLinkedListNode[] bins;
@@ -101,26 +102,36 @@ namespace ScriptureGraph.Core.Graph
 
         public void Train(TrainingFeature feature)
         {
-            Train(feature.NodeA, feature.NodeB, feature.EdgeWeight);
-            Train(feature.NodeB, feature.NodeA, feature.EdgeWeight);
+            Interlocked.Increment(ref _trainingCount);
+            TrainInternal(feature.NodeA, feature.NodeB, feature.EdgeWeight);
+            TrainInternal(feature.NodeB, feature.NodeA, feature.EdgeWeight);
+            Interlocked.Decrement(ref _trainingCount);
         }
 
-        public void Train(KnowledgeGraphNodeId currentNode, KnowledgeGraphNodeId referenceNode, float increment)
+        public void Train(KnowledgeGraphNodeId nodeA, KnowledgeGraphNodeId nodeB, float increment)
+        {
+            Interlocked.Increment(ref _trainingCount);
+            TrainInternal(nodeA, nodeB, increment);
+            TrainInternal(nodeB, nodeA, increment);
+            Interlocked.Decrement(ref _trainingCount);
+        }
+
+        private void TrainInternal(KnowledgeGraphNodeId nodeA, KnowledgeGraphNodeId nodeB, float increment)
         {
             HashTableLinkedListNode[] bins;
-            AcquireLockToStableHashBin(in currentNode, out bins);
+            AcquireLockToStableHashBin(in nodeA, out bins);
             try
             {
-                uint keyHash = (uint)currentNode._cachedHashCode;
+                uint keyHash = (uint)nodeA._cachedHashCode;
                 uint bin = keyHash % (uint)bins.Length;
 
                 if (bins[bin] == null)
                 {
                     // Create a new value
                     KnowledgeGraphNode newNode = new KnowledgeGraphNode(_edgeCapacity);
-                    newNode.Edges.Increment(referenceNode, increment);
+                    newNode.Edges.Increment(nodeB, increment);
                     bins[bin] = new HashTableLinkedListNode(
-                        new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(currentNode, newNode));
+                        new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(nodeA, newNode));
                     Interlocked.Increment(ref _numItemsInDictionary);
                 }
                 else
@@ -130,10 +141,10 @@ namespace ScriptureGraph.Core.Graph
                     HashTableLinkedListNode endOfBin = iter;
                     while (iter != null)
                     {
-                        if (currentNode.Equals(iter.Kvp.Key))
+                        if (nodeA.Equals(iter.Kvp.Key))
                         {
                             // Found it!
-                            iter.Kvp.Value.Edges.Increment(referenceNode, increment);
+                            iter.Kvp.Value.Edges.Increment(nodeB, increment);
                             return;
                         }
 
@@ -146,15 +157,15 @@ namespace ScriptureGraph.Core.Graph
 
                     // If value is not already there, append a new entry to the end of the bin
                     KnowledgeGraphNode newNode = new KnowledgeGraphNode(_edgeCapacity);
-                    newNode.Edges.Increment(referenceNode, increment);
+                    newNode.Edges.Increment(nodeB, increment);
                     endOfBin.Next = new HashTableLinkedListNode(
-                        new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(currentNode, newNode));
+                        new KeyValuePair<KnowledgeGraphNodeId, KnowledgeGraphNode>(nodeA, newNode));
                     Interlocked.Increment(ref _numItemsInDictionary);
                 }
             }
             finally
             {
-                _locks.ReleaseLock(currentNode);
+                _locks.ReleaseLock(nodeA);
             }
         }
 
@@ -443,34 +454,56 @@ namespace ScriptureGraph.Core.Graph
             return returnVal;
         }
 
-        public void Save(Stream outStream)
+        public void Save(Stream outStream, ILogger logger)
         {
-            using (BinaryWriter writer = new BinaryWriter(outStream, StringUtils.UTF8_WITHOUT_BOM, true))
+            if (_trainingCount > 0)
             {
-                writer.Write(_edgeCapacity);
-                writer.Write(_numItemsInDictionary);
+                logger.Log("Saving graph while training is still happening!", LogLevel.Wrn);
+            }
 
-                // Write the pointer map at the start, this is not strictly necessary but will speed up unmanaged code loading later
-                long currentPointerPosition = 0;
-                var enumerator = GetUnsafeEnumerator();
-                while (enumerator.MoveNext())
+            _locks.GetAllLocks();
+            try
+            {
+                int lastReportedProgress = 0;
+                using (BinaryWriter writer = new BinaryWriter(outStream, StringUtils.UTF8_WITHOUT_BOM, true))
                 {
-                    currentPointerPosition += GetSizeOf(enumerator.Current.Key);
-                    currentPointerPosition += GetSizeOf(enumerator.Current.Value.Edges);
-                    // for list index 0 this will be the byte offset that the next entry (1) begins,
-                    // which is an indirect way of saying how long the current entry is in the list,
-                    // without having to rely on Stream.Length for the last bit - this might make
-                    // things easier if e.g. we wanted to append other data to the same stream afterwards
-                    writer.Write(currentPointerPosition);
-                }
+                    writer.Write((uint)_edgeCapacity);
+                    writer.Write(_numItemsInDictionary);
 
-                // Now write all nodes
-                enumerator = GetUnsafeEnumerator();
-                while (enumerator.MoveNext())
-                {
-                    WriteNodeId(enumerator.Current.Key, writer);
-                    WriteEdges(enumerator.Current.Value.Edges, writer);
+                    // Write the pointer map at the start, this is not strictly necessary but will speed up unmanaged code loading later
+                    long currentPointerPosition = 0;
+                    var enumerator = GetUnsafeEnumerator();
+                    while (enumerator.MoveNext())
+                    {
+                        currentPointerPosition += GetSizeOf(enumerator.Current.Key);
+                        currentPointerPosition += GetSizeOf(enumerator.Current.Value.Edges);
+                        // for list index 0 this will be the byte offset that the next entry (1) begins,
+                        // which is an indirect way of saying how long the current entry is in the list,
+                        // without having to rely on Stream.Length for the last bit - this might make
+                        // things easier if e.g. we wanted to append other data to the same stream afterwards
+                        writer.Write(currentPointerPosition);
+                    }
+
+                    // Now write all nodes
+                    int nodeIdx = 0;
+                    enumerator = GetUnsafeEnumerator();
+                    while (enumerator.MoveNext())
+                    {
+                        WriteNodeId(enumerator.Current.Key, writer);
+                        WriteEdges(enumerator.Current.Value.Edges, writer);
+                        nodeIdx++;
+                        int currentProgress = (nodeIdx * 100 / _numItemsInDictionary);
+                        if (currentProgress != lastReportedProgress)
+                        {
+                            logger.Log($"Saving graph... {currentProgress}%");
+                            lastReportedProgress = currentProgress;
+                        }
+                    }
                 }
+            }
+            finally
+            {
+                _locks.ReleaseAllLocks();
             }
         }
 
@@ -479,7 +512,7 @@ namespace ScriptureGraph.Core.Graph
             using (BinaryReader reader = new BinaryReader(loadStream, StringUtils.UTF8_WITHOUT_BOM, true))
             using (PooledBuffer<byte> byteScratch = BufferPool<byte>.Rent(65536))
             {
-                ushort edgeCapacity = reader.ReadUInt16();
+                ushort edgeCapacity = (ushort)reader.ReadUInt32();
                 int numItemsInDictionary = reader.ReadInt32();
                 TrainingKnowledgeGraph returnVal = new TrainingKnowledgeGraph((byte)Math.Min(byte.MaxValue, edgeCapacity));
 

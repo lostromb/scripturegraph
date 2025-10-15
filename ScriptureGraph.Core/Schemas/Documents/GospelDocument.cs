@@ -68,6 +68,9 @@ namespace ScriptureGraph.Core.Schemas.Documents
                 case GospelDocumentType.ByuSpeech:
                     parsedDoc = jsonStructure.Deserialize<ByuSpeechDocument>();
                     break;
+                case GospelDocumentType.Hymn:
+                    parsedDoc = jsonStructure.Deserialize<HymnDocument>();
+                    break;
                 default:
                     throw new InvalidDataException("Unknown document type: " + parsedMetaDoc.DocumentType.ToString());
             }
@@ -103,6 +106,10 @@ namespace ScriptureGraph.Core.Schemas.Documents
                 else if (document is ByuSpeechDocument speech)
                 {
                     JsonSerializer.Serialize(jsonWriter, speech);
+                }
+                else if (document is HymnDocument hymn)
+                {
+                    JsonSerializer.Serialize(jsonWriter, hymn);
                 }
                 else
                 {

@@ -160,6 +160,11 @@ namespace ScriptureGraph.App
                 // Map speech paragraph -> speech
                 return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeech, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
             }
+            else if (entityId.Type == KnowledgeGraphNodeType.HymnVerse)
+            {
+                // Map hymn verse -> hymn
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Hymn, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
 
             return entityId;
         }
@@ -178,7 +183,7 @@ namespace ScriptureGraph.App
             }
             else if (entityId.Type == KnowledgeGraphNodeType.BookParagraph)
             {
-                // Map GC talk paragraph -> talk
+                // Map book paragraph -> chapter
                 return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookChapter, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
             }
 
@@ -386,7 +391,9 @@ namespace ScriptureGraph.App
                     result.Key.Type == KnowledgeGraphNodeType.BookChapter ||
                     result.Key.Type == KnowledgeGraphNodeType.BookParagraph ||
                     result.Key.Type == KnowledgeGraphNodeType.ByuSpeech ||
-                    result.Key.Type == KnowledgeGraphNodeType.ByuSpeechParagraph))
+                    result.Key.Type == KnowledgeGraphNodeType.ByuSpeechParagraph ||
+                    result.Key.Type == KnowledgeGraphNodeType.Hymn ||
+                    result.Key.Type == KnowledgeGraphNodeType.HymnVerse))
                 {
                     continue;
                 }
@@ -660,6 +667,9 @@ namespace ScriptureGraph.App
                 case KnowledgeGraphNodeType.ByuSpeech:
                 case KnowledgeGraphNodeType.ByuSpeechParagraph:
                     return SearchResultEntityType.ByuSpeech;
+                case KnowledgeGraphNodeType.Hymn:
+                case KnowledgeGraphNodeType.HymnVerse:
+                    return SearchResultEntityType.Hymn;
                 default:
                     return SearchResultEntityType.Unknown;
             }

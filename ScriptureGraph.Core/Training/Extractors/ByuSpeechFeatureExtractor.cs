@@ -33,11 +33,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return;
                 }
 
-                if (EvaluateScripturalScore(parseResult, logger) < 1.0f)
-                {
-                    return;
-                }
-
                 // High-level features
                 // Title of the talk -> Talk
                 foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(parseResult.TalkTitle))
@@ -113,11 +108,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                     return;
                 }
 
-                if (EvaluateScripturalScore(parseResult, logger) < 1.0f)
-                {
-                    return;
-                }
-
                 // Extract ngrams from the talk title and associate it with the talk
                 foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(parseResult.TalkTitle))
                 {
@@ -155,15 +145,6 @@ namespace ScriptureGraph.Core.Training.Extractors
                     //logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
                     return null;
                 }
-
-                // Evaluate how "scriptural" this talk is
-                if (EvaluateScripturalScore(parseResult, logger) < 1.0f)
-                {
-                    return null;
-                }
-
-                //float score = EvaluateScripturalScore(parseResult, logger);
-                //logger.Log($"Score is {score:F3} for {parseResult.TalkTitle}");
 
                 ByuSpeechDocument returnVal = new ByuSpeechDocument()
                 {
@@ -290,6 +271,11 @@ namespace ScriptureGraph.Core.Training.Extractors
                 {
                     return null;
                 }
+
+                //if (!speakerNamePretty.Contains("Holland", StringComparison.OrdinalIgnoreCase))
+                //{
+                //    return null;
+                //}
 
                 XPathNodeIterator iter;
                 HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
@@ -435,6 +421,15 @@ namespace ScriptureGraph.Core.Training.Extractors
                 // Was this speech one where the text is actually unavailable?
                 // If so, break out
                 if (returnVal.Paragraphs.Count < 3)
+                {
+                    return null;
+                }
+
+                // Finally, skip talks that aren't very scriptural
+
+                //float score = EvaluateScripturalScore(parseResult, logger);
+                //logger.Log($"Score is {score:F3} for {parseResult.TalkTitle}");
+                if (EvaluateScripturalScore(returnVal, logger) < 1.0f)
                 {
                     return null;
                 }

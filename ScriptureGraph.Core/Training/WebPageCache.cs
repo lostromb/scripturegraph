@@ -79,6 +79,7 @@ namespace ScriptureGraph.Core.Training
             using (PooledStringBuilder pooledSb = StringBuilderPool.Rent())
             {
                 pooledSb.Builder.Append(pageUri.AbsoluteUri);
+                pooledSb.Builder.Replace('&', '_');
                 foreach (char invalidFileChar in Path.GetInvalidFileNameChars())
                 {
                     pooledSb.Builder.Replace(invalidFileChar, '_');

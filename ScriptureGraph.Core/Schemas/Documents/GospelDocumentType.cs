@@ -13,6 +13,7 @@ namespace ScriptureGraph.Core.Schemas.Documents
         BibleDictionaryEntry,
         GeneralConferenceTalk,
         GospelBookChapter,
-        ByuSpeech
+        ByuSpeech,
+        Hymn
     }
 }

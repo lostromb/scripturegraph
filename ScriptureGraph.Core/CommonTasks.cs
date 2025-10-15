@@ -32,7 +32,7 @@ namespace ScriptureGraph.Core
         /// <returns></returns>
         public static async Task BuildUniversalGraph(ILogger logger, TrainingKnowledgeGraph startGraph, WebPageCache pageCache, IFileSystem epubFileSystem)
         {
-            using (IThreadPool threadPool = new FixedCapacityThreadPool(
+            using (FixedCapacityThreadPool threadPool = new FixedCapacityThreadPool(
                 new TaskThreadPool(),
                 NullLogger.Singleton,
                 NullMetricCollector.Singleton,
@@ -45,28 +45,29 @@ namespace ScriptureGraph.Core
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForFeatureExtraction processor = new DocumentProcessorForFeatureExtraction(startGraph, threadPool);
                 await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                //BookExtractorATGQ.ExtractFeatures(
-                //    epubFileSystem,
-                //    new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"),
-                //    logger, startGraph.Train, threadPool);
+                BookExtractorATGQ.ExtractFeatures(
+                    epubFileSystem,
+                    new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"),
+                    logger, startGraph.Train, threadPool);
 
-                //BookExtractorMD.ExtractFeatures(
-                //    epubFileSystem,
-                //    new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"),
-                //    logger, startGraph.Train, threadPool);
+                BookExtractorMD.ExtractFeatures(
+                    epubFileSystem,
+                    new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"),
+                    logger, startGraph.Train, threadPool);
 
-                logger.Log("Winding down training threads");
-                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
+                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromHours(2)))
                 {
                     try
                     {
                         CancellationToken cancelToken = cts.Token;
-                        while (!cts.Token.IsCancellationRequested && threadPool.RunningWorkItems > 0)
+                        while (!cts.Token.IsCancellationRequested && threadPool.TotalWorkItems > 0)
                         {
+                            logger.Log("Winding down training threads " + threadPool.TotalWorkItems);
                             await threadPool.WaitForCurrentTasksToFinish(cts.Token, DefaultRealTimeProvider.Singleton);
                         }
                     }
@@ -83,7 +84,7 @@ namespace ScriptureGraph.Core
         /// <returns></returns>
         public static async Task<Tuple<TrainingKnowledgeGraph, EntityNameIndex>> BuildSearchIndex(ILogger logger, WebPageCache pageCache, IFileSystem epubFileSystem)
         {
-            using (IThreadPool threadPool = new FixedCapacityThreadPool(
+            using (FixedCapacityThreadPool threadPool = new FixedCapacityThreadPool(
                 new TaskThreadPool(),
                 NullLogger.Singleton,
                 NullMetricCollector.Singleton,
@@ -95,23 +96,24 @@ namespace ScriptureGraph.Core
                 TrainingKnowledgeGraph entitySearchGraph = new TrainingKnowledgeGraph();
                 EntityNameIndex nameIndex = new EntityNameIndex();
                 DocumentProcessorForSearchIndex processor = new DocumentProcessorForSearchIndex(entitySearchGraph, nameIndex, threadPool);
-                //await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlReferenceMaterials(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                //BookExtractorATGQ.ExtractSearchIndexFeatures(
-                //    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
-                //BookExtractorMD.ExtractSearchIndexFeatures(
-                //    epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger, entitySearchGraph.Train, nameIndex);
+                BookExtractorATGQ.ExtractSearchIndexFeatures(
+                    epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
+                BookExtractorMD.ExtractSearchIndexFeatures(
+                    epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger, entitySearchGraph.Train, nameIndex);
 
-                logger.Log("Winding down training threads");
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
                 {
                     try
                     {
                         CancellationToken cancelToken = cts.Token;
-                        while (!cts.Token.IsCancellationRequested && threadPool.RunningWorkItems > 0)
+                        while (!cts.Token.IsCancellationRequested && threadPool.TotalWorkItems > 0)
                         {
+                            logger.Log("Winding down training threads " + threadPool.TotalWorkItems);
                             await threadPool.WaitForCurrentTasksToFinish(cts.Token, DefaultRealTimeProvider.Singleton);
                         }
                     }
@@ -130,7 +132,7 @@ namespace ScriptureGraph.Core
         /// <returns></returns>
         public static async Task ParseDocuments(ILogger logger, WebPageCache pageCache, IFileSystem documentFileSystem, IFileSystem epubFileSystem)
         {
-            using (IThreadPool threadPool = new FixedCapacityThreadPool(
+            using (FixedCapacityThreadPool threadPool = new FixedCapacityThreadPool(
                 new TaskThreadPool(),
                 NullLogger.Singleton,
                 NullMetricCollector.Singleton,
@@ -142,21 +144,22 @@ namespace ScriptureGraph.Core
                 DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
                 logger.Log("Processing documents from webcrawler sources");
                 await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                //Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
-                //Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
+                Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
+                Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
 
-                logger.Log("Winding down training threads");
-                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(5)))
+                using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(1)))
                 {
                     try
                     {
                         CancellationToken cancelToken = cts.Token;
-                        while (!cts.Token.IsCancellationRequested && threadPool.RunningWorkItems > 0)
+                        while (!cts.Token.IsCancellationRequested && threadPool.TotalWorkItems > 0)
                         {
+                            logger.Log("Winding down training threads " + threadPool.TotalWorkItems);
                             await threadPool.WaitForCurrentTasksToFinish(cts.Token, DefaultRealTimeProvider.Singleton);
                         }
                     }
@@ -175,6 +178,7 @@ namespace ScriptureGraph.Core
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
             private static readonly Regex ByuSpeechUrlMatcher = new Regex("\\/talks\\/.+?\\/.+?(?:/?|$)");
             private static readonly Regex ByuSpeakerUrlMatcher = new Regex("\\/speakers\\/.+?(?:/?|$)");
+            private static readonly Regex HymnUrlMatcher = new Regex("\\/media\\/music\\/songs\\/.+?(?:/?|$)");
             private readonly TrainingKnowledgeGraph _trainingGraph;
             private readonly IThreadPool _trainingThreadPool;
 
@@ -245,6 +249,11 @@ namespace ScriptureGraph.Core
                         logger.Log($"Featurizing BYU speech {page.Url.AbsolutePath}");
                         ByuSpeechFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, _trainingGraph.Train);
                     }
+                    else if (HymnUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Featurizing hymn {page.Url.AbsolutePath}");
+                        HymnsFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, _trainingGraph.Train);
+                    }
                     else
                     {
                         logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
@@ -274,6 +283,7 @@ namespace ScriptureGraph.Core
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
             private static readonly Regex ByuSpeechUrlMatcher = new Regex("\\/talks\\/.+?\\/.+?(?:/?|$)");
             private static readonly Regex ByuSpeakerUrlMatcher = new Regex("\\/speakers\\/.+?(?:/?|$)");
+            private static readonly Regex HymnUrlMatcher = new Regex("\\/media\\/music\\/songs\\/.+?(?:/?|$)");
             private readonly TrainingKnowledgeGraph _trainingGraph;
             private readonly EntityNameIndex _nameIndex;
             private readonly IThreadPool _trainingThreadPool;
@@ -345,6 +355,11 @@ namespace ScriptureGraph.Core
                         logger.Log($"Building search index from BYU speech {page.Url.AbsolutePath}");
                         ByuSpeechFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
                     }
+                    else if (HymnUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Building search index from hymn {page.Url.AbsolutePath}");
+                        HymnsFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
+                    }
                     else
                     {
                         logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
@@ -374,6 +389,7 @@ namespace ScriptureGraph.Core
             private static readonly Regex ConferenceTalkUrlMatcher = new Regex("\\/study\\/general-conference\\/\\d+\\/\\d+\\/.+?(?:\\?|$)");
             private static readonly Regex ByuSpeechUrlMatcher = new Regex("\\/talks\\/.+?\\/.+?(?:/?|$)");
             private static readonly Regex ByuSpeakerUrlMatcher = new Regex("\\/speakers\\/.+?(?:/?|$)");
+            private static readonly Regex HymnUrlMatcher = new Regex("\\/media\\/music\\/songs\\/.+?(?:/?|$)");
             private readonly IThreadPool _trainingThreadPool;
             private readonly IFileSystem _documentCacheFileSystem;
 
@@ -474,6 +490,20 @@ namespace ScriptureGraph.Core
                         else
                         {
                             fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\byu\\{FilePathSanitizer.SanitizeFileName(structuredDoc.TalkId)}.json.br");
+                        }
+                    }
+                    else if (HymnUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Parsing hymn {page.Url.AbsolutePath}");
+                        HymnDocument? structuredDoc = HymnsFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                        parsedDoc = structuredDoc;
+                        if (structuredDoc == null)
+                        {
+                            //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                        }
+                        else
+                        {
+                            fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\hymns\\{FilePathSanitizer.SanitizeFileName(structuredDoc.SongId)}.json.br");
                         }
                     }
                     else
@@ -686,6 +716,26 @@ namespace ScriptureGraph.Core
                 pageAction,
                 logger.Clone("WebCrawler-BYU"),
                 allowedUrls);
+        }
+
+        private static async Task CrawlHymns(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        {
+            logger = logger.Clone("WebCrawler-Hymns");
+            foreach (Uri songPage in HymnsFeatureExtractor.GetAllSongUris())
+            {
+                WebCrawler.CrawledPage? page = await crawler.DirectDownload(songPage, logger);
+                if (page != null)
+                {
+                    try
+                    {
+                        await pageAction(page, logger);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Log(e);
+                    }
+                }
+            }
         }
 
         private static void Book_ATGQ_ExtractDocuments(

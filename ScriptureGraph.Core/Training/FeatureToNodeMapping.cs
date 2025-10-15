@@ -4,6 +4,7 @@ using ScriptureGraph.Core.Schemas;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -165,6 +166,21 @@ namespace ScriptureGraph.Core.Training
         public static KnowledgeGraphNodeId ByuSpeechParagraph(string speakerId, string talkId, int index)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeechParagraph, $"{speakerId}|{talkId}|{index}");
+        }
+
+        public static KnowledgeGraphNodeId Hymn(string songId)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Hymn, songId);
+        }
+
+        public static KnowledgeGraphNodeId HymnVerse(string songId, int verse)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.HymnVerse, $"{songId}|{verse}");
+        }
+
+        public static KnowledgeGraphNodeId HymnVerse(string songId, string verse)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.HymnVerse, $"{songId}|{verse}");
         }
     }
 }

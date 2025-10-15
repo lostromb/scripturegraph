@@ -1,4 +1,5 @@
-﻿using Durandal.Common.NLP.Language;
+﻿using Durandal.Common.Logger;
+using Durandal.Common.NLP.Language;
 using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Training;
 using System;
@@ -41,6 +42,7 @@ namespace ScriptureGraph.Tests
         [TestMethod]
         public void TestTrainingGraphSerializeAndContinue()
         {
+            ILogger logger = new ConsoleLogger();
             TrainingKnowledgeGraph graph = new TrainingKnowledgeGraph(128);
             KnowledgeGraphNodeId rootNode = FeatureToNodeMapping.ScriptureVerse("1-ne", 1, 1);
             for (int c = 0; c < 5; c++)
@@ -50,7 +52,7 @@ namespace ScriptureGraph.Tests
 
             using (MemoryStream stream = new MemoryStream())
             {
-                graph.Save(stream);
+                graph.Save(stream, logger);
                 stream.Position = 0;
                 graph = TrainingKnowledgeGraph.Load(stream);
             }

@@ -599,7 +599,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        internal static HtmlFragmentParseModel ParseAndFormatHtmlFragmentNew(string htmlFragment, ILogger logger)
+        internal static HtmlFragmentParseModel ParseAndFormatHtmlFragmentNew(string htmlFragment, ILogger logger, bool insertLineBreaks = false)
         {
             using (PooledStringBuilder pooledSb = StringBuilderPool.Rent())
             {
@@ -637,10 +637,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                         sb.Append("<b>");
                         closingTagStack.Push(new HtmlStackOp((op) => sb.Append("</b>"), currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, string.Empty));
                     }
-                    //else if (string.Equals("br", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
-                    //{
-                    //    sb.Append("\r\n");
-                    //}
+                    else if (string.Equals("br", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (insertLineBreaks)
+                        {
+                            sb.Append("\r\n");
+                        }
+                    }
                     else if (string.Equals("a", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
                     {
                         string href = currentNav.CurrentNode.GetAttributeValue("href", string.Empty);
