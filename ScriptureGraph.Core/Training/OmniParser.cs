@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training
 {
-    internal static class OmniParser
+    public static class OmniParser
     {
         // Hymns?(?:[,\. #]|no|number){1,6}(\d{1,4})(?:(?:[,\. #]|no|number){1,6}(\d{1,4}))?
         private static readonly Regex EXTRACTOR_HYMN_ENG = new Regex("Hymns?(?:[,\\. #]|no|number){1,6}(\\d{1,4})(?:(?:[,\\. #]|no|number){1,6}(\\d{1,4}))?", RegexOptions.IgnoreCase);
@@ -16,7 +16,7 @@ namespace ScriptureGraph.Core.Training
         // (the-family-a-proclamation-to-the-world|The Family.{1,4}Proclamation)
         private static readonly Regex EXTRACTOR_FAMILY_PROC_ENG = new Regex("(the-family-a-proclamation-to-the-world|The Family.{1,4}Proclamation)", RegexOptions.IgnoreCase);
 
-        internal static IEnumerable<OmniParserOutput> ParseHtml(string html, ILogger logger, LanguageCode language)
+        public static IEnumerable<OmniParserOutput> ParseHtml(string html, ILogger logger, LanguageCode language)
         {
             ISet<OmniParserOutput> dedupOutputs = new HashSet<OmniParserOutput>();
             foreach (ScriptureReference reference in LdsDotOrgCommonParsers.ParseAllScriptureReferences(html, logger))

@@ -71,7 +71,7 @@ namespace ScriptureGraph.App
             Stopwatch timer = Stopwatch.StartNew();
             VirtualPath smallGraphFileName = new VirtualPath("searchindex.graph.br");
             VirtualPath nameLookupFileName = new VirtualPath("entitynames_eng.map");
-            VirtualPath largeGraphFileName = new VirtualPath("eng.graph");
+            VirtualPath largeGraphFileName = new VirtualPath("dev.graph");
             VirtualPath largeGraphFileNameBr = new VirtualPath(largeGraphFileName.Name + ".br");
 
             if (!(await _fileSystem.ExistsAsync(smallGraphFileName)))
@@ -731,53 +731,62 @@ namespace ScriptureGraph.App
 
         private bool PassesOutputFilters(KnowledgeGraphNodeId entity, ResultFilterSet filters)
         {
-            switch (entity.Type)
+            try
             {
-                case KnowledgeGraphNodeType.ScriptureVerse:
-                case KnowledgeGraphNodeType.ScriptureChapter:
-                case KnowledgeGraphNodeType.ScriptureBook:
-                    ScriptureReference reference = new ScriptureReference(entity);
-                    if (string.Equals("ot", reference.Canon, StringComparison.Ordinal))
-                    {
-                        return filters.Include_OldTestament;
-                    }
-                    else if (string.Equals("nt", reference.Canon, StringComparison.Ordinal))
-                    {
-                        return filters.Include_NewTestament;
-                    }
-                    else if (string.Equals("bofm", reference.Canon, StringComparison.Ordinal))
-                    {
-                        return filters.Include_BookOfMormon;
-                    }
-                    else if (string.Equals("dc-testament", reference.Canon, StringComparison.Ordinal))
-                    {
-                        return filters.Include_DC;
-                    }
-                    else if (string.Equals("pgp", reference.Canon, StringComparison.Ordinal))
-                    {
-                        return filters.Include_PearlGP;
-                    }
-                    else
-                    {
+                switch (entity.Type)
+                {
+                    case KnowledgeGraphNodeType.ScriptureVerse:
+                    case KnowledgeGraphNodeType.ScriptureChapter:
+                    case KnowledgeGraphNodeType.ScriptureBook:
+                        ScriptureReference reference = new ScriptureReference(entity);
+                        if (string.Equals("ot", reference.Canon, StringComparison.Ordinal))
+                        {
+                            return filters.Include_OldTestament;
+                        }
+                        else if (string.Equals("nt", reference.Canon, StringComparison.Ordinal))
+                        {
+                            return filters.Include_NewTestament;
+                        }
+                        else if (string.Equals("bofm", reference.Canon, StringComparison.Ordinal))
+                        {
+                            return filters.Include_BookOfMormon;
+                        }
+                        else if (string.Equals("dc-testament", reference.Canon, StringComparison.Ordinal))
+                        {
+                            return filters.Include_DC;
+                        }
+                        else if (string.Equals("pgp", reference.Canon, StringComparison.Ordinal))
+                        {
+                            return filters.Include_PearlGP;
+                        }
+                        else
+                        {
+                            return true;
+                        }
+                    case KnowledgeGraphNodeType.ConferenceTalk:
+                    case KnowledgeGraphNodeType.ConferenceTalkParagraph:
+                        return filters.Include_GenConference;
+                    case KnowledgeGraphNodeType.BibleDictionaryTopic:
+                    case KnowledgeGraphNodeType.BibleDictionaryParagraph:
+                        return filters.Include_BibleDict;
+                    case KnowledgeGraphNodeType.BookChapter:
+                    case KnowledgeGraphNodeType.BookParagraph:
+                        return filters.Include_Books;
+                    case KnowledgeGraphNodeType.ByuSpeech:
+                    case KnowledgeGraphNodeType.ByuSpeechParagraph:
+                        return filters.Include_Speeches;
+                    case KnowledgeGraphNodeType.Hymn:
+                    case KnowledgeGraphNodeType.HymnVerse:
+                        return filters.Include_Hymns;
+                    default:
                         return true;
-                    }
-                case KnowledgeGraphNodeType.ConferenceTalk:
-                case KnowledgeGraphNodeType.ConferenceTalkParagraph:
-                    return filters.Include_GenConference;
-                case KnowledgeGraphNodeType.BibleDictionaryTopic:
-                case KnowledgeGraphNodeType.BibleDictionaryParagraph:
-                    return filters.Include_BibleDict;
-                case KnowledgeGraphNodeType.BookChapter:
-                case KnowledgeGraphNodeType.BookParagraph:
-                    return filters.Include_Books;
-                case KnowledgeGraphNodeType.ByuSpeech:
-                case KnowledgeGraphNodeType.ByuSpeechParagraph:
-                    return filters.Include_Speeches;
-                case KnowledgeGraphNodeType.Hymn:
-                case KnowledgeGraphNodeType.HymnVerse:
-                    return filters.Include_Hymns;
-                default:
-                    return true;
+                }
+            }
+            catch (Exception e)
+            {
+                // bandaid for invalid book / canon in old training data ("jst-luke")
+                _coreLogger.Log(e);
+                return false;
             }
         }
     }

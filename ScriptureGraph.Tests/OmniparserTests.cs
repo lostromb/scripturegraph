@@ -20,7 +20,24 @@ namespace ScriptureGraph.Tests
             FeatureToNodeMapping.ScriptureVerse("dc", 20, 5));
 
         [TestMethod]
+        public void TestOmniparser_PlainScripture_SingleVerse2() => TestParserOutput(
+            "(Ps. 107:20.)",
+            FeatureToNodeMapping.ScriptureVerse("ps", 107, 20));
+
+        [TestMethod]
         public void TestOmniparser_PlainScripture_BookNameBoundaries() => TestParserOutput("joseph 1:5");
+
+        [TestMethod]
+        public void TestOmniparser_Edersheim() => TestParserOutput("Edersheim 1:422-23.");
+
+        [TestMethod]
+        public void TestOmniparser_PlainScripture_SeveralVerses1() => TestParserOutput(
+            "(John 4:4-6; JST John 4:2, 6-7)",
+            FeatureToNodeMapping.ScriptureVerse("john", 4, 4),
+            FeatureToNodeMapping.ScriptureVerse("john", 4, 5),
+            FeatureToNodeMapping.ScriptureVerse("john", 4, 6),
+            FeatureToNodeMapping.ScriptureVerse("john", 4, 7),
+            FeatureToNodeMapping.ScriptureVerse("john", 4, 2));
 
         [TestMethod]
         public void TestOmniparser_ScriptureUrl_SingleVerse1() => TestParserOutput(
@@ -100,7 +117,9 @@ namespace ScriptureGraph.Tests
             Assert.AreEqual(expectedOutput.Length, output.Length);
             foreach (KnowledgeGraphNodeId expected in expectedOutput)
             {
-                Assert.AreEqual(expected, output.Single(s => s.Node.Equals(expected)).Node, $"Did not find {expected.ToString()} in output");
+                OmniParserOutput match = output.FirstOrDefault(s => s.Node.Equals(expected));
+                Assert.AreNotEqual(match, default(OmniParserOutput), $"Did not find {expected.ToString()} in output");
+                Assert.AreEqual(expected, match.Node, $"Did not find {expected.ToString()} in output");
             }
         }
     }

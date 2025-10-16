@@ -18,6 +18,10 @@ namespace ScriptureGraph.Core.Training.Extractors
     // A good omniparser test case (check that it captures the conference talk reference too):
     // https://speeches.byu.edu/talks/keith-b-mcmullin/make-god-and-his-kingdom-center-life/
 
+    // These talks are duplicates
+    // https://speeches.byu.edu/talks/james-e-faust/church
+    // https://speeches.byu.edu/talks/james-e-faust/church-2
+
     public class ByuSpeechFeatureExtractor
     {
         private static readonly Regex UrlPathParser = new Regex("\\/talks\\/(.+?)\\/(.+?)(?:\\/|$)");

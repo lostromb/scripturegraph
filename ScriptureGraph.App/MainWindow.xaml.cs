@@ -463,11 +463,13 @@ namespace ScriptureGraph.App
 
                 // Also do a hit bounds check to allow right click -> quick footnotes search (need to figure out which paragraph was clicked though)
                 _lastRightClickedParagraph = null;
+                string? rightClickedParagraphContent = null;
                 foreach (var block in scrollViewer.Document.Blocks)
                 {
                     if (block.IsMouseOver && block.Tag != null && block.Tag is KnowledgeGraphNodeId selectedParaNodeId)
                     {
                         _lastRightClickedParagraph = selectedParaNodeId;
+                        rightClickedParagraphContent = new TextRange(block.ContentStart, block.ContentEnd).Text;
                         _core.CoreLogger.Log("Detected context menu selection on entity: " + selectedParaNodeId);
                         break;
                     }
@@ -489,7 +491,38 @@ namespace ScriptureGraph.App
                     return;
                 }
 
-                // Add direct scripture references by doing a quick search
+                // Run omniparser to find literal scripture references
+                // FIXME there should be a more robust verse distance calculator here to deduplicate ranges of verses. not ready yet.
+                //List<ScriptureReference> contextMenuScriptures = new List<ScriptureReference>();
+                //HashSet<KnowledgeGraphNodeId> scriptureChaptersAlreadyReferenced = new HashSet<KnowledgeGraphNodeId>();
+                //if (!string.IsNullOrEmpty(rightClickedParagraphContent))
+                //{
+                //    foreach (OmniParserOutput parsedRef in OmniParser.ParseHtml(rightClickedParagraphContent, _core.CoreLogger, LanguageCode.ENGLISH))
+                //    {
+                //        KnowledgeGraphNodeId? chapterNode;
+                //        if (parsedRef.Node.Type == KnowledgeGraphNodeType.ScriptureVerse)
+                //        {
+                //            chapterNode = new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureChapter, parsedRef.Node.Name.Substring(0, parsedRef.Node.Name.LastIndexOf('|')));
+                //        }
+                //        else if(parsedRef.Node.Type == KnowledgeGraphNodeType.ScriptureBook)
+                //        {
+                //            chapterNode = parsedRef.Node;
+                //        }
+                //        else
+                //        {
+                //            chapterNode = null;
+                //        }
+
+                //        if(chapterNode != null && !scriptureChaptersAlreadyReferenced.Contains(chapterNode.Value))
+                //        {
+                //            scriptureChaptersAlreadyReferenced.Add(chapterNode.Value);
+                //            contextMenuScriptures.Add(new ScriptureReference(parsedRef.Node));
+                //        }
+                //    }
+                //}
+
+                // And if this whole paragraph is a quote of some scripture, run against the graph
+                // to see if it turns out there as well
                 SlowSearchQuery query = new SlowSearchQuery()
                 {
                     SearchScopes = new List<KnowledgeGraphNodeId[]>(),
@@ -1110,12 +1143,7 @@ namespace ScriptureGraph.App
                     return $"Hymns {hymnDocument.SongNum} - {hymnDocument.Title}";
                 case GospelDocumentType.GospelBookChapter:
                     BookChapterDocument chapterDocument = (BookChapterDocument)document;
-                    string normalBookName = "UNKNOWN_BOOK";
-                    if (chapterDocument.BookId.Equals("atgq", StringComparison.OrdinalIgnoreCase))
-                        normalBookName = "Answers to Gospel Questions";
-                    else if (chapterDocument.BookId.Equals("md", StringComparison.OrdinalIgnoreCase))
-                        normalBookName = "Mormon Doctrine";
-                    return $"{normalBookName} - {chapterDocument.ChapterName}";
+                    return $"{Localization.GetBookName(chapterDocument.BookId)} - {chapterDocument.ChapterName}";
                 default:
                     return "UNKNOWN_DOCUMENT";
             }
@@ -1476,7 +1504,7 @@ namespace ScriptureGraph.App
                                 EntityType = SearchResultEntityType.Topic, // FIXME wrong
                                 EntityIds = new KnowledgeGraphNodeId[] { searchResult }
                             },
-                            Text = $"{chapterDoc.BookId} - {chapterDoc.ChapterName}"
+                            Text = $"{Localization.GetBookName(chapterDoc.BookId)} - {chapterDoc.ChapterName}"
                         };
 
                         // See if there's a best match paragraph within the document based on the search query
@@ -1844,7 +1872,7 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
-            TextBlock searchResultHeader = CreateSearchResultHeader($"{document.BookId} - {document.ChapterName}");
+            TextBlock searchResultHeader = CreateSearchResultHeader($"{Localization.GetBookName(document.BookId)} - {document.ChapterName}");
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);

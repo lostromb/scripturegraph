@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Training
 {
-    internal struct OmniParserOutput : IEquatable<OmniParserOutput>
+    public struct OmniParserOutput : IEquatable<OmniParserOutput>
     {
         public KnowledgeGraphNodeId Node;
         public bool LowEmphasis;

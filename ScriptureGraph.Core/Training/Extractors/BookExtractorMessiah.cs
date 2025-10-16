@@ -66,72 +66,97 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private static void ExtractFeaturesOnThread(ParsedChapter chapter, Action<TrainingFeature> trainingFeaturesOut, ILogger logger)
         {
-            //// High-level features
-            //// Title of the question -> Question
-            //foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(chapter.Title))
-            //{
-            //    trainingFeaturesOut(new TrainingFeature(
-            //        chapter.DocumentEntityId,
-            //        ngram,
-            //        TrainingFeatureType.WordDesignation));
-            //}
+            // High-level features
+            // Title of the chapter -> Chapter
+            foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(chapter.Title))
+            {
+                trainingFeaturesOut(new TrainingFeature(
+                    chapter.DocumentEntityId,
+                    ngram,
+                    TrainingFeatureType.WordDesignation));
+            }
 
-            //List<TrainingFeature> scratch = new List<TrainingFeature>();
-            //foreach (ParsedBodyParagraph para in chapter.BodyParagraphs)
-            //{
-            //    // Associate this paragraph with the entire question
-            //    trainingFeaturesOut(new TrainingFeature(
-            //        chapter.DocumentEntityId,
-            //        para.ParaEntityId,
-            //        TrainingFeatureType.BookAssociation));
+            List<TrainingFeature> scratch = new List<TrainingFeature>();
+            HashSet<KnowledgeGraphNodeId> dedupSet = new HashSet<KnowledgeGraphNodeId>();
+            foreach (ParsedParagraph para in chapter.Paragraphs)
+            {
+                dedupSet.Clear();
 
-            //    // And with the previous paragraph
-            //    if (para.ParagraphNum > 1)
-            //    {
-            //        trainingFeaturesOut(new TrainingFeature(
-            //            para.ParaEntityId,
-            //            FeatureToNodeMapping.BookChapterParagraph(chapter.DocumentEntityId, (para.ParagraphNum - 1).ToString()),
-            //            TrainingFeatureType.ParagraphAssociation));
-            //    }
+                // Associate this paragraph with the entire chapter
+                trainingFeaturesOut(new TrainingFeature(
+                    chapter.DocumentEntityId,
+                    para.ParaEntityId,
+                    TrainingFeatureType.BookAssociation));
 
-            //    // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
-            //    // doing 9x permutations between every single word in the paragraph)
-            //    List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
+                // And with the previous paragraph
+                if (para.ParagraphNum > 1)
+                {
+                    trainingFeaturesOut(new TrainingFeature(
+                        para.ParaEntityId,
+                        FeatureToNodeMapping.BookChapterParagraph(chapter.DocumentEntityId, (para.ParagraphNum - 1).ToString()),
+                        TrainingFeatureType.ParagraphAssociation));
+                }
 
-            //    foreach (string sentence in sentences)
-            //    {
-            //        string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
+                // Paragraph footnotes references -> paragraph
+                foreach (string paragraphFootnoteAnchor in para.FootnoteRefs)
+                {
+                    if (chapter.Footnotes.TryGetValue(paragraphFootnoteAnchor, out ParsedFootnote footnote))
+                    {
+                        foreach (var referenceFromFootnote in footnote.References)
+                        {
+                            if (!dedupSet.Contains(referenceFromFootnote.Node))
+                            {
+                                dedupSet.Add(referenceFromFootnote.Node);
+                                trainingFeaturesOut(new TrainingFeature(
+                                    para.ParaEntityId,
+                                    referenceFromFootnote.Node,
+                                    referenceFromFootnote.LowEmphasis ? TrainingFeatureType.ScriptureReferenceWithoutEmphasis : TrainingFeatureType.ScriptureReference));
+                            }
+                        }
+                    }
+                }
 
-            //        // Common word and ngram level features associated with this paragraph entity
-            //        scratch.Clear();
-            //        EnglishWordFeatureExtractor.ExtractTrainingFeatures(thisSentenceWordBreakerText, scratch, para.ParaEntityId);
+                // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
+                // doing 9x permutations between every single word in the paragraph)
+                List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
 
-            //        foreach (var f in scratch)
-            //        {
-            //            trainingFeaturesOut(f);
-            //        }
+                foreach (string sentence in sentences)
+                {
+                    string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
 
-            //        // Parse all scripture references (in plaintext) and turn them into entity links
-            //        foreach (ScriptureReference scriptureRef in ScriptureMetadata.ParseAllReferences(thisSentenceWordBreakerText, LanguageCode.ENGLISH))
-            //        {
-            //            KnowledgeGraphNodeId refNodeId = scriptureRef.ToNodeId();
-            //            // Entity reference between this talk paragraph and the scripture ref
-            //            trainingFeaturesOut(new TrainingFeature(
-            //                para.ParaEntityId,
-            //                refNodeId,
-            //                TrainingFeatureType.EntityReference));
+                    // Common word and ngram level features associated with this paragraph entity
+                    scratch.Clear();
+                    EnglishWordFeatureExtractor.ExtractTrainingFeatures(thisSentenceWordBreakerText, scratch, para.ParaEntityId);
 
-            //            // And association between all words spoken in this sentence and the scripture ref
-            //            foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(thisSentenceWordBreakerText))
-            //            {
-            //                trainingFeaturesOut(new TrainingFeature(
-            //                    ngram,
-            //                    refNodeId,
-            //                    TrainingFeatureType.WordAssociation));
-            //            }
-            //        }
-            //    }
-            //}
+                    foreach (var f in scratch)
+                    {
+                        trainingFeaturesOut(f);
+                    }
+
+                    // Parse all scripture references (in plaintext) and turn them into entity links
+                    foreach (OmniParserOutput parsedScripture in OmniParser.ParseHtml(thisSentenceWordBreakerText, logger, LanguageCode.ENGLISH))
+                    {
+                        if (!dedupSet.Contains(parsedScripture.Node))
+                        {
+                            dedupSet.Add(parsedScripture.Node);
+                            // Entity reference between this paragraph and the scripture ref
+                            trainingFeaturesOut(new TrainingFeature(
+                            para.ParaEntityId,
+                            parsedScripture.Node,
+                            TrainingFeatureType.EntityReference));
+                        }
+
+                        // And association between all words spoken in this sentence and the scripture ref
+                        foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(thisSentenceWordBreakerText))
+                        {
+                            trainingFeaturesOut(new TrainingFeature(
+                                ngram,
+                                parsedScripture.Node,
+                                TrainingFeatureType.WordAssociation));
+                        }
+                    }
+                }
+            }
         }
 
         public static void ExtractSearchIndexFeatures(
@@ -416,7 +441,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
                         else
                         {
-                            // Extract footnot scripture references, if any
+                            // Extract footnote scripture references, if any
                             List<OmniParserOutput> referencesWithinThisFootnote = OmniParser.ParseHtml(paragraphContent, logger, LanguageCode.ENGLISH).ToList();
 
                             footnotes[anchorId] = new ParsedFootnote()

@@ -119,8 +119,8 @@ namespace ScriptureGraph.Console
 
             //await Test(logger);
             await ParseDocuments(logger);
-            //await BuildSearchIndex(logger);
-            //await BuildUniversalGraph(logger);
+            await BuildSearchIndex(logger);
+            await BuildUniversalGraph(logger);
 
             //logger.Log("Compressing graph");
             //CompressFile(_runtimeFileSystem, new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN.graph"));
@@ -345,7 +345,7 @@ namespace ScriptureGraph.Console
         {
             TrainingKnowledgeGraph graph;
             VirtualPath outputModelFile = new VirtualPath("dev.graph");
-            VirtualPath inputModelFile = new VirtualPath("notexist.graph");
+            VirtualPath inputModelFile = new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN.graph");
             WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
 
             if (_runtimeFileSystem.Exists(inputModelFile))
