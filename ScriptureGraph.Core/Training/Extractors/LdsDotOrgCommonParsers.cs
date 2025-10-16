@@ -79,6 +79,12 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private static readonly Regex LineBreakMatcher = new Regex("<\\s*\\/?\\s*br\\s*\\/?\\s*>");
 
+        private static readonly IReadOnlySet<string> CANONS = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "ot", "nt", "bofm", "dc-testament", "pgp",
+            "tg", "bd", "gs", "triple-index"
+        };
+
         internal static string RemovePageBreakTags(string input)
         {
             return StringUtils.RegexRemove(PageBreakRemover, input);
@@ -209,6 +215,11 @@ namespace ScriptureGraph.Core.Training.Extractors
                 string refBook = ScriptureMetadata.NormalizeBookId(footnotScriptureRef.Groups[2].Value, ref refCanon);
                 if (!footnotScriptureRef.Groups[3].Success)
                 {
+                    if (!CANONS.Contains(refCanon))
+                    {
+                        continue;
+                    }
+
                     // It's a reference without chapter or verse info (usually TG or BD)
                     //logger.Log($"Adding reference without chapter to {refCanon} {refBook}");
                     toReturn = new ScriptureReference(refCanon, refBook);

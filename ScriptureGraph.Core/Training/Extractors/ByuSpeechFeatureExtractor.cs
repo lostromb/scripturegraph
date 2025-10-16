@@ -432,7 +432,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                             Text = parsedHtml.TextWithInlineFormatTags,
                         };
 
-                        foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(content, logger))
+                        foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(content, logger, LanguageCode.ENGLISH))
                         {
                             //Console.WriteLine($"Links to {scriptureRef}");
                             para.References.Add(scriptureRef);

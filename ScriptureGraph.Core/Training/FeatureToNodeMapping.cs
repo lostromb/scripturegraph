@@ -182,5 +182,15 @@ namespace ScriptureGraph.Core.Training
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.HymnVerse, $"{songId}|{verse}");
         }
+
+        public static KnowledgeGraphNodeId Proclamation(string id)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Proclamation, id);
+        }
+
+        public static KnowledgeGraphNodeId ProclamationParagraph(string id, int paragraph)
+        {
+            return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Proclamation, $"{id}|{paragraph}");
+        }
     }
 }

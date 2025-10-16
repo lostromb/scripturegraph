@@ -417,7 +417,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         else
                         {
                             // Extract footnot scripture references, if any
-                            List<OmniParserOutput> referencesWithinThisFootnote = OmniParser.ParseHtml(paragraphContent, logger).ToList();
+                            List<OmniParserOutput> referencesWithinThisFootnote = OmniParser.ParseHtml(paragraphContent, logger, LanguageCode.ENGLISH).ToList();
 
                             footnotes[anchorId] = new ParsedFootnote()
                             {

@@ -119,11 +119,11 @@ namespace ScriptureGraph.Console
 
             //await Test(logger);
             await ParseDocuments(logger);
-            await BuildSearchIndex(logger);
+            //await BuildSearchIndex(logger);
             //await BuildUniversalGraph(logger);
 
             //logger.Log("Compressing graph");
-            //CompressFile(_runtimeFileSystem, new VirtualPath("all.graph"));
+            //CompressFile(_runtimeFileSystem, new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN.graph"));
             //DecompressFile(_runtimeFileSystem, new VirtualPath("big.graph.br"));
 
             //using (NativeMemoryHeap graphHeap = new NativeMemoryHeap())
@@ -344,8 +344,8 @@ namespace ScriptureGraph.Console
         private static async Task<TrainingKnowledgeGraph> BuildUniversalGraph(ILogger logger)
         {
             TrainingKnowledgeGraph graph;
-            VirtualPath outputModelFile = new VirtualPath("all.graph");
-            VirtualPath inputModelFile = new VirtualPath("SW_BD.graph");
+            VirtualPath outputModelFile = new VirtualPath("dev.graph");
+            VirtualPath inputModelFile = new VirtualPath("notexist.graph");
             WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
 
             if (_runtimeFileSystem.Exists(inputModelFile))

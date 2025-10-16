@@ -246,6 +246,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             {"author-role", GospelParagraphClass.SubHeader },
             {"kicker", GospelParagraphClass.StudySummary },
             {"line", GospelParagraphClass.Poem },
+            {"poem", GospelParagraphClass.Poem },
             {"subheading", GospelParagraphClass.SubHeader },
         };
 
@@ -367,7 +368,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     List<FootnoteReference> footnoteRefs = new List<FootnoteReference>();
                     foreach (var inlineRef in parsedHtml.Links)
                     {
-                        foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Item2, logger))
+                        foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Item2, logger, LanguageCode.ENGLISH))
                         {
                             //Console.WriteLine($"Links to {inlineRef.Item2}");
                             footnoteRefs.Add(new FootnoteReference()
@@ -464,7 +465,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         {
                             // This could be an href that links directly to another scripture verse
                             // example D&C 76:15
-                            foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Item2, logger))
+                            foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Item2, logger, LanguageCode.ENGLISH))
                             {
                                 //Console.WriteLine($"Links to {scriptureRef}");
                                 footnoteRefs.Add(new FootnoteReference()
@@ -504,6 +505,56 @@ namespace ScriptureGraph.Core.Training.Extractors
                         returnVal.Paragraphs.Add(para);
                     }
                 }
+
+                // Merge poems that span paragraphs into single paragraphs
+                Paragraph? collapsedParagraph = null;
+                List<Paragraph> processedParagraphs = new List<Paragraph>();
+
+                foreach (Paragraph existingPara in returnVal.Paragraphs)
+                {
+                    if (string.Equals("line", existingPara.Class, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (collapsedParagraph == null)
+                        {
+                            // Start of a new poem
+                            collapsedParagraph = new Paragraph()
+                            {
+                                Class = "poem",
+                                Id = existingPara.Id,
+                                ParaEntityId = existingPara.ParaEntityId,
+                                References = new List<FootnoteReference>(existingPara.References),
+                                Text = existingPara.Text
+                            };
+                        }
+                        else
+                        {
+                            // Continuation of poem
+                            collapsedParagraph.References.AddRange(existingPara.References);
+                            collapsedParagraph.Text += "\r\n" + existingPara.Text;
+                        }
+                    }
+                    else
+                    {
+                        // Potentially end of a poem
+                        if (collapsedParagraph != null)
+                        {
+                            processedParagraphs.Add(collapsedParagraph);
+                            collapsedParagraph = null;
+                        }
+
+                        processedParagraphs.Add(existingPara);
+                    }
+                }
+
+                // handle poem line at very end of document (unlikely but possible)
+                if (collapsedParagraph != null)
+                {
+                    processedParagraphs.Add(collapsedParagraph);
+                    collapsedParagraph = null;
+                }
+
+                returnVal.Paragraphs.Clear();
+                returnVal.Paragraphs.AddRange(processedParagraphs);
 
                 return returnVal;
             }

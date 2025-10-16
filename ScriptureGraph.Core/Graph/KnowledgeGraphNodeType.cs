@@ -110,5 +110,9 @@ namespace ScriptureGraph.Core.Graph
         Hymn,
 
         HymnVerse,
+
+        Proclamation,
+
+        ProclamationParagraph,
     }
 }

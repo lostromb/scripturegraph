@@ -56,8 +56,8 @@ namespace ScriptureGraph.App
         {
             try
             {
-                await LoadDocumentForEntity(FeatureToNodeMapping.BookChapter("messiah2", "1"));
-                return;
+                //await LoadDocumentForEntity(FeatureToNodeMapping.BookChapter("messiah2", "1"));
+                //return;
 
                 if (_activeSearchScopes.Count == 0)
                 {

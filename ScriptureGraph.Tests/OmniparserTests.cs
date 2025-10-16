@@ -1,4 +1,7 @@
 ﻿using Durandal.Common.Logger;
+using Durandal.Common.NLP.Language;
+using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
 using System;
 using System.Collections.Generic;
@@ -11,11 +14,94 @@ namespace ScriptureGraph.Tests
     [TestClass]
     public class OmniparserTests
     {
-        // <a class=\"scripture-ref\" href=\"/study/scriptures/nt/2-pet/1?lang=eng&id=p21#p21\">2 Pet. 1:21</a>
-        // <a class=\"scripture-ref\" href=\"/study/scriptures/gs/apocrypha?lang=eng\">Apocrypha</a>
-        // <a class=\"scripture-ref\" href=\"/study/scriptures/ot/ezek/37?lang=eng&id=p15-p16#p15\">Ezek. 37:15–16</a>
-        // <a class=\"scripture-ref\" href=\"/study/scriptures/dc-testament/dc/5?lang=eng&id=p2#p2\">D&C 5:2</a>
-        // <a class=\"scripture-ref\" href=\"/study/scriptures/gs/ephraim?lang=eng#sec_the_stick_of_ephraim_or_joseph\">Ephraim—The stick of Ephraim or Joseph</a>
-        // <a class=\"scripture-ref\" href=\"/study/scriptures/ot/ex/12?lang=eng&span=12:37-13:16#p37\">12:37–13:16</a>
+        [TestMethod]
+        public void TestOmniparser_PlainScripture_SingleVerse1() => TestParserOutput(
+            "D & C 20:5",
+            FeatureToNodeMapping.ScriptureVerse("dc", 20, 5));
+
+        [TestMethod]
+        public void TestOmniparser_PlainScripture_BookNameBoundaries() => TestParserOutput("joseph 1:5");
+
+        [TestMethod]
+        public void TestOmniparser_ScriptureUrl_SingleVerse1() => TestParserOutput(
+            "<a class=\"scripture-ref\" href=\"/study/scriptures/nt/2-pet/1?lang=eng&id=p21#p21\">2 Pet. 1:21</a>",
+            FeatureToNodeMapping.ScriptureVerse("2-pet", 1, 21));
+
+        [TestMethod]
+        public void TestOmniparser_ScriptureUrl_SingleVerse2() => TestParserOutput(
+            "<a class=\"scripture-ref\" href=\"/study/scriptures/dc-testament/dc/5?lang=eng&id=p2#p2\">D&C 5:2</a>",
+            FeatureToNodeMapping.ScriptureVerse("dc", 5, 2));
+
+        [TestMethod]
+        public void TestOmniparser_ScriptureUrl_VerseRange() => TestParserOutput(
+            "<a class=\"scripture-ref\" href=\"/study/scriptures/ot/ezek/37?lang=eng&id=p15-p16#p15\">Ezek. 37:15–16</a>",
+            FeatureToNodeMapping.ScriptureVerse("ezek", 37, 15),
+            FeatureToNodeMapping.ScriptureVerse("ezek", 37, 16));
+
+        [TestMethod]
+        public void TestOmniparser_ScriptureUrl_MultiChapterSpan() => TestParserOutput(
+            "<a class=\"scripture-ref\" href=\"/study/scriptures/ot/ex/12?lang=eng&span=12:50-13:2#p37\">12:50-13:2</a>",
+            FeatureToNodeMapping.ScriptureVerse("ex", 12, 50),
+            FeatureToNodeMapping.ScriptureVerse("ex", 12, 51),
+            FeatureToNodeMapping.ScriptureVerse("ex", 13, 1),
+            FeatureToNodeMapping.ScriptureVerse("ex", 13, 2));
+
+        [TestMethod]
+        public void TestOmniparser_ScriptureUrlOldFormat_VerseRange() => TestParserOutput(
+            "https://www.churchofjesuschrist.org/scriptures/dc-testament/dc/128.22-23?lang=eng",
+            FeatureToNodeMapping.ScriptureVerse("dc", 128, 22),
+            FeatureToNodeMapping.ScriptureVerse("dc", 128, 23));
+
+        [TestMethod]
+        public void TestOmniparser_ScriptureUrl_GSTopic() => TestParserOutput(
+            "<a class=\"scripture-ref\" href=\"/study/scriptures/gs/apocrypha?lang=eng\">Apocrypha</a>",
+            FeatureToNodeMapping.GuideToScripturesTopic("apocrypha"));
+
+        [TestMethod]
+        public void TestOmniparser_ScriptureUrl_GSTopic2() => TestParserOutput(
+            "<a class=\"scripture-ref\" href=\"/study/scriptures/gs/ephraim?lang=eng#sec_the_stick_of_ephraim_or_joseph\">Ephraim—The stick of Ephraim or Joseph</a>",
+            FeatureToNodeMapping.GuideToScripturesTopic("ephraim"));
+
+        [TestMethod]
+        public void TestOmniparser_Hymn1() => TestParserOutput("“Praise to the Man,” Hymns, no. 27", FeatureToNodeMapping.Hymn("praise-to-the-man"));
+        [TestMethod]
+        public void TestOmniparser_Hymn2() => TestParserOutput("\"Hymns, no. 153\"", FeatureToNodeMapping.Hymn("lord-we-ask-thee-ere-we-part"));
+        [TestMethod]
+        public void TestOmniparser_Hymn3() => TestParserOutput("Hymns, 1988, no 115", FeatureToNodeMapping.Hymn("come-ye-disconsolate"));
+
+        [TestMethod]
+        public void TestOmniparser_LivingChrist1() => TestParserOutput("/study/scriptures/the-living-christ-the-testimony-of-the-apostles/the-living-christ-the-testimony-of-the-apostles?lang=eng", FeatureToNodeMapping.Proclamation("lc"));
+        [TestMethod]
+        public void TestOmniparser_LivingChrist2() => TestParserOutput("The Living Christ, The Testimony of the Apostles", FeatureToNodeMapping.Proclamation("lc"));
+        [TestMethod]
+        public void TestOmniparser_LivingChrist3() => TestParserOutput("The Living Christ Testimony of the Apostles", FeatureToNodeMapping.Proclamation("lc"));
+        [TestMethod]
+        public void TestOmniparser_LivingChrist4() => TestParserOutput("The Living Christ declaration", FeatureToNodeMapping.Proclamation("lc"));
+        [TestMethod]
+        public void TestOmniparser_LivingChrist5() => TestParserOutput("The Living Christ proclamation", FeatureToNodeMapping.Proclamation("lc"));
+        [TestMethod]
+        public void TestOmniparser_LivingChrist6() => TestParserOutput("The Living Christ testimony", FeatureToNodeMapping.Proclamation("lc"));
+
+        [TestMethod]
+        public void TestOmniparser_FamilyProc1() => TestParserOutput("The Family: A Proclamation to the World", FeatureToNodeMapping.Proclamation("fam"));
+        [TestMethod]
+        public void TestOmniparser_FamilyProc2() => TestParserOutput("/study/scriptures/the-family-a-proclamation-to-the-world/the-family-a-proclamation-to-the-world?lang=eng", FeatureToNodeMapping.Proclamation("fam"));
+        [TestMethod]
+        public void TestOmniparser_FamilyProc3() => TestParserOutput("The family proclamation", FeatureToNodeMapping.Proclamation("fam"));
+        [TestMethod]
+        public void TestOmniparser_FamilyProc4() => TestParserOutput("The Family: Proclamation to the World", FeatureToNodeMapping.Proclamation("fam"));
+
+
+
+        private static void TestParserOutput(string input, params KnowledgeGraphNodeId[] expectedOutput)
+        {
+            ILogger logger = new ConsoleLogger();
+            OmniParserOutput[] output = OmniParser.ParseHtml(input, logger, LanguageCode.ENGLISH).ToArray();
+            Assert.AreEqual(expectedOutput.Length, output.Length);
+            foreach (KnowledgeGraphNodeId expected in expectedOutput)
+            {
+                Assert.AreEqual(expected, output.Single(s => s.Node.Equals(expected)).Node, $"Did not find {expected.ToString()} in output");
+            }
+        }
     }
 }
