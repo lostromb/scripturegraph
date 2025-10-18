@@ -22,11 +22,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Windows.Documents;
 
 namespace ScriptureGraph.App
 {
     internal class AppCore
     {
+        private const int DEFAULT_SUMMARIZE_CHAR_LENGTH = 150;
         private static readonly Regex HtmlTagRemover = new Regex("<\\/?[a-z]+(?: [\\w\\W]+?)?>");
         private readonly ILogger _coreLogger;
         private readonly IFileSystem _fileSystem;
@@ -681,21 +683,108 @@ namespace ScriptureGraph.App
             }
         }
 
-        //public static string GetBestSearchSummary(GospelDocument document, Dictionary<KnowledgeGraphNodeId, float> activatedWords)
+        public static string GetBestSearchSummary(GospelDocument document, IDictionary<KnowledgeGraphNodeId, float> activatedWords, int maxCharLength = DEFAULT_SUMMARIZE_CHAR_LENGTH)
+        {
+            maxCharLength.AssertPositive(nameof(maxCharLength));
+            string returnVal = string.Empty;
+            float bestScore = -1;
+
+            if (activatedWords.Count == 0)
+            {
+                // Just return the first paragraph? A substring of it?
+                return returnVal;
+            }
+
+            foreach (GospelParagraph para in document.Paragraphs)
+            {
+                (string shortText, float matchScore) = SummarizeTextWithScore(StripHtml(para.Text), activatedWords, maxCharLength);
+                if (matchScore > bestScore)
+                {
+                    bestScore = matchScore;
+                    returnVal = shortText;
+                }
+            }
+
+            return returnVal;
+        }
+
+        public static string SummarizeText(string text, IDictionary<KnowledgeGraphNodeId, float> activatedWords, int maxCharLength = DEFAULT_SUMMARIZE_CHAR_LENGTH)
+        {
+            return SummarizeTextWithScore(text, activatedWords, maxCharLength).ShortText;
+        }
+
+        private static (string ShortText, float MatchScore) SummarizeTextWithScore(string text, IDictionary<KnowledgeGraphNodeId, float> activatedWords, int maxCharLength)
+        {
+            maxCharLength.AssertPositive(nameof(maxCharLength));
+            StringBuilder returnVal = new StringBuilder();
+            float bestScore = -1;
+
+            if (activatedWords.Count == 0)
+            {
+                return (text, 0.0f);
+            }
+
+            List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(text).ToList();
+            float[] scores = new float[sentences.Count];
+
+            for (int sentenceIdx = 0; sentenceIdx < sentences.Count; sentenceIdx++)
+            {
+                float thisSentenceScore = 0;
+                foreach (KnowledgeGraphNodeId ngram in EnglishWordFeatureExtractor.ExtractNGrams(sentences[sentenceIdx]))
+                {
+                    float t;
+                    if (activatedWords.TryGetValue(ngram, out t))
+                    {
+                        thisSentenceScore += t;
+                    }
+                }
+
+                scores[sentenceIdx] = thisSentenceScore;
+            }
+
+            for (int sentenceStartIdx = 0; sentenceStartIdx < sentences.Count; sentenceStartIdx++)
+            {
+                float thisScore = 0;
+                int charsUsed = 0;
+                int sentenceEndIdx = sentenceStartIdx;
+                while (sentenceEndIdx < sentences.Count && charsUsed <= maxCharLength)
+                {
+                    charsUsed += sentences[sentenceEndIdx].Length;
+                    thisScore += scores[sentenceEndIdx];
+                    sentenceEndIdx++;
+                }
+
+                if (thisScore > bestScore)
+                {
+                    bestScore = thisScore;
+                    returnVal.Clear();
+                    for (int builderSentence = sentenceStartIdx; builderSentence < sentenceEndIdx; builderSentence++)
+                    {
+                        if (returnVal.Length > 0)
+                        {
+                            returnVal.Append(" ");
+                        }
+
+                        returnVal.Append(sentences[builderSentence]);
+                    }
+                }
+            }
+
+            return (returnVal.ToString(), bestScore);
+        }
+
+        //public static GospelParagraph? GetBestMatchParagraph(GospelDocument document, Dictionary<KnowledgeGraphNodeId, float> activatedWords)
         //{
-        //    GospelParagraph? bestParagraph = null;
+        //    GospelParagraph? returnVal = null;
 
         //    if (activatedWords.Count == 0)
         //    {
-        //        // Just return the first paragraph? A substring of it?
-        //        return string.Empty;
+        //        return returnVal;
         //    }
 
         //    float bestScore = -1;
         //    foreach (GospelParagraph para in document.Paragraphs)
         //    {
-        //        List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
-
         //        float thisParaScore = 0;
         //        foreach (KnowledgeGraphNodeId ngram in EnglishWordFeatureExtractor.ExtractNGrams(para.Text))
         //        {
@@ -715,38 +804,6 @@ namespace ScriptureGraph.App
 
         //    return returnVal;
         //}
-
-        public static GospelParagraph? GetBestMatchParagraph(GospelDocument document, Dictionary<KnowledgeGraphNodeId, float> activatedWords)
-        {
-            GospelParagraph? returnVal = null;
-
-            if (activatedWords.Count == 0)
-            {
-                return returnVal;
-            }
-
-            float bestScore = -1;
-            foreach (GospelParagraph para in document.Paragraphs)
-            {
-                float thisParaScore = 0;
-                foreach (KnowledgeGraphNodeId ngram in EnglishWordFeatureExtractor.ExtractNGrams(para.Text))
-                {
-                    float t;
-                    if (activatedWords.TryGetValue(ngram, out t))
-                    {
-                        thisParaScore += t;
-                    }
-                }
-
-                if (thisParaScore > bestScore)
-                {
-                    bestScore = thisParaScore;
-                    returnVal = para;
-                }
-            }
-
-            return returnVal;
-        }
 
         public static string StripHtml(string input)
         {

@@ -1356,7 +1356,7 @@ namespace ScriptureGraph.App
                     GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
                     if (scriptureChapter is ScriptureChapterDocument scriptureDoc)
                     {
-                        CreateUiElementsForScriptureVerseResult(searchResult, scriptureDoc, target);
+                        CreateUiElementsForScriptureVerseResult(searchResult, scriptureDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1368,7 +1368,7 @@ namespace ScriptureGraph.App
                     GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
                     if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
                     {
-                        CreateUiElementsForConferenceParagraphResult(searchResult, conferenceDoc, target);
+                        CreateUiElementsForConferenceParagraphResult(searchResult, conferenceDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1398,20 +1398,17 @@ namespace ScriptureGraph.App
                             Text = $"{conferenceDoc.Speaker} - {conferenceDoc.Title}"
                         };
 
-                        // Use the kicker as the search preview
-                        searchResultLabel.Text = conferenceDoc.Kicker;
-
-                        if (string.IsNullOrEmpty(searchResultLabel.Text))
+                        if (!string.IsNullOrEmpty(conferenceDoc.Kicker))
+                        {
+                            // Use the kicker as the search preview
+                            searchResultLabel.Text = AppCore.SummarizeText(conferenceDoc.Kicker, activatedWords);
+                        }
+                        else
                         {
                             // If no kicker, see if there's a best match paragraph within the document based on the search query
-                            GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(conferenceDoc, activatedWords);
-                            if (bestPara != null)
-                            {
-                                searchResultLabel.Text = bestPara.Text;
-                            }
+                            searchResultLabel.Text = AppCore.GetBestSearchSummary(conferenceDoc, activatedWords);
                         }
 
-                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
@@ -1432,7 +1429,7 @@ namespace ScriptureGraph.App
                     GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
                     if (dictionaryEntry is BibleDictionaryDocument dictionaryDoc)
                     {
-                        CreateUiElementsForBDParagraphResult(searchResult, dictionaryDoc, target);
+                        CreateUiElementsForBDParagraphResult(searchResult, dictionaryDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1463,13 +1460,7 @@ namespace ScriptureGraph.App
                         };
 
                         // See if there's a best match paragraph within the document based on the search query
-                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(dictionaryEntry, activatedWords);
-                        if (bestPara != null)
-                        {
-                            searchResultLabel.Text = bestPara.Text;
-                        }
-
-                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
+                        searchResultLabel.Text = AppCore.GetBestSearchSummary(dictionaryDoc, activatedWords);
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
@@ -1486,8 +1477,8 @@ namespace ScriptureGraph.App
                 }
                 else if (searchResult.Type == KnowledgeGraphNodeType.BookChapter)
                 {
-                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
-                    if (dictionaryEntry is BookChapterDocument chapterDoc)
+                    GospelDocument bookEntry = await _core.LoadDocument(searchResult);
+                    if (bookEntry is BookChapterDocument chapterDoc)
                     {
                         TextBlock searchResultLabel = new TextBlock()
                         {
@@ -1507,19 +1498,12 @@ namespace ScriptureGraph.App
                             Text = $"{Localization.GetBookName(chapterDoc.BookId)} - {chapterDoc.ChapterName}"
                         };
 
-                        // See if there's a best match paragraph within the document based on the search query
-                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(dictionaryEntry, activatedWords);
-                        if (bestPara != null)
-                        {
-                            searchResultLabel.Text = bestPara.Text;
-                        }
-
-                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
+                        searchResultLabel.Text = AppCore.GetBestSearchSummary(chapterDoc, activatedWords);
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
 
-                        TextBlock searchResultHeader = CreateSearchResultHeader($"{chapterDoc.BookId} - {chapterDoc.ChapterName}");
+                        TextBlock searchResultHeader = CreateSearchResultHeader($"{Localization.GetBookName(chapterDoc.BookId)} - {chapterDoc.ChapterName}");
 
                         target.Add(searchResultHeader);
                         target.Add(searchResultLabel);
@@ -1534,7 +1518,7 @@ namespace ScriptureGraph.App
                     GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
                     if (dictionaryEntry is BookChapterDocument chapterDoc)
                     {
-                        CreateUiElementsForBookChapterResult(searchResult, chapterDoc, target);
+                        CreateUiElementsForBookChapterResult(searchResult, chapterDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1543,8 +1527,8 @@ namespace ScriptureGraph.App
                 }
                 else if (searchResult.Type == KnowledgeGraphNodeType.ByuSpeech)
                 {
-                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
-                    if (dictionaryEntry is ByuSpeechDocument speechDoc)
+                    GospelDocument speechEntry = await _core.LoadDocument(searchResult);
+                    if (speechEntry is ByuSpeechDocument speechDoc)
                     {
                         TextBlock searchResultLabel = new TextBlock()
                         {
@@ -1564,14 +1548,7 @@ namespace ScriptureGraph.App
                             Text = $"{speechDoc.Speaker} - {speechDoc.Title}"
                         };
 
-                        // See if there's a best match paragraph within the document based on the search query
-                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(dictionaryEntry, activatedWords);
-                        if (bestPara != null)
-                        {
-                            searchResultLabel.Text = bestPara.Text;
-                        }
-
-                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
+                        searchResultLabel.Text = AppCore.GetBestSearchSummary(speechDoc, activatedWords);
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
@@ -1591,7 +1568,7 @@ namespace ScriptureGraph.App
                     GospelDocument document = await _core.LoadDocument(searchResult);
                     if (document is ByuSpeechDocument speechDoc)
                     {
-                        CreateUiElementsForByuSpeechParaResult(searchResult, speechDoc, target);
+                        CreateUiElementsForByuSpeechParaResult(searchResult, speechDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1600,8 +1577,8 @@ namespace ScriptureGraph.App
                 }
                 else if (searchResult.Type == KnowledgeGraphNodeType.Hymn)
                 {
-                    GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
-                    if (dictionaryEntry is HymnDocument hymnDoc)
+                    GospelDocument hymnEntry = await _core.LoadDocument(searchResult);
+                    if (hymnEntry is HymnDocument hymnDoc)
                     {
                         TextBlock searchResultLabel = new TextBlock()
                         {
@@ -1621,14 +1598,7 @@ namespace ScriptureGraph.App
                             Text = $"Hymns {hymnDoc.SongNum} - {hymnDoc.Title}"
                         };
 
-                        // See if there's a best match paragraph within the document based on the search query
-                        GospelParagraph? bestPara = AppCore.GetBestMatchParagraph(dictionaryEntry, activatedWords);
-                        if (bestPara != null)
-                        {
-                            searchResultLabel.Text = bestPara.Text;
-                        }
-
-                        searchResultLabel.Text = searchResultLabel.Text == null ? string.Empty : AppCore.StripHtml(searchResultLabel.Text);
+                        searchResultLabel.Text = AppCore.GetBestSearchSummary(hymnDoc, activatedWords);
                         searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
@@ -1648,7 +1618,7 @@ namespace ScriptureGraph.App
                     GospelDocument document = await _core.LoadDocument(searchResult);
                     if (document is HymnDocument hymnDoc)
                     {
-                        CreateUiElementsForHymnVerseResult(searchResult, hymnDoc, target);
+                        CreateUiElementsForHymnVerseResult(searchResult, hymnDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1692,12 +1662,17 @@ namespace ScriptureGraph.App
         private void CreateUiElementsForScriptureVerseResult(
             KnowledgeGraphNodeId entityId,
             ScriptureChapterDocument chapter,
-            UIElementCollection target)
+            UIElementCollection target,
+            IDictionary<KnowledgeGraphNodeId, float> activatedWords)
         {
             ScriptureReference parsedRef = new ScriptureReference(entityId);
-            if (!parsedRef.Verse.HasValue)
+            if (string.IsNullOrEmpty(parsedRef.Paragraph))
             {
-                throw new Exception("Scripture reference has no verse data " + entityId.ToString());
+                throw new Exception("Scripture reference has no paragraph data " + entityId.ToString());
+            }
+            if (!parsedRef.Chapter.HasValue)
+            {
+                throw new Exception("Scripture reference has no chapter data " + entityId.ToString());
             }
 
             string? verseLabel = parsedRef.Paragraph;
@@ -1717,7 +1692,7 @@ namespace ScriptureGraph.App
             }
 
             GospelParagraph para = chapter.Paragraphs.First(s => s.ParagraphEntityId.Equals(entityId));
-            string text = $"[{parsedRef.Verse.Value}] {AppCore.StripHtml(para.Text)}";
+            string text = $"[{parsedRef.Paragraph}] {AppCore.StripHtml(para.Text)}";
 
             TextBlock scriptureSearchResult = new TextBlock()
             {
@@ -1730,19 +1705,18 @@ namespace ScriptureGraph.App
                 IsManipulationEnabled = false,
                 Tag = new FastSearchQueryResult()
                 {
-                    DisplayName = $"{ScriptureMetadata.GetNameForBook(parsedRef.Book, LanguageCode.ENGLISH)} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
+                    DisplayName = $"{ScriptureMetadata.GetNameForBook(parsedRef.Book, LanguageCode.ENGLISH)} {parsedRef.Chapter.Value}:{parsedRef.Paragraph}",
                     EntityType = SearchResultEntityType.ScriptureVerse,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = text
+                Text = AppCore.SummarizeText(text, activatedWords) // This line will trim very long scripture verses for the sake of search result previewing
             };
 
-            scriptureSearchResult.Text = scriptureSearchResult.Text == null ? string.Empty : AppCore.StripHtml(scriptureSearchResult.Text);
             scriptureSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
             scriptureSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             scriptureSearchResult.MouseDown += SearchResultPreviewDocument_Click;
 
-            TextBlock searchResultHeader = CreateSearchResultHeader($"{ScriptureMetadata.GetNameForBook(chapter.Book, LanguageCode.ENGLISH)} {chapter.Chapter}");
+            TextBlock searchResultHeader = CreateSearchResultHeader($"{ScriptureMetadata.GetNameForBook(chapter.Book, LanguageCode.ENGLISH)} {chapter.Chapter}:{parsedRef.Paragraph}");
             target.Add(searchResultHeader);
             target.Add(scriptureSearchResult);
         }
@@ -1750,7 +1724,8 @@ namespace ScriptureGraph.App
         private void CreateUiElementsForConferenceParagraphResult(
             KnowledgeGraphNodeId entityId,
             ConferenceTalkDocument document,
-            UIElementCollection target)
+            UIElementCollection target,
+            IDictionary<KnowledgeGraphNodeId, float> activatedWords)
         {
             GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
             if (targetPara == null)
@@ -1775,7 +1750,7 @@ namespace ScriptureGraph.App
                     EntityType = SearchResultEntityType.ConferenceTalk,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = AppCore.StripHtml(targetPara.Text)
+                Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
@@ -1803,7 +1778,8 @@ namespace ScriptureGraph.App
         private void CreateUiElementsForBDParagraphResult(
             KnowledgeGraphNodeId entityId,
             BibleDictionaryDocument document,
-            UIElementCollection target)
+            UIElementCollection target,
+            IDictionary<KnowledgeGraphNodeId, float> activatedWords)
         {
             GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
             if (targetPara == null)
@@ -1826,7 +1802,7 @@ namespace ScriptureGraph.App
                     EntityType = SearchResultEntityType.BibleDictionary,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = AppCore.StripHtml(targetPara.Text)
+                Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
@@ -1842,7 +1818,8 @@ namespace ScriptureGraph.App
         private void CreateUiElementsForBookChapterResult(
             KnowledgeGraphNodeId entityId,
             BookChapterDocument document,
-            UIElementCollection target)
+            UIElementCollection target,
+            IDictionary<KnowledgeGraphNodeId, float> activatedWords)
         {
             GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
             if (targetPara == null)
@@ -1865,7 +1842,7 @@ namespace ScriptureGraph.App
                     EntityType = SearchResultEntityType.Topic, // FIXME wrong
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = AppCore.StripHtml(targetPara.Text)
+                Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
@@ -1881,7 +1858,8 @@ namespace ScriptureGraph.App
         private void CreateUiElementsForByuSpeechParaResult(
             KnowledgeGraphNodeId entityId,
             ByuSpeechDocument document,
-            UIElementCollection target)
+            UIElementCollection target,
+            IDictionary<KnowledgeGraphNodeId, float> activatedWords)
         {
             GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
             if (targetPara == null)
@@ -1904,7 +1882,7 @@ namespace ScriptureGraph.App
                     EntityType = SearchResultEntityType.ByuSpeech,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = AppCore.StripHtml(targetPara.Text)
+                Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
@@ -1920,7 +1898,8 @@ namespace ScriptureGraph.App
         private void CreateUiElementsForHymnVerseResult(
             KnowledgeGraphNodeId entityId,
             HymnDocument document,
-            UIElementCollection target)
+            UIElementCollection target,
+            IDictionary<KnowledgeGraphNodeId, float> activatedWords)
         {
             GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
             if (targetPara == null)
@@ -1943,7 +1922,7 @@ namespace ScriptureGraph.App
                     EntityType = SearchResultEntityType.Hymn,
                     EntityIds = new KnowledgeGraphNodeId[] { entityId }
                 },
-                Text = AppCore.StripHtml(targetPara.Text)
+                Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
 
             conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
