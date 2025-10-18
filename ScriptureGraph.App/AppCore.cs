@@ -742,6 +742,16 @@ namespace ScriptureGraph.App
                 scores[sentenceIdx] = thisSentenceScore;
             }
 
+            // tweak scores to discourage matches on very short sentences - these often come out of scripture citations
+            // that get misinterpreted by wordbreaker and don't look very good on output
+            for (int c = 0; c < scores.Length; c++)
+            {
+                if (sentences[c].Length < 20)
+                {
+                    scores[c] *= 0.3f;
+                }
+            }
+
             for (int sentenceStartIdx = 0; sentenceStartIdx < sentences.Count; sentenceStartIdx++)
             {
                 float thisScore = 0;
@@ -758,6 +768,15 @@ namespace ScriptureGraph.App
                 {
                     bestScore = thisScore;
                     returnVal.Clear();
+
+                    // See if we can rewind a few sentences and still stay within the char limit (if the highest score is right at the end for some reason)
+                    // this should actually be impossible
+                    //while (sentenceStartIdx > 0 && charsUsed + sentences[sentenceStartIdx - 1].Length <= maxCharLength)
+                    //{
+                    //    sentenceStartIdx--;
+                    //    charsUsed += sentences[sentenceStartIdx].Length;
+                    //}
+
                     for (int builderSentence = sentenceStartIdx; builderSentence < sentenceEndIdx; builderSentence++)
                     {
                         if (returnVal.Length > 0)
