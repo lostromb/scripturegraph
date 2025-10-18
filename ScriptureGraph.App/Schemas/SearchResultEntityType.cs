@@ -19,6 +19,7 @@ namespace ScriptureGraph.App.Schemas
         BibleDictionary,
         ByuSpeech,
         Hymn,
+        Proclamation,
         Book_ATGQ,
         Book_MD,
         Book_Messiah1,

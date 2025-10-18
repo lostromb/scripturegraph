@@ -14,6 +14,7 @@ namespace ScriptureGraph.Core.Schemas.Documents
         GeneralConferenceTalk,
         GospelBookChapter,
         ByuSpeech,
-        Hymn
+        Hymn,
+        Proclamation,
     }
 }

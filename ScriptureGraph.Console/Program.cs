@@ -15,6 +15,7 @@ using ScriptureGraph.Core.Graph;
 using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training;
 using ScriptureGraph.Core.Training.Extractors;
+using System;
 using System.Configuration;
 using System.Diagnostics;
 using System.IO.Compression;
@@ -118,9 +119,9 @@ namespace ScriptureGraph.Console
             //BookExtractorMD.ExtractDocuments(_epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger).Count();
 
             //await Test(logger);
-            //await ParseDocuments(logger);
-            //await BuildSearchIndex(logger);
-            //await BuildUniversalGraph(logger);
+            await ParseDocuments(logger);
+            await BuildSearchIndex(logger);
+            await BuildUniversalGraph(logger);
 
             //logger.Log("Compressing graph");
             //CompressFile(_runtimeFileSystem, new VirtualPath("dev.graph"));
@@ -131,6 +132,11 @@ namespace ScriptureGraph.Console
             //{
             //    UnsafeReadOnlyKnowledgeGraph graph = await UnsafeReadOnlyKnowledgeGraph.Load(searchGraphIn, graphHeap);
             //}
+
+            //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/the-living-christ-the-testimony-of-the-apostles/the-living-christ-the-testimony-of-the-apostles?lang=eng");
+            //Uri talkUrl = new Uri("https://www.churchofjesuschrist.org/study/scriptures/the-family-a-proclamation-to-the-world/the-family-a-proclamation-to-the-world?lang=eng");
+            //string webPage = new WebClient().DownloadString(talkUrl);
+            //ProclamationsFeatureExtractor.ParseInternal(webPage, talkUrl, logger);
         }
 
         private static async void DownloadSpeechAndEvaluateScore(string url, ILogger logger)
@@ -344,8 +350,8 @@ namespace ScriptureGraph.Console
         private static async Task<TrainingKnowledgeGraph> BuildUniversalGraph(ILogger logger)
         {
             TrainingKnowledgeGraph graph;
-            VirtualPath outputModelFile = new VirtualPath("dev.graph");
-            VirtualPath inputModelFile = new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN.graph");
+            VirtualPath outputModelFile = new VirtualPath("dev2.graph");
+            VirtualPath inputModelFile = new VirtualPath("dev.graph");
             WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
 
             if (_runtimeFileSystem.Exists(inputModelFile))

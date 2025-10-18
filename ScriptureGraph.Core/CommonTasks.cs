@@ -48,6 +48,7 @@ namespace ScriptureGraph.Core
                 //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
                 //BookExtractorATGQ.ExtractFeatures(
                 //    epubFileSystem,
@@ -59,10 +60,10 @@ namespace ScriptureGraph.Core
                 //    new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"),
                 //    logger, startGraph.Train, threadPool);
 
-                BookExtractorMessiah.ExtractFeatures(
-                    epubFileSystem,
-                    new VirtualPath(@"The Messiah Series_ Promised Me - Bruce R. McConkie.epub"),
-                    logger, startGraph.Train, threadPool);
+                //BookExtractorMessiah.ExtractFeatures(
+                //    epubFileSystem,
+                //    new VirtualPath(@"The Messiah Series_ Promised Me - Bruce R. McConkie.epub"),
+                //    logger, startGraph.Train, threadPool);
 
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromHours(2)))
                 {
@@ -104,6 +105,7 @@ namespace ScriptureGraph.Core
                 await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
                 BookExtractorATGQ.ExtractSearchIndexFeatures(
                     epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
@@ -149,14 +151,15 @@ namespace ScriptureGraph.Core
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
                 logger.Log("Processing documents from webcrawler sources");
-                //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawler, logger);
-                //await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawler, logger);
+                await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
-                //Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
-                //Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
+                Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
+                Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
                 Book_Messiah_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"The Messiah Series_ Promised Me - Bruce R. McConkie.epub"), logger);
 
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(1)))
@@ -260,6 +263,12 @@ namespace ScriptureGraph.Core
                     {
                         logger.Log($"Featurizing hymn {page.Url.AbsolutePath}");
                         HymnsFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, _trainingGraph.Train);
+                    }
+                    else if (page.Url.AbsolutePath.Contains("the-living-christ-the-testimony-of-the-apostles") ||
+                        page.Url.AbsolutePath.Contains("the-family-a-proclamation-to-the-world"))
+                    {
+                        logger.Log($"Featurizing proclamation {page.Url.AbsolutePath}");
+                        ProclamationsFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, _trainingGraph.Train);
                     }
                     else
                     {
@@ -366,6 +375,12 @@ namespace ScriptureGraph.Core
                     {
                         logger.Log($"Building search index from hymn {page.Url.AbsolutePath}");
                         HymnsFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
+                    }
+                    else if (page.Url.AbsolutePath.Contains("the-living-christ-the-testimony-of-the-apostles") ||
+                        page.Url.AbsolutePath.Contains("the-family-a-proclamation-to-the-world"))
+                    {
+                        logger.Log($"Building search index from proclamation {page.Url.AbsolutePath}");
+                        ProclamationsFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
                     }
                     else
                     {
@@ -511,6 +526,21 @@ namespace ScriptureGraph.Core
                         else
                         {
                             fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\hymns\\{FilePathSanitizer.SanitizeFileName(structuredDoc.SongId)}.json.br");
+                        }
+                    }
+                    else if (page.Url.AbsolutePath.Contains("the-living-christ-the-testimony-of-the-apostles") ||
+                        page.Url.AbsolutePath.Contains("the-family-a-proclamation-to-the-world"))
+                    {
+                        logger.Log($"Parsing proclamation {page.Url.AbsolutePath}");
+                        ProclamationDocument? structuredDoc = ProclamationsFeatureExtractor.ParseDocument(page.Html, page.Url, logger);
+                        parsedDoc = structuredDoc;
+                        if (structuredDoc == null)
+                        {
+                            //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                        }
+                        else
+                        {
+                            fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\proc\\{FilePathSanitizer.SanitizeFileName(structuredDoc.ProclamationId)}.json.br");
                         }
                     }
                     else
@@ -731,6 +761,30 @@ namespace ScriptureGraph.Core
             foreach (Uri songPage in HymnsFeatureExtractor.GetAllSongUris())
             {
                 WebCrawler.CrawledPage? page = await crawler.DirectDownload(songPage, logger);
+                if (page != null)
+                {
+                    try
+                    {
+                        await pageAction(page, logger);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Log(e);
+                    }
+                }
+            }
+        }
+
+        private static async Task CrawlProclamations(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        {
+            logger = logger.Clone("WebCrawler-Proclamations");
+            foreach (Uri procPage in new Uri[]
+            {
+                new Uri("https://www.churchofjesuschrist.org/study/scriptures/the-living-christ-the-testimony-of-the-apostles/the-living-christ-the-testimony-of-the-apostles?lang=eng"),
+                new Uri("https://www.churchofjesuschrist.org/study/scriptures/the-family-a-proclamation-to-the-world/the-family-a-proclamation-to-the-world?lang=eng"),
+            })
+            {
+                WebCrawler.CrawledPage? page = await crawler.DirectDownload(procPage, logger);
                 if (page != null)
                 {
                     try

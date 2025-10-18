@@ -188,7 +188,7 @@ namespace ScriptureGraph.Core.Training
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Proclamation, id);
         }
 
-        public static KnowledgeGraphNodeId ProclamationParagraph(string id, int paragraph)
+        public static KnowledgeGraphNodeId ProclamationParagraph(string id, string paragraph)
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Proclamation, $"{id}|{paragraph}");
         }

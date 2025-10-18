@@ -282,6 +282,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                 string talkUrlId = urlParse.Groups[2].Value;
                 string talkId = $"{speakerUrlId}|{talkUrlId}";
 
+                if (talkId.Equals("james-e-faust|church"))
+                {
+                    // skip talks that were given multiple times
+                    return null;
+                }
+
                 HtmlDocument html = new HtmlDocument();
                 html.LoadHtml(htmlPage);
 
@@ -398,7 +404,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 int subheaderNum = 1;
                 int paraNum = 1;
                 navigator.MoveToRoot();
-                iter = navigator.Select("//div[@class=\"single-speech__content\"]/p | //div[@class=\"single-speech__content\"]/h2");
+                iter = navigator.Select("//div[@class=\"single-speech__content\"]/p | //div[@class=\"single-speech__content\"]/h2 | //div[@class=\"single-speech__content\"]//li");
                 while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
                 {
                     string content = currentNav.CurrentNode.InnerHtml;
@@ -422,6 +428,24 @@ namespace ScriptureGraph.Core.Training.Extractors
                             Class = "subheading",
                             Text = parsedHtml.TextWithInlineFormatTags,
                         };
+
+                        returnVal.Paragraphs.Add(para);
+                    }
+                    else if (string.Equals("li", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        //Console.WriteLine($"BULLET POINT");
+                        //Console.WriteLine(parsedHtml.TextWithInlineFormatTags);
+                        Paragraph para = new Paragraph()
+                        {
+                            ParaEntityId = FeatureToNodeMapping.ByuSpeechParagraph(speakerUrlId, talkUrlId, paraNum++),
+                            Class = "body",
+                            Text = $" - {parsedHtml.TextWithInlineFormatTags}",
+                        };
+
+                        foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(content, logger, LanguageCode.ENGLISH))
+                        {
+                            para.References.Add(scriptureRef);
+                        }
 
                         returnVal.Paragraphs.Add(para);
                     }

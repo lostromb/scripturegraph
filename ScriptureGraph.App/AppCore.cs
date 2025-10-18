@@ -678,6 +678,9 @@ namespace ScriptureGraph.App
                 case KnowledgeGraphNodeType.Hymn:
                 case KnowledgeGraphNodeType.HymnVerse:
                     return SearchResultEntityType.Hymn;
+                case KnowledgeGraphNodeType.Proclamation:
+                case KnowledgeGraphNodeType.ProclamationParagraph:
+                    return SearchResultEntityType.Proclamation;
                 default:
                     return SearchResultEntityType.Unknown;
             }

@@ -691,6 +691,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                 return false;
             }
 
+            if (authorFullName.Length > 70)
+            {
+                //"The First Presidency and Council of the Twelve Apostles of The Church of Jesus Christ of Latter-day Saints"
+                // This applies specifically to the family proclamation, oct 1995, which we parse separately
+                return false;
+            }
+
             return true;
         }
 

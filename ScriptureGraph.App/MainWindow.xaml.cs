@@ -257,6 +257,8 @@ namespace ScriptureGraph.App
                     return "BYU Speeches";
                 case SearchResultEntityType.Hymn:
                     return "Hymns";
+                case SearchResultEntityType.Proclamation:
+                    return "Proclamations";
                 default:
                     return "UNKNOWN_TYPE";
             }
@@ -1144,6 +1146,9 @@ namespace ScriptureGraph.App
                 case GospelDocumentType.GospelBookChapter:
                     BookChapterDocument chapterDocument = (BookChapterDocument)document;
                     return $"{Localization.GetBookName(chapterDocument.BookId)} - {chapterDocument.ChapterName}";
+                case GospelDocumentType.Proclamation:
+                    ProclamationDocument procDocument = (ProclamationDocument)document;
+                    return procDocument.Title;
                 default:
                     return "UNKNOWN_DOCUMENT";
             }
@@ -1625,6 +1630,56 @@ namespace ScriptureGraph.App
                         throw new Exception("Invalid loaded document type: expected HymnDocument");
                     }
                 }
+                else if (searchResult.Type == KnowledgeGraphNodeType.Proclamation)
+                {
+                    GospelDocument speechEntry = await _core.LoadDocument(searchResult);
+                    if (speechEntry is ProclamationDocument procDoc)
+                    {
+                        TextBlock searchResultLabel = new TextBlock()
+                        {
+                            Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                            FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                            FontSize = (double)TryFindResource("Para_FontSize_Verse"),
+                            TextWrapping = TextWrapping.Wrap,
+                            TextAlignment = TextAlignment.Justify,
+                            Padding = new Thickness(5),
+                            IsManipulationEnabled = false,
+                            Tag = new FastSearchQueryResult()
+                            {
+                                DisplayName = procDoc.Title,
+                                EntityType = SearchResultEntityType.Proclamation,
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                            },
+                            Text = procDoc.Title
+                        };
+
+                        searchResultLabel.Text = AppCore.GetBestSearchSummary(procDoc, activatedWords);
+                        searchResultLabel.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+                        searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+                        searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
+
+                        TextBlock searchResultHeader = CreateSearchResultHeader(procDoc.Title);
+
+                        target.Add(searchResultHeader);
+                        target.Add(searchResultLabel);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected ProclamationDocument");
+                    }
+                }
+                else if (searchResult.Type == KnowledgeGraphNodeType.ProclamationParagraph)
+                {
+                    GospelDocument document = await _core.LoadDocument(searchResult);
+                    if (document is ProclamationDocument procDoc)
+                    {
+                        CreateUiElementsForProclamationParaResult(searchResult, procDoc, target, activatedWords);
+                    }
+                    else
+                    {
+                        throw new Exception("Invalid loaded document type: expected ProclamationDocument");
+                    }
+                }
                 else
                 {
                     TextBlock placeholderSearchResult = new TextBlock()
@@ -1930,6 +1985,46 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
             TextBlock searchResultHeader = CreateSearchResultHeader($"Hymns {document.SongNum} - {document.Title}");
+
+            target.Add(searchResultHeader);
+            target.Add(conferenceTalkResult);
+        }
+
+        private void CreateUiElementsForProclamationParaResult(
+            KnowledgeGraphNodeId entityId,
+            ProclamationDocument document,
+            UIElementCollection target,
+            IDictionary<KnowledgeGraphNodeId, float> activatedWords)
+        {
+            GospelParagraph? targetPara = document.Paragraphs.FirstOrDefault(s => s.ParagraphEntityId.Equals(entityId));
+            if (targetPara == null)
+            {
+                throw new Exception("Verse reference to invalid paragraph " + entityId.ToString());
+            }
+
+            TextBlock conferenceTalkResult = new TextBlock()
+            {
+                Background = (Brush)TryFindResource("DocumentReaderPageBackground"),
+                FontFamily = (FontFamily)TryFindResource("Para_FontFamily_Verse"),
+                FontSize = (double)TryFindResource("Para_FontSize_Verse"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Justify,
+                Padding = new Thickness(5),
+                IsManipulationEnabled = false,
+                Tag = new FastSearchQueryResult()
+                {
+                    DisplayName = document.Title,
+                    EntityType = SearchResultEntityType.Proclamation,
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                },
+                Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
+            };
+
+            conferenceTalkResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
+            conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
+            conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
+
+            TextBlock searchResultHeader = CreateSearchResultHeader(document.Title);
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);
