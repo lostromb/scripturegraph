@@ -107,8 +107,19 @@ namespace ScriptureGraph.Tests
         public void TestOmniparser_FamilyProc3() => TestParserOutput("The family proclamation", FeatureToNodeMapping.Proclamation("fam"));
         [TestMethod]
         public void TestOmniparser_FamilyProc4() => TestParserOutput("The Family: Proclamation to the World", FeatureToNodeMapping.Proclamation("fam"));
+        [TestMethod]
+        public void TestOmniparser_FamilyProc5() => TestParserOutput("Proclamation on The Family", FeatureToNodeMapping.Proclamation("fam"));
 
 
+        [TestMethod]
+        public void TestOmniparser_ScriptureUrl_ConferenceLink() => TestParserOutput(
+            "<a class=\"scripture-ref\" href=\"/study/general-conference/2021/04/49nelson?lang=eng\">Russell M. Nelson</a>",
+            FeatureToNodeMapping.ConferenceTalk(2021, Core.Schemas.ConferencePhase.April, "49nelson"));
+
+        [TestMethod]
+        public void TestOmniparser_ScriptureUrl_LiahonaLink() => TestParserOutput(
+            "https://www.churchofjesuschrist.org/study/liahona/2021/05/49nelson?lang=eng",
+            FeatureToNodeMapping.ConferenceTalk(2021, Core.Schemas.ConferencePhase.April, "49nelson"));
 
         private static void TestParserOutput(string input, params KnowledgeGraphNodeId[] expectedOutput)
         {

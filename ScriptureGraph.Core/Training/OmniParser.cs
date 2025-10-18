@@ -1,5 +1,6 @@
 ﻿using Durandal.Common.Logger;
 using Durandal.Common.NLP.Language;
+using ScriptureGraph.Core.Schemas;
 using ScriptureGraph.Core.Training.Extractors;
 using System.Text.RegularExpressions;
 
@@ -14,7 +15,10 @@ namespace ScriptureGraph.Core.Training
         private static readonly Regex EXTRACTOR_LIVING_CHRIST_ENG = new Regex("(the-living-christ-the-testimony-of-the-apostles|The Living Christ.{1,6}(Testimony|Proclamation|Declaration|Document)(\\W|$))", RegexOptions.IgnoreCase);
 
         // (the-family-a-proclamation-to-the-world|The Family.{1,4}Proclamation)
-        private static readonly Regex EXTRACTOR_FAMILY_PROC_ENG = new Regex("(the-family-a-proclamation-to-the-world|The Family.{1,4}Proclamation)", RegexOptions.IgnoreCase);
+        private static readonly Regex EXTRACTOR_FAMILY_PROC_ENG = new Regex("(the-family-a-proclamation-to-the-world|The Family.{1,4}Proclamation|Proclamation.{1,7}The Family)", RegexOptions.IgnoreCase);
+
+        //\/study\/(?:general-conference|liahona)\/(\d+)\/(\d+)\/(.+?)(?:\?|$)
+        private static readonly Regex EXTRACTOR_CONFERENCE_TALK = new Regex("\\/study\\/(?:general-conference|liahona)\\/(\\d+)\\/(\\d+)\\/(.+?)(?:\\?|$)", RegexOptions.IgnoreCase);
 
         public static IEnumerable<OmniParserOutput> ParseHtml(string html, ILogger logger, LanguageCode language)
         {
@@ -59,6 +63,23 @@ namespace ScriptureGraph.Core.Training
                 if (!dedupOutputs.Contains(node))
                 {
                     dedupOutputs.Add(node);
+                }
+            }
+
+            // Parse conference talks, either from /general-conference or /liahona from the month following
+            foreach (Match m in EXTRACTOR_CONFERENCE_TALK.Matches(html))
+            {
+                int year = int.Parse(m.Groups[1].Value);
+                int month = int.Parse(m.Groups[2].Value);
+                string talkId = m.Groups[3].Value;
+                Conference conf = new Conference(month <= 6 ? ConferencePhase.April : ConferencePhase.October, year);
+                if (ConferenceMetadata.DoesTalkExist(conf, talkId))
+                {
+                    OmniParserOutput confNode = new OmniParserOutput(FeatureToNodeMapping.ConferenceTalk(conf.Year, conf.Phase, talkId));
+                    if (!dedupOutputs.Contains(confNode))
+                    {
+                        dedupOutputs.Add(confNode);
+                    }
                 }
             }
 

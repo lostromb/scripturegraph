@@ -57,7 +57,6 @@ namespace ScriptureGraph.App
                 throw new DirectoryNotFoundException(contentPath);
             }
 #endif
-            contentPath = @"D:\Code\scripturegraph\runtime";
 
             _fileSystem = new RealFileSystem(_coreLogger.Clone("FileSystem"), contentPath);
             _documentLibrary = new Dictionary<KnowledgeGraphNodeId, VirtualPath>();
@@ -71,7 +70,7 @@ namespace ScriptureGraph.App
             Stopwatch timer = Stopwatch.StartNew();
             VirtualPath smallGraphFileName = new VirtualPath("searchindex.graph.br");
             VirtualPath nameLookupFileName = new VirtualPath("entitynames_eng.map");
-            VirtualPath largeGraphFileName = new VirtualPath("dev.graph");
+            VirtualPath largeGraphFileName = new VirtualPath("eng.graph");
             VirtualPath largeGraphFileNameBr = new VirtualPath(largeGraphFileName.Name + ".br");
 
             if (!(await _fileSystem.ExistsAsync(smallGraphFileName)))
@@ -681,6 +680,41 @@ namespace ScriptureGraph.App
                     return SearchResultEntityType.Unknown;
             }
         }
+
+        //public static string GetBestSearchSummary(GospelDocument document, Dictionary<KnowledgeGraphNodeId, float> activatedWords)
+        //{
+        //    GospelParagraph? bestParagraph = null;
+
+        //    if (activatedWords.Count == 0)
+        //    {
+        //        // Just return the first paragraph? A substring of it?
+        //        return string.Empty;
+        //    }
+
+        //    float bestScore = -1;
+        //    foreach (GospelParagraph para in document.Paragraphs)
+        //    {
+        //        List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
+
+        //        float thisParaScore = 0;
+        //        foreach (KnowledgeGraphNodeId ngram in EnglishWordFeatureExtractor.ExtractNGrams(para.Text))
+        //        {
+        //            float t;
+        //            if (activatedWords.TryGetValue(ngram, out t))
+        //            {
+        //                thisParaScore += t;
+        //            }
+        //        }
+
+        //        if (thisParaScore > bestScore)
+        //        {
+        //            bestScore = thisParaScore;
+        //            returnVal = para;
+        //        }
+        //    }
+
+        //    return returnVal;
+        //}
 
         public static GospelParagraph? GetBestMatchParagraph(GospelDocument document, Dictionary<KnowledgeGraphNodeId, float> activatedWords)
         {

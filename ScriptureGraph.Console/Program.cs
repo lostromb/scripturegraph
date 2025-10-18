@@ -118,12 +118,12 @@ namespace ScriptureGraph.Console
             //BookExtractorMD.ExtractDocuments(_epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger).Count();
 
             //await Test(logger);
-            await ParseDocuments(logger);
-            await BuildSearchIndex(logger);
-            await BuildUniversalGraph(logger);
+            //await ParseDocuments(logger);
+            //await BuildSearchIndex(logger);
+            //await BuildUniversalGraph(logger);
 
             //logger.Log("Compressing graph");
-            //CompressFile(_runtimeFileSystem, new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN.graph"));
+            //CompressFile(_runtimeFileSystem, new VirtualPath("dev.graph"));
             //DecompressFile(_runtimeFileSystem, new VirtualPath("big.graph.br"));
 
             //using (NativeMemoryHeap graphHeap = new NativeMemoryHeap())
