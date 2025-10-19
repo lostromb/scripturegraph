@@ -170,7 +170,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                 // Parse the actual correct topicId from the page
                 KnowledgeGraphNodeId dictEntryNodeId = FeatureToNodeMapping.BibleDictionaryTopic(topicId);
-                nameIndex.Mapping[dictEntryNodeId] = prettyTopicString;
+                nameIndex.EntityIdToPlainName[dictEntryNodeId] = prettyTopicString;
 
                 do
                 {

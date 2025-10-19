@@ -144,7 +144,7 @@ namespace ScriptureGraph.App
         private Task UpdateSearchResultsInBackground(IRealTimeProvider realTime)
         {
             // BACKGROUND THREAD
-            List<FastSearchQueryResult> searchResults = _core.RunFastSearchQuery(_latestSearchQuery).ToList();
+            IList<FastSearchQueryResult> searchResults = _core.RunFastSearchQuery(_latestSearchQuery);
 
             // UI THREAD
             Dispatcher.Invoke(() =>
@@ -155,9 +155,26 @@ namespace ScriptureGraph.App
                     SearchFlyoutList.Visibility = Visibility.Visible;
                 }
 
+                // See which results may need disambiguation
+                ISet<string> resultsNeedingDisambiguation = new HashSet<string>();
+                ISet<string> resultNamesSeen = new HashSet<string>();
+                foreach (FastSearchQueryResult searchResult in searchResults)
+                {
+                    string searchResultId = $"{(int)searchResult.EntityType} {searchResult.DisplayName}";
+                    if (resultNamesSeen.Contains(searchResultId))
+                    {
+                        resultsNeedingDisambiguation.Add(searchResultId);
+                    }
+                    else
+                    {
+                        resultNamesSeen.Add(searchResultId);
+                    }
+                }
+
                 foreach (FastSearchQueryResult searchResult in searchResults)
                 {
                     _core.CoreLogger.Log($"{searchResult.DisplayName} ({searchResult.EntityType.ToString()}) - {string.Join(",", searchResult.EntityIds.Length)}");
+                    string searchResultId = $"{(int)searchResult.EntityType} {searchResult.DisplayName}";
                     StackPanel horizontalPanel = new StackPanel()
                     {
                         Orientation = Orientation.Horizontal,
@@ -195,12 +212,18 @@ namespace ScriptureGraph.App
                         Orientation = Orientation.Vertical,
                     };
 
+                    string displayText = searchResult.DisplayName;
+                    if (resultsNeedingDisambiguation.Contains(searchResultId) && !string.IsNullOrEmpty(searchResult.DisambigDisplayName))
+                    {
+                        displayText = searchResult.DisambigDisplayName;
+                    }
+
                     TextBlock nameBlock = new TextBlock()
                     {
                         Margin = new Thickness(10, 0, 0, 0),
                         FontSize = 16,
                         VerticalAlignment = VerticalAlignment.Center,
-                        Text = searchResult.DisplayName,
+                        Text = displayText,
                     };
 
                     TextBlock typeBlock = new TextBlock()
@@ -977,7 +1000,8 @@ namespace ScriptureGraph.App
                 string title = _lastRightClickedParagraph.Value.ToString() ?? "NULL";
                 if (_lastRightClickedParagraph.Value.Type == KnowledgeGraphNodeType.ScriptureVerse)
                 {
-                    title = new ScriptureReference(_lastRightClickedParagraph.Value).ToString() ?? "NULL";
+                    ScriptureReference footnoteScripture = new ScriptureReference(_lastRightClickedParagraph.Value);
+                    title = $"{ScriptureMetadataEnglish.GetNameForBook(footnoteScripture.Book)} {footnoteScripture.Chapter!.Value}:{footnoteScripture.Verse!.Value}";
                 }
 
                 // todo: better formatting of conference talks, etc.
@@ -1397,6 +1421,7 @@ namespace ScriptureGraph.App
                             Tag = new FastSearchQueryResult()
                             {
                                 DisplayName = $"{conferenceDoc.Title}",
+                                DisambigDisplayName = $"{conferenceDoc.Title}",
                                 EntityType = SearchResultEntityType.ConferenceTalk,
                                 EntityIds = new KnowledgeGraphNodeId[] { searchResult }
                             },
@@ -1458,6 +1483,7 @@ namespace ScriptureGraph.App
                             Tag = new FastSearchQueryResult()
                             {
                                 DisplayName = dictionaryDoc.Title,
+                                DisambigDisplayName = dictionaryDoc.Title,
                                 EntityType = SearchResultEntityType.BibleDictionary,
                                 EntityIds = new KnowledgeGraphNodeId[] { searchResult }
                             },
@@ -1694,6 +1720,7 @@ namespace ScriptureGraph.App
                         Tag = new FastSearchQueryResult()
                         {
                             DisplayName = "UNKNOWN",
+                            DisambigDisplayName = "UNKNOWN",
                             EntityType = SearchResultEntityType.Unknown,
                             EntityIds = new KnowledgeGraphNodeId[] { searchResult }
                         },

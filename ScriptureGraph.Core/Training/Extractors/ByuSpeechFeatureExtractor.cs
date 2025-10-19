@@ -145,8 +145,16 @@ namespace ScriptureGraph.Core.Training.Extractors
                         TrainingFeatureType.WordDesignation));
                 }
 
-                nameIndex.Mapping[parseResult.SpeakerEntityId] = parseResult.SpeakerName;
-                nameIndex.Mapping[parseResult.DocumentEntityId] = parseResult.TalkTitle;
+                nameIndex.EntityIdToPlainName[parseResult.SpeakerEntityId] = parseResult.SpeakerName;
+                nameIndex.EntityIdToPlainName[parseResult.DocumentEntityId] = parseResult.TalkTitle;
+                if (parseResult.SpeechDate.HasValue)
+                {
+                    nameIndex.EntityIdToDisambiguationName[parseResult.DocumentEntityId] = $"{parseResult.TalkTitle} ({parseResult.SpeechDate.Value.Year} {parseResult.SpeakerName})";
+                }
+                else
+                {
+                    nameIndex.EntityIdToDisambiguationName[parseResult.DocumentEntityId] = $"{parseResult.TalkTitle} ({parseResult.SpeakerName})";
+                }
 
                 // Extract ngrams from the speaker's name and associate it with the speaker
                 foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(parseResult.SpeakerName))

@@ -112,7 +112,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         TrainingFeatureType.WordDesignation));
                 }
 
-                nameIndex.Mapping[parseResult.DocumentEntityId] = parseResult.DocumentTitle;
+                nameIndex.EntityIdToPlainName[parseResult.DocumentEntityId] = parseResult.DocumentTitle;
             }
             catch (Exception e)
             {

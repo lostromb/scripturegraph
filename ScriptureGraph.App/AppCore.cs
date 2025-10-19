@@ -449,7 +449,7 @@ namespace ScriptureGraph.App
             }
 
             string? prettyName;
-            if (_entityNameLookup.Mapping.TryGetValue(MapEntityIdToDocumentPartial(entityId), out prettyName))
+            if (_entityNameLookup.EntityIdToPlainName.TryGetValue(MapEntityIdToDocumentPartial(entityId), out prettyName))
             {
                 // todo handle paragraphs within conference talks and BD entries
                 return prettyName;
@@ -478,19 +478,21 @@ namespace ScriptureGraph.App
             return "UNKNOWN_NAME";
         }
 
-        public IEnumerable<FastSearchQueryResult> RunFastSearchQuery(string queryString, int maxResults = 10)
+        public IList<FastSearchQueryResult> RunFastSearchQuery(string queryString, int maxResults = 10)
         {
-            yield return new FastSearchQueryResult()
+            List<FastSearchQueryResult> returnVal = new List<FastSearchQueryResult>();
+            returnVal.Add(new FastSearchQueryResult()
             {
                 EntityIds = EnglishWordFeatureExtractor.ExtractNGrams(queryString).ToArray(),
                 EntityType = SearchResultEntityType.KeywordPhrase,
-                DisplayName = queryString
-            };
+                DisplayName = queryString,
+                DisambigDisplayName = queryString
+            });
 
             if (_smallSearchIndex == null || _entityNameLookup == null)
             {
                 _coreLogger.Log("Search index is not loaded", LogLevel.Err);
-                yield break;
+                return returnVal;
             }
 
             // Check for scripture references
@@ -501,30 +503,33 @@ namespace ScriptureGraph.App
                 string formattedBookName = ScriptureMetadata.GetNameForBook(parsedRef.Book, LanguageCode.ENGLISH);
                 if (parsedRef.Chapter.HasValue && parsedRef.Verse.HasValue)
                 {
-                    yield return new FastSearchQueryResult()
+                    returnVal.Add(new FastSearchQueryResult()
                     {
                         EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureVerse(parsedRef.Book, parsedRef.Chapter.Value, parsedRef.Verse.Value) },
                         EntityType = SearchResultEntityType.ScriptureVerse,
-                        DisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}"
-                    };
+                        DisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
+                        DisambigDisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}"
+                    });
                 }
                 else if (parsedRef.Chapter.HasValue && !parsedRef.Verse.HasValue)
                 {
-                    yield return new FastSearchQueryResult()
+                    returnVal.Add(new FastSearchQueryResult()
                     {
                         EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureChapter(parsedRef.Book, parsedRef.Chapter.Value) },
                         EntityType = SearchResultEntityType.ScriptureChapter,
-                        DisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}"
-                    };
+                        DisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}",
+                        DisambigDisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}"
+                    });
                 }
                 else
                 {
-                    yield return new FastSearchQueryResult()
+                    returnVal.Add(new FastSearchQueryResult()
                     {
                         EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureBook(parsedRef.Book) },
                         EntityType = SearchResultEntityType.ScriptureBook,
-                        DisplayName = formattedBookName
-                    };
+                        DisplayName = formattedBookName,
+                        DisambigDisplayName = formattedBookName
+                    });
                 }
 
                 //yield break;
@@ -549,7 +554,7 @@ namespace ScriptureGraph.App
                 if (DoesSameNameMappingApply(result.Key.Type))
                 {
                     string? prettyName;
-                    if (_entityNameLookup.Mapping.TryGetValue(result.Key, out prettyName))
+                    if (_entityNameLookup.EntityIdToPlainName.TryGetValue(result.Key, out prettyName))
                     {
                         List<KnowledgeGraphNodeId>? entityList;
                         if (!sameNameMappings.TryGetValue(prettyName, out entityList))
@@ -593,9 +598,15 @@ namespace ScriptureGraph.App
                 }
 
                 string? prettyName;
-                if (!_entityNameLookup.Mapping.TryGetValue(result.Key, out prettyName))
+                string? disambiguationName;
+                if (!_entityNameLookup.EntityIdToPlainName.TryGetValue(result.Key, out prettyName))
                 {
                     prettyName = "UNKNOWN_NAME";
+                }
+
+                if (!_entityNameLookup.EntityIdToDisambiguationName.TryGetValue(result.Key, out disambiguationName))
+                {
+                    disambiguationName = prettyName;
                 }
 
                 if (maxResults-- <= 0)
@@ -618,23 +629,27 @@ namespace ScriptureGraph.App
                     // This is intended for things like "TG: Locust, BD: Locust, GS: Locust", where instead
                     // of displaying multiple options with the same name, we expose one "meta-option"
                     // that contains all of the entity references internally
-                    yield return new FastSearchQueryResult()
+                    returnVal.Add(new FastSearchQueryResult()
                     {
                         EntityIds = nodeMappings.ToArray(),
                         DisplayName = prettyName,
                         EntityType = ConvertEntityTypeToSearchResponseType(result.Key),
-                    };
+                        DisambigDisplayName = disambiguationName
+                    });
                 }
                 else
                 {
-                    yield return new FastSearchQueryResult()
+                    returnVal.Add(new FastSearchQueryResult()
                     {
                         EntityIds = new KnowledgeGraphNodeId[] { result.Key },
                         DisplayName = prettyName,
                         EntityType = ConvertEntityTypeToSearchResponseType(result.Key),
-                    };
+                        DisambigDisplayName = disambiguationName
+                    });
                 }
             }
+
+            return returnVal;
         }
 
         public static SearchResultEntityType ConvertEntityTypeToSearchResponseType(KnowledgeGraphNodeId nodeId)
@@ -660,6 +675,7 @@ namespace ScriptureGraph.App
                 case KnowledgeGraphNodeType.GuideToScripturesTopic:
                     return SearchResultEntityType.Topic;
                 case KnowledgeGraphNodeType.BookChapter:
+                case KnowledgeGraphNodeType.BookParagraph:
                     if (nodeId.Name.StartsWith("atgq|"))
                         return SearchResultEntityType.Book_ATGQ;
                     if (nodeId.Name.StartsWith("md|"))

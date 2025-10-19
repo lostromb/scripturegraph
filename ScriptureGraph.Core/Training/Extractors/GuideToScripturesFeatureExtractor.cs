@@ -121,7 +121,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 string prettyTopicString = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, titleParse.Groups[1].Value);
 
                 KnowledgeGraphNodeId thisNode = FeatureToNodeMapping.GuideToScripturesTopic(topicId);
-                nameIndex.Mapping[thisNode] = prettyTopicString;
+                nameIndex.EntityIdToPlainName[thisNode] = prettyTopicString;
 
                 do
                 {

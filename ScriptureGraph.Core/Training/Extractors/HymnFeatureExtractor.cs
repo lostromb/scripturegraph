@@ -117,7 +117,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         TrainingFeatureType.WordDesignation));
                 }
 
-                nameIndex.Mapping[parseResult.DocumentEntityId] = parseResult.SongName;
+                nameIndex.EntityIdToPlainName[parseResult.DocumentEntityId] = parseResult.SongName;
             }
             catch (Exception e)
             {

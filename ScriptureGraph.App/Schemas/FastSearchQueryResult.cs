@@ -12,5 +12,8 @@ namespace ScriptureGraph.App.Schemas
         internal required KnowledgeGraphNodeId[] EntityIds;
         internal SearchResultEntityType EntityType;
         internal required string DisplayName;
+
+        // If several search results have the same DisplayName, this can be used to disambiguate them
+        internal string? DisambigDisplayName;
     }
 }

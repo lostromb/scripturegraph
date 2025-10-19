@@ -167,8 +167,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                         TrainingFeatureType.WordDesignation));
                 }
 
-                nameIndex.Mapping[parseResult.SpeakerEntityId] = parseResult.SpeakerName;
-                nameIndex.Mapping[parseResult.DocumentEntityId] = parseResult.TalkTitle;
+                nameIndex.EntityIdToPlainName[parseResult.SpeakerEntityId] = parseResult.SpeakerName;
+                nameIndex.EntityIdToPlainName[parseResult.DocumentEntityId] = parseResult.TalkTitle;
+                nameIndex.EntityIdToDisambiguationName[parseResult.DocumentEntityId] = $"{parseResult.TalkTitle} ({parseResult.Conference.Year} {parseResult.SpeakerName})";
 
                 // Extract ngrams from the speaker's name and associate it with the speaker
                 foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(parseResult.SpeakerName))
@@ -686,7 +687,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                 return false;
             }
 
-            if (talkTitle.Contains("Welfare Services Meeting", StringComparison.OrdinalIgnoreCase))
+            if (talkTitle.Contains("Welfare Services Meeting", StringComparison.OrdinalIgnoreCase) ||
+                talkTitle.Contains("Welfare Services Session", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }

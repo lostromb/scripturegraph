@@ -127,7 +127,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 string topicStringWithoutClarification = StringUtils.RegexRemove(EmDashRemover, prettyTopicString);
 
                 // Include the clarifier in the full title (for search retrieval) only if it's not terribly long. see "Large Plates of Nephi" for an example of this
-                nameIndex.Mapping[thisNode] = prettyTopicString.Length > 40 ? topicStringWithoutClarification : prettyTopicString;
+                nameIndex.EntityIdToPlainName[thisNode] = prettyTopicString.Length > 40 ? topicStringWithoutClarification : prettyTopicString;
 
                 prettyTopicString = StringUtils.RegexRemove(BracketRemover, prettyTopicString); // remove "[verb]", "[noun]" etc from titles
                 foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(prettyTopicString))

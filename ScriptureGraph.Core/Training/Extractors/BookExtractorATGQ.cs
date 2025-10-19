@@ -128,7 +128,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             {
                 ParseEpubAndProcess(fileSystem, bookPath, logger, (ParsedChapter chapter, ILogger logger) =>
                 {
-                    nameIndex.Mapping[chapter.DocumentEntityId] = chapter.Title;
+                    nameIndex.EntityIdToPlainName[chapter.DocumentEntityId] = chapter.Title;
                     foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(chapter.Title))
                     {
                         trainingFeatureHandler(new TrainingFeature(

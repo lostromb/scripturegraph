@@ -119,12 +119,12 @@ namespace ScriptureGraph.Console
             //BookExtractorMD.ExtractDocuments(_epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger).Count();
 
             //await Test(logger);
-            await ParseDocuments(logger);
+            //await ParseDocuments(logger);
             await BuildSearchIndex(logger);
-            await BuildUniversalGraph(logger);
+            //await BuildUniversalGraph(logger);
 
             //logger.Log("Compressing graph");
-            //CompressFile(_runtimeFileSystem, new VirtualPath("dev.graph"));
+            //CompressFile(_runtimeFileSystem, new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN_MES_PROC.graph"));
             //DecompressFile(_runtimeFileSystem, new VirtualPath("big.graph.br"));
 
             //using (NativeMemoryHeap graphHeap = new NativeMemoryHeap())
@@ -350,8 +350,8 @@ namespace ScriptureGraph.Console
         private static async Task<TrainingKnowledgeGraph> BuildUniversalGraph(ILogger logger)
         {
             TrainingKnowledgeGraph graph;
-            VirtualPath outputModelFile = new VirtualPath("dev2.graph");
-            VirtualPath inputModelFile = new VirtualPath("dev.graph");
+            VirtualPath outputModelFile = new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN_MES_PROC.graph");
+            VirtualPath inputModelFile = new VirtualPath("temp.graph");
             WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
 
             if (_runtimeFileSystem.Exists(inputModelFile))

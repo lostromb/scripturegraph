@@ -138,7 +138,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         continue;
                     }
 
-                    nameIndex.Mapping[topic.DocumentEntityId] = topic.Title;
+                    nameIndex.EntityIdToPlainName[topic.DocumentEntityId] = topic.Title;
                     foreach (var ngram in EnglishWordFeatureExtractor.ExtractCharLevelNGrams(topic.Title))
                     {
                         trainingFeatureHandler(new TrainingFeature(
@@ -315,10 +315,11 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
 
             // Remove all lines that are just repetitions of a nearby topic
+            const int searchRadius = 5;
             for (int center = 0; center < allTopics.Count; center++)
             {
                 string thisTopic = allTopics[center];
-                for (int around = Math.Max(0, center - 2); around < Math.Min(allTopics.Count, center + 2); around++)
+                for (int around = Math.Max(0, center - searchRadius); around < Math.Min(allTopics.Count, center + searchRadius); around++)
                 {
                     string otherTopic = allTopics[around];
                     topics[otherTopic].RemoveAll(s => s.Equals(thisTopic, StringComparison.OrdinalIgnoreCase));

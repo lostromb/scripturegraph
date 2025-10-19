@@ -48,17 +48,17 @@ namespace ScriptureGraph.Core
                 //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
                 //BookExtractorATGQ.ExtractFeatures(
                 //    epubFileSystem,
                 //    new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"),
                 //    logger, startGraph.Train, threadPool);
 
-                //BookExtractorMD.ExtractFeatures(
-                //    epubFileSystem,
-                //    new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"),
-                //    logger, startGraph.Train, threadPool);
+                BookExtractorMD.ExtractFeatures(
+                    epubFileSystem,
+                    new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"),
+                    logger, startGraph.Train, threadPool);
 
                 //BookExtractorMessiah.ExtractFeatures(
                 //    epubFileSystem,
