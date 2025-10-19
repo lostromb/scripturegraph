@@ -188,6 +188,21 @@ namespace ScriptureGraph.App
                 // Map book paragraph -> chapter
                 return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookChapter, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
             }
+            else if (entityId.Type == KnowledgeGraphNodeType.ByuSpeechParagraph)
+            {
+                // Map speech paragraph -> speech
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeech, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.HymnVerse)
+            {
+                // Map hymn verse -> hymn
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Hymn, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.ProclamationParagraph)
+            {
+                // Map proclamation paragraph -> proc
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Proclamation, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
 
             return entityId;
         }
@@ -395,7 +410,9 @@ namespace ScriptureGraph.App
                     result.Key.Type == KnowledgeGraphNodeType.ByuSpeech ||
                     result.Key.Type == KnowledgeGraphNodeType.ByuSpeechParagraph ||
                     result.Key.Type == KnowledgeGraphNodeType.Hymn ||
-                    result.Key.Type == KnowledgeGraphNodeType.HymnVerse))
+                    result.Key.Type == KnowledgeGraphNodeType.HymnVerse ||
+                    result.Key.Type == KnowledgeGraphNodeType.Proclamation ||
+                    result.Key.Type == KnowledgeGraphNodeType.ProclamationParagraph))
                 {
                     continue;
                 }
