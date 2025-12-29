@@ -603,14 +603,15 @@ namespace ScriptureGraph.Core.Training.Extractors
                         sb.Append(WebUtility.HtmlDecode(currentNav.CurrentNode.InnerText));
                     }
                     else if (string.Equals("i", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals("em", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||
-                        (string.Equals("span", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals("em", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||
+                            (string.Equals("span", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) &&
                             string.Equals("clarity-word", currentNav.CurrentNode.GetAttributeValue("class", string.Empty))))
                     {
                         sb.Append("<i>");
                         closingTagStack.Push(new HtmlStackOp((op) => sb.Append("</i>"), currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, string.Empty));
                     }
-                    else if (string.Equals("b", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
+                    else if (string.Equals("b", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals("strong", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
                     {
                         sb.Append("<b>");
                         closingTagStack.Push(new HtmlStackOp((op) => sb.Append("</b>"), currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, string.Empty));

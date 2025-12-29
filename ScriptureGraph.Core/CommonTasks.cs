@@ -151,16 +151,17 @@ namespace ScriptureGraph.Core
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
                 logger.Log("Processing documents from webcrawler sources");
-                await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawler, logger);
-                await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawler, logger);
+                //await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlJesusTheChrist(crawler, processor.ProcessFromWebCrawler, logger);
                 logger.Log("Processing documents from local sources");
-                Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
-                Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
-                Book_Messiah_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"The Messiah Series_ Promised Me - Bruce R. McConkie.epub"), logger);
+                //Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
+                //Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
+                //Book_Messiah_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"The Messiah Series_ Promised Me - Bruce R. McConkie.epub"), logger);
 
                 using (CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromMinutes(1)))
                 {
@@ -189,6 +190,7 @@ namespace ScriptureGraph.Core
             private static readonly Regex ByuSpeechUrlMatcher = new Regex("\\/talks\\/.+?\\/.+?(?:/?|$)");
             private static readonly Regex ByuSpeakerUrlMatcher = new Regex("\\/speakers\\/.+?(?:/?|$)");
             private static readonly Regex HymnUrlMatcher = new Regex("\\/media\\/music\\/songs\\/.+?(?:/?|$)");
+            private static readonly Regex JtcUrlMatcher = new Regex("\\/study\\/manual\\/jesus-the-christ\\/chapter-(\\d+)");
             private readonly TrainingKnowledgeGraph _trainingGraph;
             private readonly IThreadPool _trainingThreadPool;
 
@@ -270,6 +272,11 @@ namespace ScriptureGraph.Core
                         logger.Log($"Featurizing proclamation {page.Url.AbsolutePath}");
                         ProclamationsFeatureExtractor.ExtractFeatures(page.Html, page.Url, logger, _trainingGraph.Train);
                     }
+                    else if (JtcUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Featurizing JTC chapter {page.Url.AbsolutePath}");
+                        BookExtractorJTCWeb.ExtractFeatures(page.Html, page.Url, logger, _trainingGraph.Train);
+                    }
                     else
                     {
                         logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
@@ -300,6 +307,7 @@ namespace ScriptureGraph.Core
             private static readonly Regex ByuSpeechUrlMatcher = new Regex("\\/talks\\/.+?\\/.+?(?:/?|$)");
             private static readonly Regex ByuSpeakerUrlMatcher = new Regex("\\/speakers\\/.+?(?:/?|$)");
             private static readonly Regex HymnUrlMatcher = new Regex("\\/media\\/music\\/songs\\/.+?(?:/?|$)");
+            private static readonly Regex JtcUrlMatcher = new Regex("\\/study\\/manual\\/jesus-the-christ\\/chapter-(\\d+)");
             private readonly TrainingKnowledgeGraph _trainingGraph;
             private readonly EntityNameIndex _nameIndex;
             private readonly IThreadPool _trainingThreadPool;
@@ -382,6 +390,11 @@ namespace ScriptureGraph.Core
                         logger.Log($"Building search index from proclamation {page.Url.AbsolutePath}");
                         ProclamationsFeatureExtractor.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
                     }
+                    else if (JtcUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Building search index from JTC chapter {page.Url.AbsolutePath}");
+                        BookExtractorJTCWeb.ExtractSearchIndexFeatures(page.Html, page.Url, logger, _trainingGraph.Train, _nameIndex);
+                    }
                     else
                     {
                         logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
@@ -412,6 +425,7 @@ namespace ScriptureGraph.Core
             private static readonly Regex ByuSpeechUrlMatcher = new Regex("\\/talks\\/.+?\\/.+?(?:/?|$)");
             private static readonly Regex ByuSpeakerUrlMatcher = new Regex("\\/speakers\\/.+?(?:/?|$)");
             private static readonly Regex HymnUrlMatcher = new Regex("\\/media\\/music\\/songs\\/.+?(?:/?|$)");
+            private static readonly Regex JtcUrlMatcher = new Regex("\\/study\\/manual\\/jesus-the-christ\\/chapter-(\\d+)");
             private readonly IThreadPool _trainingThreadPool;
             private readonly IFileSystem _documentCacheFileSystem;
 
@@ -543,6 +557,20 @@ namespace ScriptureGraph.Core
                             fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\proc\\{FilePathSanitizer.SanitizeFileName(structuredDoc.ProclamationId)}.json.br");
                         }
                     }
+                    else if (JtcUrlMatcher.Match(page.Url.AbsolutePath).Success)
+                    {
+                        logger.Log($"Parsing JTC chapter {page.Url.AbsolutePath}");
+                        BookChapterDocument? structuredDoc = BookExtractorJTCWeb.ParseDocument(page.Html, page.Url, logger);
+                        parsedDoc = structuredDoc;
+                        if (structuredDoc == null)
+                        {
+                            //logger.Log($"Did not parse a page from {page.Url.AbsolutePath}", LogLevel.Err);
+                        }
+                        else
+                        {
+                            fileDestination = new VirtualPath($"{structuredDoc.Language.ToBcp47Alpha3String()}\\jtc\\{FilePathSanitizer.SanitizeFileName(structuredDoc.ChapterId)}.json.br");
+                        }
+                    }
                     else
                     {
                         logger.Log($"Unknown page type {page.Url.AbsolutePath}", LogLevel.Wrn);
@@ -590,6 +618,21 @@ namespace ScriptureGraph.Core
                 //new Uri("https://www.churchofjesuschrist.org/study/general-conference/2002/04/we-look-to-christ?lang=eng"),
                 pageAction,
                 logger.Clone("WebCrawler-GC"),
+                allowedUrls);
+        }
+
+        private static async Task CrawlJesusTheChrist(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        {
+            HashSet<Regex> allowedUrls =
+            [
+                new Regex("^https://www.churchofjesuschrist.org/study/manual/jesus-the-christ\\?lang=eng$"), // overall summary
+                new Regex("^https://www.churchofjesuschrist.org/study/manual/jesus-the-christ/chapter-\\d+\\?lang=eng$"), // chapters only
+            ];
+
+            await crawler.Crawl(
+                new Uri("https://www.churchofjesuschrist.org/study/manual/jesus-the-christ/chapter-2?lang=eng"),
+                pageAction,
+                logger.Clone("WebCrawler-JTC"),
                 allowedUrls);
         }
 
