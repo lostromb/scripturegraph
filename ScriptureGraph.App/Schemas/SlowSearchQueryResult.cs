@@ -9,7 +9,7 @@ namespace ScriptureGraph.App.Schemas
 {
     internal class SlowSearchQueryResult
     {
-        internal required List<KnowledgeGraphNodeId> EntityIds;
+        internal required List<Tuple<KnowledgeGraphNodeId, float>> EntityIds;
         internal required Dictionary<KnowledgeGraphNodeId, float> ActivatedWords;
     }
 }

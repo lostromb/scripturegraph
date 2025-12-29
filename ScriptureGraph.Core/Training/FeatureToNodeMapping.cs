@@ -192,5 +192,28 @@ namespace ScriptureGraph.Core.Training
         {
             return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.Proclamation, $"{id}|{paragraph}");
         }
+
+        public static KnowledgeGraphNodeId? MapParagraphToSentenceEntityIfApplicable(KnowledgeGraphNodeId inputId, int sentenceIdx)
+        {
+            switch (inputId.Type)
+            {
+                case KnowledgeGraphNodeType.ScriptureVerse:
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureSentence, $"{inputId}|{sentenceIdx}");
+                case KnowledgeGraphNodeType.BibleDictionaryParagraph:
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionarySentence, $"{inputId}|{sentenceIdx}");
+                case KnowledgeGraphNodeType.ConferenceTalkParagraph:
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalkSentence, $"{inputId}|{sentenceIdx}");
+                case KnowledgeGraphNodeType.ScriptureSupplementalPara:
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureSupplementalParaSentence, $"{inputId}|{sentenceIdx}");
+                case KnowledgeGraphNodeType.BookParagraph:
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookSentence, $"{inputId}|{sentenceIdx}");
+                case KnowledgeGraphNodeType.ByuSpeechParagraph:
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeechSentence, $"{inputId}|{sentenceIdx}");
+                case KnowledgeGraphNodeType.ProclamationParagraph:
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ProclamationSentence, $"{inputId}|{sentenceIdx}");
+                default:
+                    return null;
+            }
+        }
     }
 }

@@ -114,5 +114,15 @@ namespace ScriptureGraph.Core.Graph
         Proclamation,
 
         ProclamationParagraph,
+
+        // Sentence-level entities
+
+        ScriptureSentence, // ScriptureVerse
+        BibleDictionarySentence, // BibleDictionaryParagraph
+        ConferenceTalkSentence, // ConferenceTalkParagraph
+        ScriptureSupplementalParaSentence, // ScriptureSupplementalPara
+        BookSentence, // BookParagraph
+        ByuSpeechSentence, // ByuSpeechParagraph
+        ProclamationSentence, // ProclamationParagraph
     }
 }

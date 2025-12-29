@@ -92,16 +92,36 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         public static void ExtractTrainingFeatures(string input, List<TrainingFeature> trainingFeaturesOut, KnowledgeGraphNodeId? rootEntity = null)
         {
+            int sentenceIdx = 0;
+            KnowledgeGraphNodeId? prevSentenceEntity = null;
             foreach (string sentence in BreakSentenceLowerCase(input))
             {
+                sentenceIdx++;
+                KnowledgeGraphNodeId? sentenceEntity = null;
+                if (rootEntity != null)
+                {
+                    sentenceEntity = FeatureToNodeMapping.MapParagraphToSentenceEntityIfApplicable(rootEntity.Value, sentenceIdx);
+
+                    if (sentenceEntity != null)
+                    {
+                        // sentence -> root (vertical)
+                        trainingFeaturesOut.Add(new TrainingFeature(
+                            rootEntity.Value,
+                            sentenceEntity.Value,
+                            TrainingFeatureType.SentenceAssociation));
+                    }
+                }
+
+                KnowledgeGraphNodeId? sentenceOrRootEntity = sentenceEntity ?? rootEntity;
+
                 string[] words = BreakWords(sentence).ToArray();
                 for (int startIndex = 0; startIndex < words.Length; startIndex++)
                 {
                     // Single words associated with the root entity
-                    if (rootEntity.HasValue)
+                    if (sentenceOrRootEntity.HasValue)
                     {
                         trainingFeaturesOut.Add(new TrainingFeature(
-                            rootEntity.Value,
+                            sentenceOrRootEntity.Value,
                             FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
                             TrainingFeatureType.WordAssociation));
                     }
@@ -120,10 +140,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                         // Bigrams
                         // bigram -> root entity
                         KnowledgeGraphNodeId bigram = FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
-                        if (rootEntity.HasValue)
+                        if (sentenceOrRootEntity.HasValue)
                         {
                             trainingFeaturesOut.Add(new TrainingFeature(
-                            rootEntity.Value,
+                            sentenceOrRootEntity.Value,
                             bigram,
                             TrainingFeatureType.NgramAssociation));
                         }
@@ -144,10 +164,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                         {
                             // trigram -> root entity
                             KnowledgeGraphNodeId trigram = FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
-                            if (rootEntity.HasValue)
+                            if (sentenceOrRootEntity.HasValue)
                             {
                                 trainingFeaturesOut.Add(new TrainingFeature(
-                                rootEntity.Value,
+                                sentenceOrRootEntity.Value,
                                 trigram,
                                 TrainingFeatureType.NgramAssociation));
                             }
@@ -170,6 +190,17 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
                     }
                 }
+
+                if (sentenceEntity != null && prevSentenceEntity != null)
+                {
+                    // sentence -> sentence (horizontal)
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        sentenceEntity.Value,
+                        prevSentenceEntity.Value,
+                        TrainingFeatureType.SentenceAssociation));
+                }
+
+                prevSentenceEntity = sentenceEntity;
             }
         }
 

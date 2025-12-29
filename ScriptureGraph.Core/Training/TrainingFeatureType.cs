@@ -52,6 +52,11 @@ namespace ScriptureGraph.Core.Training
         /// <summary>
         /// Used for high-level relations between books, chapters, and paragraphs within those chapters
         /// </summary>
-        BookAssociation
+        BookAssociation,
+
+        /// <summary>
+        /// Used for sentences that appear next to each other or belong to certain chapters
+        /// </summary>
+        SentenceAssociation,
     }
 }

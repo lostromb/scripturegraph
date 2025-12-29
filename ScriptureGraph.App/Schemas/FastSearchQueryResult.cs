@@ -15,5 +15,6 @@ namespace ScriptureGraph.App.Schemas
 
         // If several search results have the same DisplayName, this can be used to disambiguate them
         internal string? DisambigDisplayName;
+        internal float Score; // used for debugging
     }
 }

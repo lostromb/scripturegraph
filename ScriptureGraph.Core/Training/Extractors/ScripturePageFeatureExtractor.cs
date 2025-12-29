@@ -62,10 +62,9 @@ namespace ScriptureGraph.Core.Training.Extractors
                     ExtractFeaturesFromSingleVerse(verse, parseResult.Book, parseResult.Chapter, null, trainingFeaturesOut);
                 }
 
-                int verseNum = 1;
                 foreach (Paragraph verse in parseResult.Verses)
                 {
-                    ExtractFeaturesFromSingleVerse(verse, parseResult.Book, parseResult.Chapter, verseNum++, trainingFeaturesOut);
+                    ExtractFeaturesFromSingleVerse(verse, parseResult.Book, parseResult.Chapter, verse.VerseNumber, trainingFeaturesOut);
                 }
             }
             catch (Exception e)
@@ -123,7 +122,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     returnVal.Paragraphs.Add(new GospelParagraph()
                     {
                         ParagraphEntityId = paragraph.ParaEntityId,
-                        Class = paragraph.HasVerseNumber ? GospelParagraphClass.Verse : GospelParagraphClass.Default,
+                        Class = paragraph.VerseNumber.HasValue ? GospelParagraphClass.Verse : GospelParagraphClass.Default,
                         Text = paragraph.Text.Trim()
                     });
                 }
@@ -272,7 +271,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         Id = paraIdRaw,
                         Text = parsedHtml.TextWithInlineFormatTags,
                         References = footnoteRefs,
-                        HasVerseNumber = false
+                        VerseNumber = null
                     };
 
                     if (string.Equals("h1", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase))
@@ -392,7 +391,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                     }
 
                     // Need to hack official declarations here as they don't have "verses" even though the code marks them as such
-                    if (string.Equals("od", book, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals("od", book, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals("signature", paraClassRaw, StringComparison.OrdinalIgnoreCase))
                     {
                         verseNum = null;
                     }
@@ -404,7 +404,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         Id = paraIdRaw,
                         Text = parsedHtml.TextWithInlineFormatTags,
                         References = footnoteRefs,
-                        HasVerseNumber = verseNum.HasValue
+                        VerseNumber = verseNum
                     };
 
                     returnVal.Verses.Add(para);
@@ -444,7 +444,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                             Id = "subtitle-1",
                             Text = titleMatch.Groups[1].Value.Trim(),
                             References = new List<FootnoteReference>(),
-                            HasVerseNumber = false
+                            VerseNumber = null
                         };
                     }
 
@@ -455,7 +455,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         Id = "title",
                         Text = emphasizedText,
                         References = new List<FootnoteReference>(),
-                        HasVerseNumber = false
+                        VerseNumber = null
                     };
 
                     if (titleMatch.Groups[2].Success)
@@ -467,7 +467,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                             Id = "subtitle-2",
                             Text = titleMatch.Groups[2].Value.Trim(),
                             References = new List<FootnoteReference>(),
-                            HasVerseNumber = false
+                            VerseNumber = null
                         };
                     }
 
@@ -482,7 +482,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 Id = "title",
                 Text = rawText,
                 References = new List<FootnoteReference>(),
-                HasVerseNumber = false
+                VerseNumber = null
             };
         }
 
@@ -568,7 +568,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             public required string Class;
             public required string Text;
             public required List<FootnoteReference> References;
-            public required bool HasVerseNumber;
+            public required int? VerseNumber;
 
             public override string ToString()
             {

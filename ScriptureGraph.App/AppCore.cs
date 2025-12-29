@@ -171,6 +171,46 @@ namespace ScriptureGraph.App
             return entityId;
         }
 
+        /// <summary>
+        /// Given an entity ID which may refer to a single sentence in a paragraph, map it to a paragraph or verse.
+        /// If this ID is not a sentence-level entity, return unmodified.
+        /// </summary>
+        /// <param name="entityId"></param>
+        /// <returns></returns>
+        private KnowledgeGraphNodeId MapSentenceIdToParagraph(KnowledgeGraphNodeId entityId)
+        {
+            if (entityId.Type == KnowledgeGraphNodeType.ScriptureSentence)
+            {
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureVerse, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.BibleDictionarySentence)
+            {
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionaryParagraph, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.ConferenceTalkSentence)
+            {
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalkParagraph, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.ScriptureSupplementalParaSentence)
+            {
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureSupplementalPara, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.BookSentence)
+            {
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookParagraph, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.ByuSpeechSentence)
+            {
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeechParagraph, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+            else if (entityId.Type == KnowledgeGraphNodeType.ProclamationSentence)
+            {
+                return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ProclamationParagraph, entityId.Name.Substring(0, entityId.Name.LastIndexOf('|')));
+            }
+
+            return entityId;
+        }
+
         private KnowledgeGraphNodeId MapEntityIdToDocumentPartial(KnowledgeGraphNodeId entityId)
         {
             if (entityId.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph)
@@ -316,13 +356,13 @@ namespace ScriptureGraph.App
             _coreLogger.Log("Fake querying graph");
             return new SlowSearchQueryResult()
             {
-                EntityIds = new List<KnowledgeGraphNodeId>()
+                EntityIds = new List<Tuple<KnowledgeGraphNodeId, float>>()
                 {
-                    FeatureToNodeMapping.ScriptureVerse("ether", 12, 27),
-                    FeatureToNodeMapping.BibleDictionaryTopic("bishop"),
-                    FeatureToNodeMapping.ConferenceTalkParagraph(2023, ConferencePhase.October, "26choi", 4),
-                    FeatureToNodeMapping.BibleDictionaryParagraph("bible", 8),
-                    FeatureToNodeMapping.ConferenceTalk(2021, ConferencePhase.April, "12uchtdorf"),
+                    new Tuple<KnowledgeGraphNodeId, float>(FeatureToNodeMapping.ScriptureVerse("ether", 12, 27), 1.0f),
+                    new Tuple<KnowledgeGraphNodeId, float>(FeatureToNodeMapping.BibleDictionaryTopic("bishop"), 0.8f),
+                    new Tuple<KnowledgeGraphNodeId, float>(FeatureToNodeMapping.ConferenceTalkParagraph(2023, ConferencePhase.October, "26choi", 4), 0.7f),
+                    new Tuple<KnowledgeGraphNodeId, float>(FeatureToNodeMapping.BibleDictionaryParagraph("bible", 8), 0.3f),
+                    new Tuple<KnowledgeGraphNodeId, float>(FeatureToNodeMapping.ConferenceTalk(2021, ConferencePhase.April, "12uchtdorf"), 0.1f),
                 },
                 ActivatedWords = new Dictionary<KnowledgeGraphNodeId, float>()
             };
@@ -370,7 +410,7 @@ namespace ScriptureGraph.App
 
             SlowSearchQueryResult returnVal = new SlowSearchQueryResult()
             {
-                EntityIds = new List<KnowledgeGraphNodeId>(),
+                EntityIds = new List<Tuple<KnowledgeGraphNodeId, float>>(),
                 ActivatedWords = new Dictionary<KnowledgeGraphNodeId, float>()
             };
 
@@ -400,31 +440,33 @@ namespace ScriptureGraph.App
                     continue;
                 }
 
-                if (!(result.Key.Type == KnowledgeGraphNodeType.ScriptureVerse ||
-                    result.Key.Type == KnowledgeGraphNodeType.ConferenceTalk ||
-                    result.Key.Type == KnowledgeGraphNodeType.ConferenceTalkParagraph ||
-                    result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryTopic ||
-                    result.Key.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph ||
-                    result.Key.Type == KnowledgeGraphNodeType.BookChapter ||
-                    result.Key.Type == KnowledgeGraphNodeType.BookParagraph ||
-                    result.Key.Type == KnowledgeGraphNodeType.ByuSpeech ||
-                    result.Key.Type == KnowledgeGraphNodeType.ByuSpeechParagraph ||
-                    result.Key.Type == KnowledgeGraphNodeType.Hymn ||
-                    result.Key.Type == KnowledgeGraphNodeType.HymnVerse ||
-                    result.Key.Type == KnowledgeGraphNodeType.Proclamation ||
-                    result.Key.Type == KnowledgeGraphNodeType.ProclamationParagraph))
+                KnowledgeGraphNodeId nonSentenceLevelEntity = MapSentenceIdToParagraph(result.Key);
+
+                if (!(nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.ScriptureVerse ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.ConferenceTalk ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.ConferenceTalkParagraph ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.BibleDictionaryTopic ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.BibleDictionaryParagraph ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.BookChapter ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.BookParagraph ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.ByuSpeech ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.ByuSpeechParagraph ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.Hymn ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.HymnVerse ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.Proclamation ||
+                    nonSentenceLevelEntity.Type == KnowledgeGraphNodeType.ProclamationParagraph))
                 {
                     continue;
                 }
 
                 // Apply filters and stuff for specific canons, etc.
-                if (query.CategoryFilters != null && !PassesOutputFilters(result.Key, query.CategoryFilters))
+                if (query.CategoryFilters != null && !PassesOutputFilters(nonSentenceLevelEntity, query.CategoryFilters))
                 {
                     continue;
                 }
 
                 // Ignore documents that the caller has told us to ignore (we assume they are already opened)
-                KnowledgeGraphNodeId documentId = MapEntityIdToDocument(result.Key);
+                KnowledgeGraphNodeId documentId = MapEntityIdToDocument(nonSentenceLevelEntity);
                 if (finalHiddenEntityIdSet.Contains(documentId))
                 {
                     continue;
@@ -449,8 +491,8 @@ namespace ScriptureGraph.App
                 if (maxResults > 0 && (result.Value * 1000) > query.MinConfidence)
                 {
                     maxResults--;
-                    returnVal.EntityIds.Add(result.Key);
-                    _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value * 1000, result.Key.ToString());
+                    returnVal.EntityIds.Add(new Tuple<KnowledgeGraphNodeId, float>(nonSentenceLevelEntity, result.Value * 1000));
+                    _coreLogger.LogFormat(LogLevel.Std, DataPrivacyClassification.SystemMetadata, "{0:F3} : {1}", result.Value * 1000, nonSentenceLevelEntity.ToString());
                 }
             }
 
@@ -503,7 +545,8 @@ namespace ScriptureGraph.App
                 EntityIds = EnglishWordFeatureExtractor.ExtractNGrams(queryString).ToArray(),
                 EntityType = SearchResultEntityType.KeywordPhrase,
                 DisplayName = queryString,
-                DisambigDisplayName = queryString
+                DisambigDisplayName = queryString,
+                Score = 1000,
             });
 
             if (_smallSearchIndex == null || _entityNameLookup == null)
@@ -525,7 +568,8 @@ namespace ScriptureGraph.App
                         EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureVerse(parsedRef.Book, parsedRef.Chapter.Value, parsedRef.Verse.Value) },
                         EntityType = SearchResultEntityType.ScriptureVerse,
                         DisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
-                        DisambigDisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}"
+                        DisambigDisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}:{parsedRef.Verse.Value}",
+                        Score = 1000,
                     });
                 }
                 else if (parsedRef.Chapter.HasValue && !parsedRef.Verse.HasValue)
@@ -535,7 +579,8 @@ namespace ScriptureGraph.App
                         EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureChapter(parsedRef.Book, parsedRef.Chapter.Value) },
                         EntityType = SearchResultEntityType.ScriptureChapter,
                         DisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}",
-                        DisambigDisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}"
+                        DisambigDisplayName = $"{formattedBookName} {parsedRef.Chapter.Value}",
+                        Score = 1000,
                     });
                 }
                 else
@@ -545,7 +590,8 @@ namespace ScriptureGraph.App
                         EntityIds = new KnowledgeGraphNodeId[] { FeatureToNodeMapping.ScriptureBook(parsedRef.Book) },
                         EntityType = SearchResultEntityType.ScriptureBook,
                         DisplayName = formattedBookName,
-                        DisambigDisplayName = formattedBookName
+                        DisambigDisplayName = formattedBookName,
+                        Score = 1000,
                     });
                 }
 
@@ -651,7 +697,8 @@ namespace ScriptureGraph.App
                         EntityIds = nodeMappings.ToArray(),
                         DisplayName = prettyName,
                         EntityType = ConvertEntityTypeToSearchResponseType(result.Key),
-                        DisambigDisplayName = disambiguationName
+                        DisambigDisplayName = disambiguationName,
+                        Score = result.Value,
                     });
                 }
                 else
@@ -661,7 +708,8 @@ namespace ScriptureGraph.App
                         EntityIds = new KnowledgeGraphNodeId[] { result.Key },
                         DisplayName = prettyName,
                         EntityType = ConvertEntityTypeToSearchResponseType(result.Key),
-                        DisambigDisplayName = disambiguationName
+                        DisambigDisplayName = disambiguationName,
+                        Score = result.Value,
                     });
                 }
             }

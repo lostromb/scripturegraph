@@ -120,8 +120,8 @@ namespace ScriptureGraph.Console
 
             //await Test(logger);
             await ParseDocuments(logger);
-            //await BuildSearchIndex(logger);
-            //await BuildUniversalGraph(logger);
+            await BuildSearchIndex(logger);
+            await BuildUniversalGraph(logger);
 
             //logger.Log("Compressing graph");
             //CompressFile(_runtimeFileSystem, new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN_MES_PROC.graph"));
@@ -350,7 +350,8 @@ namespace ScriptureGraph.Console
         private static async Task<TrainingKnowledgeGraph> BuildUniversalGraph(ILogger logger)
         {
             TrainingKnowledgeGraph graph;
-            VirtualPath outputModelFile = new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN_MES_PROC.graph");
+            //VirtualPath outputModelFile = new VirtualPath("SW_BD_GC_MD_ATGQ_BYU_HYMN_MES_PROC.graph");
+            VirtualPath outputModelFile = new VirtualPath("SW_MD_ATGQ_MES.graph");
             VirtualPath inputModelFile = new VirtualPath("temp.graph");
             WebPageCache pageCache = new WebPageCache(_webCacheFileSystem);
 

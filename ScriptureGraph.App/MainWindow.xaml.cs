@@ -223,7 +223,11 @@ namespace ScriptureGraph.App
                         Margin = new Thickness(10, 0, 0, 0),
                         FontSize = 16,
                         VerticalAlignment = VerticalAlignment.Center,
+#if DEBUG
+                        Text = $"[{searchResult.Score:F2}] {displayText}",
+#else
                         Text = displayText,
+#endif
                     };
 
                     TextBlock typeBlock = new TextBlock()
@@ -569,8 +573,8 @@ namespace ScriptureGraph.App
                 SlowSearchQueryResult searchResults = await Task.Run(() => _core.RunSlowSearchQuery(query)).ConfigureAwait(true);
 
                 var verses = searchResults.EntityIds
-                    .Where(s => s.Type == KnowledgeGraphNodeType.ScriptureVerse || s.Type == KnowledgeGraphNodeType.ScriptureBook)
-                    .Select(s => new ScriptureReference(s))
+                    .Where(s => s.Item1.Type == KnowledgeGraphNodeType.ScriptureVerse || s.Item1.Type == KnowledgeGraphNodeType.ScriptureBook)
+                    .Select(s => new ScriptureReference(s.Item1))
                     .ToList();
                 if (verses.Count > 0)
                 {
@@ -638,7 +642,7 @@ namespace ScriptureGraph.App
             //        </DockPanel>
             //    </Grid>
 
-            List<KnowledgeGraphNodeId> searchResultEntities = searchResults.EntityIds;
+            List<Tuple<KnowledgeGraphNodeId, float>> searchResultEntities = searchResults.EntityIds;
 
             Guid panelId = Guid.NewGuid();
             Grid resultsPaneContainer = new Grid();
@@ -668,7 +672,7 @@ namespace ScriptureGraph.App
             // Stack the search results in here...
             foreach (var resultEntity in searchResultEntities)
             {
-                await CreateUiElementsForSearchResult(resultEntity, searchResultsStacker.Children, searchResults.ActivatedWords);
+                await CreateUiElementsForSearchResult(resultEntity.Item1, resultEntity.Item2, searchResultsStacker.Children, searchResults.ActivatedWords);
             }
 
             resultsPaneContainer.Children.Add(resultsPaneDocker);
@@ -1375,6 +1379,7 @@ namespace ScriptureGraph.App
 
         private async Task CreateUiElementsForSearchResult(
             KnowledgeGraphNodeId searchResult,
+            float score,
             UIElementCollection target,
             Dictionary<KnowledgeGraphNodeId, float> activatedWords)
         {
@@ -1385,7 +1390,7 @@ namespace ScriptureGraph.App
                     GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
                     if (scriptureChapter is ScriptureChapterDocument scriptureDoc)
                     {
-                        CreateUiElementsForScriptureVerseResult(searchResult, scriptureDoc, target, activatedWords);
+                        CreateUiElementsForScriptureVerseResult(searchResult, score, scriptureDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1397,7 +1402,7 @@ namespace ScriptureGraph.App
                     GospelDocument scriptureChapter = await _core.LoadDocument(searchResult);
                     if (scriptureChapter is ConferenceTalkDocument conferenceDoc)
                     {
-                        CreateUiElementsForConferenceParagraphResult(searchResult, conferenceDoc, target, activatedWords);
+                        CreateUiElementsForConferenceParagraphResult(searchResult, score, conferenceDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1423,7 +1428,8 @@ namespace ScriptureGraph.App
                                 DisplayName = $"{conferenceDoc.Title}",
                                 DisambigDisplayName = $"{conferenceDoc.Title}",
                                 EntityType = SearchResultEntityType.ConferenceTalk,
-                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult },
+                                Score = score,
                             },
                             Text = $"{conferenceDoc.Speaker} - {conferenceDoc.Title}"
                         };
@@ -1444,7 +1450,7 @@ namespace ScriptureGraph.App
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
 
                         string month = conferenceDoc.Conference.Phase == ConferencePhase.April ? "April" : "October";
-                        TextBlock searchResultHeader = CreateSearchResultHeader($"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title} - {conferenceDoc.Speaker}");
+                        TextBlock searchResultHeader = CreateSearchResultHeader(score, $"{month} {conferenceDoc.Conference.Year} General Conference - {conferenceDoc.Title} - {conferenceDoc.Speaker}");
 
                         target.Add(searchResultHeader);
                         target.Add(searchResultLabel);
@@ -1459,7 +1465,7 @@ namespace ScriptureGraph.App
                     GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
                     if (dictionaryEntry is BibleDictionaryDocument dictionaryDoc)
                     {
-                        CreateUiElementsForBDParagraphResult(searchResult, dictionaryDoc, target, activatedWords);
+                        CreateUiElementsForBDParagraphResult(searchResult, score, dictionaryDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1485,7 +1491,8 @@ namespace ScriptureGraph.App
                                 DisplayName = dictionaryDoc.Title,
                                 DisambigDisplayName = dictionaryDoc.Title,
                                 EntityType = SearchResultEntityType.BibleDictionary,
-                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult },
+                                Score = score,
                             },
                             Text = $"Bible Dictionary - {dictionaryDoc.Title}"
                         };
@@ -1496,7 +1503,7 @@ namespace ScriptureGraph.App
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
 
-                        TextBlock searchResultHeader = CreateSearchResultHeader($"Bible Dictionary - {dictionaryDoc.Title}");
+                        TextBlock searchResultHeader = CreateSearchResultHeader(score, $"Bible Dictionary - {dictionaryDoc.Title}");
 
                         target.Add(searchResultHeader);
                         target.Add(searchResultLabel);
@@ -1524,7 +1531,8 @@ namespace ScriptureGraph.App
                             {
                                 DisplayName = chapterDoc.ChapterName,
                                 EntityType = SearchResultEntityType.Topic, // FIXME wrong
-                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult },
+                                Score = score,
                             },
                             Text = $"{Localization.GetBookName(chapterDoc.BookId)} - {chapterDoc.ChapterName}"
                         };
@@ -1534,7 +1542,7 @@ namespace ScriptureGraph.App
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
 
-                        TextBlock searchResultHeader = CreateSearchResultHeader($"{Localization.GetBookName(chapterDoc.BookId)} - {chapterDoc.ChapterName}");
+                        TextBlock searchResultHeader = CreateSearchResultHeader(score, $"{Localization.GetBookName(chapterDoc.BookId)} - {chapterDoc.ChapterName}");
 
                         target.Add(searchResultHeader);
                         target.Add(searchResultLabel);
@@ -1549,7 +1557,7 @@ namespace ScriptureGraph.App
                     GospelDocument dictionaryEntry = await _core.LoadDocument(searchResult);
                     if (dictionaryEntry is BookChapterDocument chapterDoc)
                     {
-                        CreateUiElementsForBookChapterResult(searchResult, chapterDoc, target, activatedWords);
+                        CreateUiElementsForBookChapterResult(searchResult, score, chapterDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1574,7 +1582,8 @@ namespace ScriptureGraph.App
                             {
                                 DisplayName = speechDoc.Title,
                                 EntityType = SearchResultEntityType.ByuSpeech,
-                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult },
+                                Score = score,
                             },
                             Text = $"{speechDoc.Speaker} - {speechDoc.Title}"
                         };
@@ -1584,7 +1593,7 @@ namespace ScriptureGraph.App
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
 
-                        TextBlock searchResultHeader = CreateSearchResultHeader($"{speechDoc.Speaker} - {speechDoc.Title}");
+                        TextBlock searchResultHeader = CreateSearchResultHeader(score, $"{speechDoc.Speaker} - {speechDoc.Title}");
 
                         target.Add(searchResultHeader);
                         target.Add(searchResultLabel);
@@ -1599,7 +1608,7 @@ namespace ScriptureGraph.App
                     GospelDocument document = await _core.LoadDocument(searchResult);
                     if (document is ByuSpeechDocument speechDoc)
                     {
-                        CreateUiElementsForByuSpeechParaResult(searchResult, speechDoc, target, activatedWords);
+                        CreateUiElementsForByuSpeechParaResult(searchResult, score, speechDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1624,7 +1633,8 @@ namespace ScriptureGraph.App
                             {
                                 DisplayName = hymnDoc.Title,
                                 EntityType = SearchResultEntityType.Hymn,
-                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult },
+                                Score = score,
                             },
                             Text = $"Hymns {hymnDoc.SongNum} - {hymnDoc.Title}"
                         };
@@ -1634,7 +1644,7 @@ namespace ScriptureGraph.App
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
 
-                        TextBlock searchResultHeader = CreateSearchResultHeader($"Hymns {hymnDoc.SongNum} - {hymnDoc.Title}");
+                        TextBlock searchResultHeader = CreateSearchResultHeader(score, $"Hymns {hymnDoc.SongNum} - {hymnDoc.Title}");
 
                         target.Add(searchResultHeader);
                         target.Add(searchResultLabel);
@@ -1649,7 +1659,7 @@ namespace ScriptureGraph.App
                     GospelDocument document = await _core.LoadDocument(searchResult);
                     if (document is HymnDocument hymnDoc)
                     {
-                        CreateUiElementsForHymnVerseResult(searchResult, hymnDoc, target, activatedWords);
+                        CreateUiElementsForHymnVerseResult(searchResult, score, hymnDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1674,7 +1684,8 @@ namespace ScriptureGraph.App
                             {
                                 DisplayName = procDoc.Title,
                                 EntityType = SearchResultEntityType.Proclamation,
-                                EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                                EntityIds = new KnowledgeGraphNodeId[] { searchResult },
+                                Score = score,
                             },
                             Text = procDoc.Title
                         };
@@ -1684,7 +1695,7 @@ namespace ScriptureGraph.App
                         searchResultLabel.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                         searchResultLabel.MouseDown += SearchResultPreviewDocument_Click;
 
-                        TextBlock searchResultHeader = CreateSearchResultHeader(procDoc.Title);
+                        TextBlock searchResultHeader = CreateSearchResultHeader(score, procDoc.Title);
 
                         target.Add(searchResultHeader);
                         target.Add(searchResultLabel);
@@ -1699,7 +1710,7 @@ namespace ScriptureGraph.App
                     GospelDocument document = await _core.LoadDocument(searchResult);
                     if (document is ProclamationDocument procDoc)
                     {
-                        CreateUiElementsForProclamationParaResult(searchResult, procDoc, target, activatedWords);
+                        CreateUiElementsForProclamationParaResult(searchResult, score, procDoc, target, activatedWords);
                     }
                     else
                     {
@@ -1722,7 +1733,8 @@ namespace ScriptureGraph.App
                             DisplayName = "UNKNOWN",
                             DisambigDisplayName = "UNKNOWN",
                             EntityType = SearchResultEntityType.Unknown,
-                            EntityIds = new KnowledgeGraphNodeId[] { searchResult }
+                            EntityIds = new KnowledgeGraphNodeId[] { searchResult },
+                            Score = score,
                         },
                         Text = $"Entity type {searchResult.Type} not yet handled"
                     };
@@ -1730,7 +1742,7 @@ namespace ScriptureGraph.App
                     placeholderSearchResult.MouseEnter += SearchResultPreviewDocument_MouseEnter;
                     placeholderSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
                     placeholderSearchResult.MouseDown += SearchResultPreviewDocument_Click;
-                    TextBlock searchResultHeader = CreateSearchResultHeader(searchResult.ToString() ?? "ERROR");
+                    TextBlock searchResultHeader = CreateSearchResultHeader(score, searchResult.ToString() ?? "ERROR");
                     target.Add(searchResultHeader);
                     target.Add(placeholderSearchResult);
                 }
@@ -1743,6 +1755,7 @@ namespace ScriptureGraph.App
 
         private void CreateUiElementsForScriptureVerseResult(
             KnowledgeGraphNodeId entityId,
+            float score,
             ScriptureChapterDocument chapter,
             UIElementCollection target,
             IDictionary<KnowledgeGraphNodeId, float> activatedWords)
@@ -1789,7 +1802,8 @@ namespace ScriptureGraph.App
                 {
                     DisplayName = $"{ScriptureMetadata.GetNameForBook(parsedRef.Book, LanguageCode.ENGLISH)} {parsedRef.Chapter.Value}:{parsedRef.Paragraph}",
                     EntityType = SearchResultEntityType.ScriptureVerse,
-                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId },
+                    Score = score,
                 },
                 Text = AppCore.SummarizeText(text, activatedWords) // This line will trim very long scripture verses for the sake of search result previewing
             };
@@ -1798,13 +1812,14 @@ namespace ScriptureGraph.App
             scriptureSearchResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             scriptureSearchResult.MouseDown += SearchResultPreviewDocument_Click;
 
-            TextBlock searchResultHeader = CreateSearchResultHeader($"{ScriptureMetadata.GetNameForBook(chapter.Book, LanguageCode.ENGLISH)} {chapter.Chapter}:{parsedRef.Paragraph}");
+            TextBlock searchResultHeader = CreateSearchResultHeader(score, $"{ScriptureMetadata.GetNameForBook(chapter.Book, LanguageCode.ENGLISH)} {chapter.Chapter}:{parsedRef.Paragraph}");
             target.Add(searchResultHeader);
             target.Add(scriptureSearchResult);
         }
 
         private void CreateUiElementsForConferenceParagraphResult(
             KnowledgeGraphNodeId entityId,
+            float score,
             ConferenceTalkDocument document,
             UIElementCollection target,
             IDictionary<KnowledgeGraphNodeId, float> activatedWords)
@@ -1830,7 +1845,8 @@ namespace ScriptureGraph.App
                 {
                     DisplayName = $"{document.Title} ¶{paraNumber}",
                     EntityType = SearchResultEntityType.ConferenceTalk,
-                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId },
+                    Score = score,
                 },
                 Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
@@ -1840,25 +1856,31 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
             string month = document.Conference.Phase == ConferencePhase.April ? "April" : "October";
-            TextBlock searchResultHeader = CreateSearchResultHeader($"{month} {document.Conference.Year} General Conference - {document.Title} - {document.Speaker}");
+            TextBlock searchResultHeader = CreateSearchResultHeader(score, $"{month} {document.Conference.Year} General Conference - {document.Title} - {document.Speaker}");
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);
         }
 
-        private TextBlock CreateSearchResultHeader(string text)
+        private TextBlock CreateSearchResultHeader(float score, string text)
         {
             return new TextBlock()
             {
                 Background = (Brush)TryFindResource("SearchResultLabelBackground"),
                 IsManipulationEnabled = false,
                 Margin = new Thickness(2),
+
+#if DEBUG
+                Text = $"[{score:F3}] {text}"
+#else
                 Text = text
+#endif
             };
         }
 
         private void CreateUiElementsForBDParagraphResult(
             KnowledgeGraphNodeId entityId,
+            float score,
             BibleDictionaryDocument document,
             UIElementCollection target,
             IDictionary<KnowledgeGraphNodeId, float> activatedWords)
@@ -1882,7 +1904,8 @@ namespace ScriptureGraph.App
                 {
                     DisplayName = document.Title,
                     EntityType = SearchResultEntityType.BibleDictionary,
-                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId },
+                    Score = score,
                 },
                 Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
@@ -1891,7 +1914,7 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
-            TextBlock searchResultHeader = CreateSearchResultHeader($"Bible Dictionary - {document.Title}");
+            TextBlock searchResultHeader = CreateSearchResultHeader(score, $"Bible Dictionary - {document.Title}");
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);
@@ -1899,6 +1922,7 @@ namespace ScriptureGraph.App
 
         private void CreateUiElementsForBookChapterResult(
             KnowledgeGraphNodeId entityId,
+            float score,
             BookChapterDocument document,
             UIElementCollection target,
             IDictionary<KnowledgeGraphNodeId, float> activatedWords)
@@ -1922,7 +1946,8 @@ namespace ScriptureGraph.App
                 {
                     DisplayName = document.ChapterName,
                     EntityType = SearchResultEntityType.Topic, // FIXME wrong
-                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId },
+                    Score = score,
                 },
                 Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
@@ -1931,7 +1956,7 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
-            TextBlock searchResultHeader = CreateSearchResultHeader($"{Localization.GetBookName(document.BookId)} - {document.ChapterName}");
+            TextBlock searchResultHeader = CreateSearchResultHeader(score, $"{Localization.GetBookName(document.BookId)} - {document.ChapterName}");
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);
@@ -1939,6 +1964,7 @@ namespace ScriptureGraph.App
 
         private void CreateUiElementsForByuSpeechParaResult(
             KnowledgeGraphNodeId entityId,
+            float score,
             ByuSpeechDocument document,
             UIElementCollection target,
             IDictionary<KnowledgeGraphNodeId, float> activatedWords)
@@ -1962,7 +1988,8 @@ namespace ScriptureGraph.App
                 {
                     DisplayName = document.Title,
                     EntityType = SearchResultEntityType.ByuSpeech,
-                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId },
+                    Score = score,
                 },
                 Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
@@ -1971,7 +1998,7 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
-            TextBlock searchResultHeader = CreateSearchResultHeader($"{document.Speaker} - {document.Title}");
+            TextBlock searchResultHeader = CreateSearchResultHeader(score, $"{document.Speaker} - {document.Title}");
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);
@@ -1979,6 +2006,7 @@ namespace ScriptureGraph.App
 
         private void CreateUiElementsForHymnVerseResult(
             KnowledgeGraphNodeId entityId,
+            float score,
             HymnDocument document,
             UIElementCollection target,
             IDictionary<KnowledgeGraphNodeId, float> activatedWords)
@@ -2002,7 +2030,8 @@ namespace ScriptureGraph.App
                 {
                     DisplayName = document.Title,
                     EntityType = SearchResultEntityType.Hymn,
-                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId },
+                    Score = score,
                 },
                 Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
@@ -2011,7 +2040,7 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
-            TextBlock searchResultHeader = CreateSearchResultHeader($"Hymns {document.SongNum} - {document.Title}");
+            TextBlock searchResultHeader = CreateSearchResultHeader(score, $"Hymns {document.SongNum} - {document.Title}");
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);
@@ -2019,6 +2048,7 @@ namespace ScriptureGraph.App
 
         private void CreateUiElementsForProclamationParaResult(
             KnowledgeGraphNodeId entityId,
+            float score,
             ProclamationDocument document,
             UIElementCollection target,
             IDictionary<KnowledgeGraphNodeId, float> activatedWords)
@@ -2042,7 +2072,8 @@ namespace ScriptureGraph.App
                 {
                     DisplayName = document.Title,
                     EntityType = SearchResultEntityType.Proclamation,
-                    EntityIds = new KnowledgeGraphNodeId[] { entityId }
+                    EntityIds = new KnowledgeGraphNodeId[] { entityId },
+                    Score = score,
                 },
                 Text = AppCore.SummarizeText(AppCore.StripHtml(targetPara.Text), activatedWords)
             };
@@ -2051,7 +2082,7 @@ namespace ScriptureGraph.App
             conferenceTalkResult.MouseLeave += SearchResultPreviewDocument_MouseLeave;
             conferenceTalkResult.MouseDown += SearchResultPreviewDocument_Click;
 
-            TextBlock searchResultHeader = CreateSearchResultHeader(document.Title);
+            TextBlock searchResultHeader = CreateSearchResultHeader(score, document.Title);
 
             target.Add(searchResultHeader);
             target.Add(conferenceTalkResult);
