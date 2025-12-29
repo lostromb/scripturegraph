@@ -198,19 +198,19 @@ namespace ScriptureGraph.Core.Training
             switch (inputId.Type)
             {
                 case KnowledgeGraphNodeType.ScriptureVerse:
-                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureSentence, $"{inputId}|{sentenceIdx}");
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureSentence, $"{inputId.Name}|{sentenceIdx}");
                 case KnowledgeGraphNodeType.BibleDictionaryParagraph:
-                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionarySentence, $"{inputId}|{sentenceIdx}");
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BibleDictionarySentence, $"{inputId.Name}|{sentenceIdx}");
                 case KnowledgeGraphNodeType.ConferenceTalkParagraph:
-                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalkSentence, $"{inputId}|{sentenceIdx}");
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ConferenceTalkSentence, $"{inputId.Name}|{sentenceIdx}");
                 case KnowledgeGraphNodeType.ScriptureSupplementalPara:
-                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureSupplementalParaSentence, $"{inputId}|{sentenceIdx}");
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ScriptureSupplementalParaSentence, $"{inputId.Name}|{sentenceIdx}");
                 case KnowledgeGraphNodeType.BookParagraph:
-                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookSentence, $"{inputId}|{sentenceIdx}");
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.BookSentence, $"{inputId.Name}|{sentenceIdx}");
                 case KnowledgeGraphNodeType.ByuSpeechParagraph:
-                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeechSentence, $"{inputId}|{sentenceIdx}");
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ByuSpeechSentence, $"{inputId.Name}|{sentenceIdx}");
                 case KnowledgeGraphNodeType.ProclamationParagraph:
-                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ProclamationSentence, $"{inputId}|{sentenceIdx}");
+                    return new KnowledgeGraphNodeId(KnowledgeGraphNodeType.ProclamationSentence, $"{inputId.Name}|{sentenceIdx}");
                 default:
                     return null;
             }

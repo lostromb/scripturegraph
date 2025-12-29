@@ -1,20 +1,12 @@
 ﻿using Durandal.Common.IO;
 using Durandal.Common.IO.Crc;
-using Durandal.Common.IO.Hashing;
 using Durandal.Common.Logger;
 using Durandal.Common.MathExt;
 using Durandal.Common.Time;
 using Durandal.Common.Utils;
-using ScriptureGraph.Core.Training;
-using System;
 using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Graph
 {
@@ -80,6 +72,10 @@ namespace ScriptureGraph.Core.Graph
 
                     logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata, "Initializing scope 0x{0:x}", thisScopeArray.Data);
                 }
+
+#if DEBUG
+                query.MaxSearchTime = TimeSpan.MaxValue;
+#endif
 
                 // Loop for as long as we have unique activations per scope
                 while (initialActivationsPerScope.Count > 0)
@@ -207,9 +203,59 @@ namespace ScriptureGraph.Core.Graph
             Counter<UnsafeNodeId> swap = thisStepActivation;
             ValueStopwatch scopeStopwatch = ValueStopwatch.StartNew();
 
+            int loop = 0;
             // Continue the search until we reach the time limit defined in the query, or activations all become too low
             while (scopeStopwatch.Elapsed < query.MaxSearchTime)
             {
+#if DEBUG_QUERIES
+                if (loop < 5)
+                {
+                    logger.Log($"======= LOOP {loop++} =======", LogLevel.Vrb);
+                    logger.Log("Cumulative Activation:", LogLevel.Vrb);
+                    int take = 0;
+                    foreach (var topCumulative in cumulativeActivation.OrderByDescending(s => s.Value))
+                    {
+                        logger.Log($"{topCumulative.Value:F3} - {topCumulative.Key}", LogLevel.Vrb);
+                        if (++take > 10)
+                        {
+                            break;
+                        }
+                    }
+
+                    logger.Log("Next Activations:", LogLevel.Vrb);
+                    take = 0;
+                    foreach (var currentlyActivatedNode in thisStepActivation.OrderByDescending(s => s.Value))
+                    {
+                        logger.Log($"{currentlyActivatedNode.Value:F3} - {currentlyActivatedNode.Key}", LogLevel.Vrb);
+
+                        UnsafeNode thisNode;
+                        if (_nodes.TryGetValue(currentlyActivatedNode.Key, out thisNode))
+                        {
+                            UnsafeEdgeList.UnsafeEdgeListEnumerator enumerator = thisNode.Edges.GetEnumerator();
+                            float normalizedActivation = currentlyActivatedNode.Value / (float)thisNode.Edges.NumEdges;
+                            int takeEdge = 0;
+                            while (enumerator.MoveNext() && ++takeEdge < 10)
+                            {
+                                UnsafeEdge edge = enumerator.Current;
+                                float activation = NeuronActivation(normalizedActivation, edge.Mass, thisNode.Edges.TotalMass, thisNode.Edges.NumEdges);
+                                nextStepActivation.Increment(edge.Target, activation);
+                                logger.LogFormat(LogLevel.Vrb, DataPrivacyClassification.SystemMetadata,
+                                    "{0} {1:F3} activates {1} {2:F3}",
+                                    currentlyActivatedNode.Key.ToString(),
+                                    currentlyActivatedNode.Value,
+                                    edge.Target.ToString(),
+                                    activation);
+                            }
+                        }
+
+                        if (++take > 3)
+                        {
+                            break;
+                        }
+                    }
+                }
+#endif
+
                 // Single iteration
                 foreach (var currentlyActivatedNode in thisStepActivation)
                 {
