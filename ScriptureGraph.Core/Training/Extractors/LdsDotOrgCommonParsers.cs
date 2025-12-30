@@ -629,7 +629,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                     if (currentNav.CurrentNode.NodeType == HtmlNodeType.Text)
                     {
-                        sb.Append(WebUtility.HtmlDecode(currentNav.CurrentNode.InnerText));
+                        sb.Append(WebUtility.HtmlDecode(currentNav.CurrentNode.InnerText).Replace(' ' /* <-- This is U+00A0, or NBSP. --> This is a regular space */, ' '));
                     }
                     else if (string.Equals("i", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||
                             string.Equals("em", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||

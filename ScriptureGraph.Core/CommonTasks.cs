@@ -630,7 +630,7 @@ namespace ScriptureGraph.Core
             ];
 
             await crawler.Crawl(
-                new Uri("https://www.churchofjesuschrist.org/study/manual/jesus-the-christ/chapter-4?lang=eng"),
+                new Uri("https://www.churchofjesuschrist.org/study/manual/jesus-the-christ/chapter-6?lang=eng"),
                 pageAction,
                 logger.Clone("WebCrawler-JTC"),
                 allowedUrls);

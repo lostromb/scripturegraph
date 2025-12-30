@@ -99,9 +99,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                 HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
 
                 Dictionary<string, Footnote> footnoteReferences = ParseFootnotes(navigator, chapter, pageUrl.AbsolutePath, logger);
-                Dictionary<string, Note> notes = ParseNotes(navigator, chapter, logger);
-
-                // Body paragraphs
+                List<Note> notes = ParseNotes(navigator, chapter, logger);
+                List<Paragraph> paragraphs = ParseParagraphs(navigator, chapter, pageUrl.AbsolutePath, footnoteReferences, notes, logger);
 
                 return returnVal;
             }
@@ -184,13 +183,21 @@ namespace ScriptureGraph.Core.Training.Extractors
             return footnoteReferences;
         }
 
-        private static Dictionary<string, Note> ParseNotes(HtmlNodeNavigator navigator, int chapter, ILogger logger)
+        private static List<Note> ParseNotes(HtmlNodeNavigator navigator, int chapter, ILogger logger)
         {
-            Dictionary<string, Note> returnVal = new Dictionary<string, Note>();
+            List<Note> returnVal = new List<Note>();
             navigator.MoveToRoot();
+            int noteNum = 1;
             XPathNodeIterator iter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]/section[2]/ol/li");
             while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
             {
+                Note note = new Note()
+                {
+                    NoteNum = noteNum++,
+                    Paragraphs = new List<NoteParagraph>()
+                };
+
+                returnVal.Add(note);
                 XPathNodeIterator iter2 = currentNav.Select("p[@id]");
                 while (iter2.MoveNext() && iter2.Current is HtmlNodeNavigator currentNav2)
                 {
@@ -210,13 +217,121 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
                     }
 
-                    returnVal[notePId] = new Note()
+
+                    note.Paragraphs.Add(new NoteParagraph()
                     {
-                        NoteParaId = notePId,
-                        NoteContent = htmlFragmentParse.TextWithInlineFormatTags,
-                        EntityRefs = nodeReferenceInThisNoteParagraph
-                    };
+                        ParaId = notePId,
+                        ParaContent = htmlFragmentParse.TextWithInlineFormatTags,
+                        EntityRefs = nodeReferenceInThisNoteParagraph,
+                    });
                 }
+            }
+
+            return returnVal;
+        }
+
+        private static List<Paragraph> ParseParagraphs(
+            HtmlNodeNavigator navigator,
+            int chapter,
+            string currentUrl,
+            IDictionary<string, Footnote> footnotes,
+            List<Note> notes,
+            ILogger logger)
+        {
+            List<Paragraph> returnVal = new List<Paragraph>();
+            Regex matcherForThisChapterFootnoteRefs = new Regex(Regex.Escape(currentUrl) + ".*?#(note\\d+)");
+            navigator.MoveToRoot();
+            XPathNodeIterator iter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]/section[1]/p[@id]");
+            while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
+            {
+                string paraId = currentNav.GetAttribute("id", string.Empty);
+                KnowledgeGraphNodeId thisParaId = FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, chapter.ToString(), paraId);
+                string noteParaContent = WebUtility.HtmlDecode(currentNav.CurrentNode.InnerHtml);
+                var htmlFragmentParse = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(noteParaContent, logger);
+                List<FootnoteReference> footnoteRefsInThisParagraph = new List<FootnoteReference>();
+                foreach (var link in htmlFragmentParse.Links.OrderByDescending(s => s.Item1.End))
+                {
+                    int linkCharsDelta = 0 - link.Item1.Length;
+                    Match footnoteMatch = matcherForThisChapterFootnoteRefs.Match(link.Item2);
+                    if (footnoteMatch.Success && footnotes.TryGetValue(footnoteMatch.Groups[1].Value, out Footnote? footnote))
+                    {
+                        Console.WriteLine(footnote.NoteId);
+                        FootnoteReference thisFootnoteRef = new FootnoteReference()
+                        {
+                            Footnote = footnote,
+                            ReferenceSpan = link.Item1,
+                        };
+
+                        Note? referencedNote = null;
+                        foreach (var noteRef in footnote.NoteRefs)
+                        {
+                            foreach (var note in notes)
+                            {
+                                foreach (var para in note.Paragraphs)
+                                {
+                                    if (string.Equals(para.ParaId, noteRef, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        referencedNote = note;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Remove footnote superscripts from the paragraph text, unless they refer to notes at the bottom,
+                        // in which case replace them with an inline "[Note 1]"
+                        if (referencedNote != null)
+                        {
+                            string replaceText = string.Format(" [Note {0}]", referencedNote.NoteNum);
+                            linkCharsDelta += replaceText.Length;
+                            thisFootnoteRef.ReferenceSpan = new IntRange(
+                                link.Item1.Start,
+                                link.Item1.Start + replaceText.Length);
+                            htmlFragmentParse.TextWithInlineFormatTags = string.Format("{0}{1}{2}",
+                                htmlFragmentParse.TextWithInlineFormatTags.Substring(0, link.Item1.Start),
+                                replaceText,
+                                htmlFragmentParse.TextWithInlineFormatTags.Substring(link.Item1.End));
+                        }
+                        else
+                        {
+                            thisFootnoteRef.ReferenceSpan = new IntRange(
+                                link.Item1.Start,
+                                link.Item1.Start); // zero-length footnote ref since we're deleting its text
+                            htmlFragmentParse.TextWithInlineFormatTags = htmlFragmentParse.TextWithInlineFormatTags.Remove(link.Item1.Start, link.Item1.Length);
+                        }
+
+                        // Whenever we alter the content of the paragraph, we need to adjust the positions
+                        // of each footnote link. Since we're iterating links in reverse order, every existing link
+                        // is guaranteed to be later than the point being edited, which simplifies things.
+                        foreach (FootnoteReference existingRef in footnoteRefsInThisParagraph)
+                        {
+                            existingRef.ReferenceSpan = new IntRange(
+                                existingRef.ReferenceSpan.Start + linkCharsDelta,
+                                existingRef.ReferenceSpan.End + linkCharsDelta);
+                        }
+
+                        footnoteRefsInThisParagraph.Add(thisFootnoteRef);
+                    }
+                    else
+                    {
+                        htmlFragmentParse.TextWithInlineFormatTags = htmlFragmentParse.TextWithInlineFormatTags.Remove(link.Item1.Start, link.Item1.Length);
+                        foreach (FootnoteReference existingRef in footnoteRefsInThisParagraph)
+                        {
+                            existingRef.ReferenceSpan = new IntRange(
+                                existingRef.ReferenceSpan.Start - link.Item1.Length,
+                                existingRef.ReferenceSpan.End - link.Item1.Length);
+                        }
+                    }
+                }
+
+                Console.WriteLine(htmlFragmentParse.TextWithInlineFormatTags);
+
+                returnVal.Add(new Paragraph()
+                {
+                    ParaEntityId = thisParaId,
+                    Text = htmlFragmentParse.TextWithInlineFormatTags,
+                    Footnotes = footnoteRefsInThisParagraph.OrderBy(s => s.ReferenceSpan.Start).ToList()
+                });
             }
 
             return returnVal;
@@ -247,7 +362,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         {
             public required KnowledgeGraphNodeId ParaEntityId;
             public required string Text;
-            public required List<FootnoteReference> References;
+            public required List<FootnoteReference> Footnotes;
 
             public override string ToString()
             {
@@ -257,24 +372,29 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private class Footnote
         {
-            public string NoteId;
-            public string NoteContent;
-            public ISet<KnowledgeGraphNodeId> EntityRefs;
-            public ISet<string> NoteRefs;
+            public required string NoteId;
+            public required string NoteContent;
+            public required ISet<KnowledgeGraphNodeId> EntityRefs;
+            public required ISet<string> NoteRefs;
         }
 
         private class Note
         {
-            public string NoteParaId;
-            public string NoteContent;
-            public ISet<KnowledgeGraphNodeId> EntityRefs;
+            public required int NoteNum;
+            public required IList<NoteParagraph> Paragraphs;
+        }
+
+        private class NoteParagraph
+        {
+            public required string ParaId;
+            public required string ParaContent;
+            public required ISet<KnowledgeGraphNodeId> EntityRefs;
         }
 
         private class FootnoteReference
         {
-            public required KnowledgeGraphNodeId TargetNodeId;
-            public ScriptureReference? ScriptureRef;
-            public IntRange? ReferenceSpan;
+            public required Footnote Footnote;
+            public IntRange ReferenceSpan;
         }
     }
 }
