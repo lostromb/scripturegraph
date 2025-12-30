@@ -67,13 +67,12 @@ namespace ScriptureGraph.Core.Training.Extractors
                             reference.LowEmphasis ? TrainingFeatureType.ScriptureReferenceWithoutEmphasis : TrainingFeatureType.ScriptureReference));
                     }
 
-                    // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
-                    // doing 9x permutations between every single word in the paragraph)
-                    List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(para.Text).ToList();
+                    // TODO: Proper sentence entity handling
+                    List<Substring> sentences = EnglishWordFeatureExtractor.BreakSentences(para.Text).ToList();
 
-                    foreach (string sentence in sentences)
+                    foreach (Substring sentence in sentences)
                     {
-                        string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
+                        string thisSentenceWordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence.Text);
 
                         // Common word and ngram level features associated with this paragraph entity
                         scratch.Clear();

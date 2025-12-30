@@ -16,5 +16,8 @@ namespace ScriptureGraph.Core.Schemas.Documents
         [JsonPropertyName("c")]
         [JsonConverter(typeof(JsonNumberEnumConverter<GospelParagraphClass>))]
         public GospelParagraphClass Class { get; set; }
+
+        [JsonPropertyName("r")]
+        public List<GospelParagraphSubregion>? Regions { get; set; }
     }
 }

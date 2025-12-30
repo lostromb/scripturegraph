@@ -2,6 +2,7 @@
 using Durandal.Common.NLP.Language;
 using Durandal.Common.Utils;
 using ScriptureGraph.Core.Graph;
+using ScriptureGraph.Core.Schemas;
 using System.Text.RegularExpressions;
 
 namespace ScriptureGraph.Core.Training.Extractors
@@ -17,7 +18,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private const int MAX_WORD_ASSOCIATION_ORDER = 7;
 
-        public static IEnumerable<string> BreakWords(string input)
+        public static IEnumerable<Substring> BreakWords(string input)
         {
             int startIndex = 0;
             while (startIndex < input.Length)
@@ -25,7 +26,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 Match wordMatch = WordMatcher.Match(input, startIndex);
                 if (wordMatch.Success)
                 {
-                    yield return wordMatch.Value;
+                    yield return new Substring(wordMatch.Value, wordMatch, null);
                     startIndex = wordMatch.Index + wordMatch.Length;
                 }
                 else
@@ -35,23 +36,31 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        public static IEnumerable<string> BreakWordsLowerCase(string input)
+        public static IEnumerable<Substring> BreakWordsLowerCase(string input)
         {
-            foreach (string word in BreakWords(input))
+            foreach (Substring word in BreakWords(input))
             {
-                yield return word.ToLowerInvariant();
+                yield return new Substring(word.Text.ToLowerInvariant(), word.Range, null);
             }
         }
 
-        public static IEnumerable<string> BreakSentence(string input)
+        public static IEnumerable<Substring> BreakSentences(string input, KnowledgeGraphNodeId? paragraphEntity = null)
         {
             int startIndex = 0;
+            int sentenceIdx = 0;
             while (startIndex < input.Length)
             {
                 Match sentenceMatch = SentenceMatcher.Match(input, startIndex);
                 if (sentenceMatch.Success)
                 {
-                    yield return sentenceMatch.Value;
+                    sentenceIdx++;
+                    KnowledgeGraphNodeId? sentenceEntity = null;
+                    if (paragraphEntity != null)
+                    {
+                        sentenceEntity = FeatureToNodeMapping.MapParagraphToSentenceEntityIfApplicable(paragraphEntity.Value, sentenceIdx);
+                    }
+
+                    yield return new Substring(sentenceMatch.Value, sentenceMatch, sentenceEntity);
                     startIndex = sentenceMatch.Index + sentenceMatch.Length;
                 }
                 else
@@ -61,60 +70,58 @@ namespace ScriptureGraph.Core.Training.Extractors
             }
         }
 
-        public static IEnumerable<string> BreakSentenceLowerCase(string input)
+        public static IEnumerable<Substring> BreakSentencesLowerCase(string input)
         {
-            foreach (string sentence in BreakSentence(input))
+            foreach (Substring sentence in BreakSentences(input))
             {
-                yield return sentence.ToLowerInvariant();
+                yield return new Substring(sentence.Text.ToLowerInvariant(), sentence.Range, sentence.EntityId);
             }
         }
 
         public static IEnumerable<KnowledgeGraphNodeId> ExtractNGrams(string input)
         {
-            foreach (string sentence in BreakSentenceLowerCase(input))
+            foreach (Substring sentence in BreakSentencesLowerCase(input))
             {
-                string[] words = BreakWords(sentence).ToArray();
+                Substring[] words = BreakWords(sentence.Text).ToArray();
                 for (int startIndex = 0; startIndex < words.Length; startIndex++)
                 {
-                    yield return FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH);
+                    yield return FeatureToNodeMapping.Word(words[startIndex].Text, LanguageCode.ENGLISH);
                     if (startIndex < words.Length - 1)
                     {
-                        yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
+                        yield return FeatureToNodeMapping.NGram(words[startIndex].Text, words[startIndex + 1].Text, LanguageCode.ENGLISH);
 
                         if (startIndex < words.Length - 2)
                         {
-                            yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
+                            yield return FeatureToNodeMapping.NGram(words[startIndex].Text, words[startIndex + 1].Text, words[startIndex + 2].Text, LanguageCode.ENGLISH);
                         }
                     }
                 }
             }
         }
 
-        public static void ExtractTrainingFeatures(string input, List<TrainingFeature> trainingFeaturesOut, KnowledgeGraphNodeId? rootEntity = null)
+        public static IEnumerable<Substring> ExtractTrainingFeatures(
+            string input,
+            List<TrainingFeature> trainingFeaturesOut,
+            KnowledgeGraphNodeId? rootEntity = null)
         {
-            int sentenceIdx = 0;
             KnowledgeGraphNodeId? prevSentenceEntity = null;
-            foreach (string sentence in BreakSentenceLowerCase(input))
+            foreach (Substring sentence in BreakSentencesLowerCase(input))
             {
-                sentenceIdx++;
-                KnowledgeGraphNodeId? sentenceEntity = null;
-                if (rootEntity != null)
+                KnowledgeGraphNodeId? sentenceEntity = sentence.EntityId;
+                if (rootEntity.HasValue && sentenceEntity.HasValue)
                 {
-                    sentenceEntity = FeatureToNodeMapping.MapParagraphToSentenceEntityIfApplicable(rootEntity.Value, sentenceIdx);
-
-                    if (sentenceEntity != null)
-                    {
-                        // sentence -> root (vertical)
-                        trainingFeaturesOut.Add(new TrainingFeature(
-                            rootEntity.Value,
-                            sentenceEntity.Value,
-                            TrainingFeatureType.SentenceAssociation));
-                    }
+                    // sentence -> root (vertical)
+                    trainingFeaturesOut.Add(new TrainingFeature(
+                        rootEntity.Value,
+                        sentenceEntity.Value,
+                        TrainingFeatureType.SentenceAssociation));
                 }
+
+                yield return sentence;
 
                 KnowledgeGraphNodeId? sentenceOrRootEntity = sentenceEntity ?? rootEntity;
 
-                string[] words = BreakWords(sentence).ToArray();
+                Substring[] words = BreakWords(sentence.Text).ToArray();
                 for (int startIndex = 0; startIndex < words.Length; startIndex++)
                 {
                     // Single words associated with the root entity
@@ -122,7 +129,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         trainingFeaturesOut.Add(new TrainingFeature(
                             sentenceOrRootEntity.Value,
-                            FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
+                            FeatureToNodeMapping.Word(words[startIndex].Text, LanguageCode.ENGLISH),
                             TrainingFeatureType.WordAssociation));
                     }
 
@@ -132,14 +139,14 @@ namespace ScriptureGraph.Core.Training.Extractors
                         for (int endIndex = startIndex + 1; endIndex <= startIndex + MAX_WORD_ASSOCIATION_ORDER && endIndex < words.Length; endIndex++)
                         {
                             trainingFeaturesOut.Add(new TrainingFeature(
-                                FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
-                                FeatureToNodeMapping.Word(words[endIndex], LanguageCode.ENGLISH),
+                                FeatureToNodeMapping.Word(words[startIndex].Text, LanguageCode.ENGLISH),
+                                FeatureToNodeMapping.Word(words[endIndex].Text, LanguageCode.ENGLISH),
                                 TrainingFeatureType.WordAssociation));
                         }
 
                         // Bigrams
                         // bigram -> root entity
-                        KnowledgeGraphNodeId bigram = FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
+                        KnowledgeGraphNodeId bigram = FeatureToNodeMapping.NGram(words[startIndex].Text, words[startIndex + 1].Text, LanguageCode.ENGLISH);
                         if (sentenceOrRootEntity.HasValue)
                         {
                             trainingFeaturesOut.Add(new TrainingFeature(
@@ -150,12 +157,12 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                         // bigram -> words that are in it
                         trainingFeaturesOut.Add(new TrainingFeature(
-                            FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
+                            FeatureToNodeMapping.Word(words[startIndex].Text, LanguageCode.ENGLISH),
                             bigram,
                             TrainingFeatureType.WordAssociation));
 
                         trainingFeaturesOut.Add(new TrainingFeature(
-                            FeatureToNodeMapping.Word(words[startIndex + 1], LanguageCode.ENGLISH),
+                            FeatureToNodeMapping.Word(words[startIndex + 1].Text, LanguageCode.ENGLISH),
                             bigram,
                             TrainingFeatureType.WordAssociation));
 
@@ -163,7 +170,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         if (startIndex < words.Length - 2)
                         {
                             // trigram -> root entity
-                            KnowledgeGraphNodeId trigram = FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
+                            KnowledgeGraphNodeId trigram = FeatureToNodeMapping.NGram(words[startIndex].Text, words[startIndex + 1].Text, words[startIndex + 2].Text, LanguageCode.ENGLISH);
                             if (sentenceOrRootEntity.HasValue)
                             {
                                 trainingFeaturesOut.Add(new TrainingFeature(
@@ -174,17 +181,17 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                             // trigram -> words that are in it
                             trainingFeaturesOut.Add(new TrainingFeature(
-                                FeatureToNodeMapping.Word(words[startIndex], LanguageCode.ENGLISH),
+                                FeatureToNodeMapping.Word(words[startIndex].Text, LanguageCode.ENGLISH),
                                 trigram,
                                 TrainingFeatureType.WordAssociation));
 
                             trainingFeaturesOut.Add(new TrainingFeature(
-                                FeatureToNodeMapping.Word(words[startIndex + 1], LanguageCode.ENGLISH),
+                                FeatureToNodeMapping.Word(words[startIndex + 1].Text, LanguageCode.ENGLISH),
                                 trigram,
                                 TrainingFeatureType.WordAssociation));
 
                             trainingFeaturesOut.Add(new TrainingFeature(
-                                FeatureToNodeMapping.Word(words[startIndex + 2], LanguageCode.ENGLISH),
+                                FeatureToNodeMapping.Word(words[startIndex + 2].Text, LanguageCode.ENGLISH),
                                 trigram,
                                 TrainingFeatureType.WordAssociation));
                         }
@@ -241,34 +248,34 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         public static IEnumerable<KnowledgeGraphNodeId> ExtractCharLevelNGrams(string input)
         {
-            foreach (string sentence in BreakSentenceLowerCase(input))
+            foreach (Substring sentence in BreakSentencesLowerCase(input))
             {
                 // Word-level ngrams, including start of sentence / end of sentence boundaries
-                List<string> words = BreakWords(sentence).ToList();
+                List<Substring> words = BreakWords(sentence.Text).ToList();
                 for (int index = 0; index < words.Count; index++)
                 {
-                    yield return FeatureToNodeMapping.Word(words[index], LanguageCode.ENGLISH);
+                    yield return FeatureToNodeMapping.Word(words[index].Text, LanguageCode.ENGLISH);
                 }
 
-                words.Insert(0, "STKN");
-                words.Add("ETKN");
+                words.Insert(0, new Substring("STKN", new IntRange(0, 0), null));
+                words.Add(new Substring("ETKN", new IntRange(sentence.Range.End, sentence.Range.End), null));
                 for (int startIndex = 0; startIndex < words.Count; startIndex++)
                 {
                     if (startIndex < words.Count - 1)
                     {
-                        yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], LanguageCode.ENGLISH);
+                        yield return FeatureToNodeMapping.NGram(words[startIndex].Text, words[startIndex + 1].Text, LanguageCode.ENGLISH);
 
                         if (startIndex < words.Count - 2)
                         {
-                            yield return FeatureToNodeMapping.NGram(words[startIndex], words[startIndex + 1], words[startIndex + 2], LanguageCode.ENGLISH);
+                            yield return FeatureToNodeMapping.NGram(words[startIndex].Text, words[startIndex + 1].Text, words[startIndex + 2].Text, LanguageCode.ENGLISH);
                         }
                     }
                 }
 
                 // And char-level ngrams
-                foreach (string word in words)
+                foreach (Substring word in words)
                 {
-                    foreach (KnowledgeGraphNodeId ngram in ExtractCharLevelNGramsSingleWord(word))
+                    foreach (KnowledgeGraphNodeId ngram in ExtractCharLevelNGramsSingleWord(word.Text))
                     {
                         yield return ngram;
                     }

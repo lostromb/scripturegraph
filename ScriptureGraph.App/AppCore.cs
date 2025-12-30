@@ -808,13 +808,13 @@ namespace ScriptureGraph.App
                 return (text, 0.0f);
             }
 
-            List<string> sentences = EnglishWordFeatureExtractor.BreakSentence(text).ToList();
+            List<Substring> sentences = EnglishWordFeatureExtractor.BreakSentences(text).ToList();
             float[] scores = new float[sentences.Count];
 
             for (int sentenceIdx = 0; sentenceIdx < sentences.Count; sentenceIdx++)
             {
                 float thisSentenceScore = 0;
-                foreach (KnowledgeGraphNodeId ngram in EnglishWordFeatureExtractor.ExtractNGrams(sentences[sentenceIdx]))
+                foreach (KnowledgeGraphNodeId ngram in EnglishWordFeatureExtractor.ExtractNGrams(sentences[sentenceIdx].Text))
                 {
                     float t;
                     if (activatedWords.TryGetValue(ngram, out t))
@@ -830,7 +830,7 @@ namespace ScriptureGraph.App
             // that get misinterpreted by wordbreaker and don't look very good on output
             for (int c = 0; c < scores.Length; c++)
             {
-                if (sentences[c].Length < 20)
+                if (sentences[c].Text.Length < 20)
                 {
                     scores[c] *= 0.3f;
                 }
@@ -843,7 +843,7 @@ namespace ScriptureGraph.App
                 int sentenceEndIdx = sentenceStartIdx;
                 while (sentenceEndIdx < sentences.Count && charsUsed <= maxCharLength)
                 {
-                    charsUsed += sentences[sentenceEndIdx].Length;
+                    charsUsed += sentences[sentenceEndIdx].Text.Length;
                     thisScore += scores[sentenceEndIdx];
                     sentenceEndIdx++;
                 }

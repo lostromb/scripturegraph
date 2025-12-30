@@ -100,18 +100,23 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                     previousPara = para;
 
+                    // NEW WAY - may generate more features than we need, but it should be good
+                    // at sentence-level entity relations
+                    EnglishWordFeatureExtractor.ExtractTrainingFeatures(para.Text, trainingFeaturesOut, para.ParaEntityId);
+
+                    // OLD WAY - fewer features?
                     // Break sentences within the paragraph (this is mainly to control ngram propagation so we don't have associations
                     // doing 9x permutations between every single word in the paragraph)
-                    foreach (string sentence in EnglishWordFeatureExtractor.BreakSentence(para.Text))
-                    {
-                        foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(sentence))
-                        {
-                            trainingFeaturesOut.Add(new TrainingFeature(
-                                para.ParaEntityId,
-                                ngram,
-                                ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
-                        }
-                    }
+                    //foreach (Substring sentence in EnglishWordFeatureExtractor.BreakSentences(para.Text))
+                    //{
+                    //    foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(sentence.Text))
+                    //    {
+                    //        trainingFeaturesOut.Add(new TrainingFeature(
+                    //            para.ParaEntityId,
+                    //            ngram,
+                    //            ngram.Type == KnowledgeGraphNodeType.NGram ? TrainingFeatureType.NgramAssociation : TrainingFeatureType.WordAssociation));
+                    //    }
+                    //}
 
                     foreach (var footnote in para.References)
                     {
@@ -563,70 +568,6 @@ namespace ScriptureGraph.Core.Training.Extractors
             {
                 logger.Log(e);
                 return null;
-            }
-        }
-
-        private static void ExtractFeaturesFromSingleParagraph(
-            Paragraph currentParagraph,
-            string book,
-            int chapter,
-            int? verse,
-            List<TrainingFeature> trainingFeaturesOut)
-        {
-            // Common word and ngram level features associated with this verse entity
-            EnglishWordFeatureExtractor.ExtractTrainingFeatures(currentParagraph.Text.Trim(), trainingFeaturesOut, currentParagraph.ParaEntityId);
-
-            // Is this paragraph an actual numerical verse?
-            if (verse.HasValue)
-            {
-                // Relationship between this verse and the previous one (if present)
-                if (verse.Value > 1)
-                {
-                    trainingFeaturesOut.Add(new TrainingFeature(
-                        currentParagraph.ParaEntityId,
-                        FeatureToNodeMapping.ScriptureVerse(
-                            book,
-                            chapter,
-                            verse.Value - 1),
-                        TrainingFeatureType.ParagraphAssociation));
-                }
-            }
-
-            // Relationship between this verse and the book it's in
-            trainingFeaturesOut.Add(new TrainingFeature(
-                currentParagraph.ParaEntityId,
-                FeatureToNodeMapping.ScriptureChapter(
-                    book,
-                    chapter),
-                TrainingFeatureType.BookAssociation));
-
-            // Cross-references between this verse and other verses based on footnotes
-            foreach (var footnote in currentParagraph.References)
-            {
-                TrainingFeatureType featureType = TrainingFeatureType.ScriptureReference;
-                if (footnote.ParserMatch.LowEmphasis)
-                {
-                    featureType = TrainingFeatureType.ScriptureReferenceWithoutEmphasis;
-                }
-
-                trainingFeaturesOut.Add(new TrainingFeature(
-                    currentParagraph.ParaEntityId,
-                    footnote.ParserMatch.Node,
-                    featureType));
-
-                // Also parse the words actually tagged by the footnote - this is why we had to do very careful
-                // start-end index calculations earlier
-                if (footnote.ReferenceSpan.HasValue)
-                {
-                    string footnoteText = currentParagraph.Text.Substring(footnote.ReferenceSpan.Value.Start, footnote.ReferenceSpan.Value.Length);
-                    foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(footnoteText))
-                    {
-                        trainingFeaturesOut.Add(new TrainingFeature(
-                            ngram,
-                            footnote.ParserMatch.Node,
-                            TrainingFeatureType.WordDesignation));
-                    }
-                }
             }
         }
 

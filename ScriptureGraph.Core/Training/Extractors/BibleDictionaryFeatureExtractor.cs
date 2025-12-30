@@ -69,16 +69,17 @@ namespace ScriptureGraph.Core.Training.Extractors
                             TrainingFeatureType.ParagraphAssociation));
                     }
 
+                    // TODO: Proper sentence entity handling
                     // Replace inline scripture references with ones that won't mess up the word breaker
                     string rawParagraph = LdsDotOrgCommonParsers.RemovePageBreakTags(entryMatch.Groups[1].Value);
                     string linkAlteredParagraph = RemoveScriptureRefAnchorTexts(rawParagraph);
-                    foreach (string sentence in EnglishWordFeatureExtractor.BreakSentence(linkAlteredParagraph))
+                    foreach (Substring sentence in EnglishWordFeatureExtractor.BreakSentences(linkAlteredParagraph))
                     {
-                        string wordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.ScriptureRefReplacer, sentence);
+                        string wordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.ScriptureRefReplacer, sentence.Text);
                         wordBreakerText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, wordBreakerText);
 
                         // for parsing the document later
-                        string sanitizedText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence);
+                        string sanitizedText = StringUtils.RegexRemove(LdsDotOrgCommonParsers.HtmlTagRemover, sentence.Text);
                         List<KnowledgeGraphNodeId> ngrams = EnglishWordFeatureExtractor.ExtractNGrams(wordBreakerText).ToList();
 
                         // Associate ngrams in the sentence with the paragraph entity
@@ -91,7 +92,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         }
 
                         references.Clear();
-                        LdsDotOrgCommonParsers.ParseAllScriptureReferences(sentence, references, logger);
+                        LdsDotOrgCommonParsers.ParseAllScriptureReferences(sentence.Text, references, logger);
                         foreach (ScriptureReference scriptureRef in references)
                         {
                             KnowledgeGraphNodeId refNodeId = scriptureRef.ToNodeId();

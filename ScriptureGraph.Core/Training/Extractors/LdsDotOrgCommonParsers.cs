@@ -79,6 +79,8 @@ namespace ScriptureGraph.Core.Training.Extractors
 
         private static readonly Regex LineBreakMatcher = new Regex("<\\s*\\/?\\s*br\\s*\\/?\\s*>");
 
+        private static readonly Regex LinkRemover = new Regex("<a.+?>([\\w\\W]+?)<\\/a>");
+
         private static readonly IReadOnlySet<string> CANONS = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "ot", "nt", "bofm", "dc-testament", "pgp",
@@ -88,6 +90,11 @@ namespace ScriptureGraph.Core.Training.Extractors
         internal static string RemovePageBreakTags(string input)
         {
             return StringUtils.RegexRemove(PageBreakRemover, input);
+        }
+
+        internal static string RemoveLinksAndAnchorText(string input)
+        {
+            return StringUtils.RegexRemove(LinkRemover, input);
         }
 
         internal static string ReplaceBrWithNewlines(string input)
@@ -629,7 +636,7 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                     if (currentNav.CurrentNode.NodeType == HtmlNodeType.Text)
                     {
-                        sb.Append(WebUtility.HtmlDecode(currentNav.CurrentNode.InnerText).Replace(' ' /* <-- This is U+00A0, or NBSP. --> This is a regular space */, ' '));
+                        sb.Append(RemoveNbsp(WebUtility.HtmlDecode(currentNav.CurrentNode.InnerText)));
                     }
                     else if (string.Equals("i", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||
                             string.Equals("em", currentNav.CurrentNode.Name, StringComparison.OrdinalIgnoreCase) ||

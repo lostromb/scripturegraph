@@ -1184,7 +1184,7 @@ namespace ScriptureGraph.App
 
         private static readonly Regex FORMATTING_HTML_PARSER = new Regex("<(\\/)?([bi])\\s*>");
 
-        private static void AddFormattedInlines(string text, InlineCollection collection)
+        private static void AddFormattedInlines(string text, List<GospelParagraphSubregion>? subregions, InlineCollection collection)
         {
             // TODO: Remove the "fancy" formatting from documents?
             // Like nbsp and fancy quotes and stuff - they might mess up copy and pasting
@@ -1194,14 +1194,54 @@ namespace ScriptureGraph.App
             int currentIndex = 0;
             foreach (Match match in tagMatches)
             {
-                string substring = text.Substring(currentIndex, match.Index - currentIndex);
-                Inline inline = new Run(substring);
-                if (bold)
-                    inline = new Bold(inline);
-                if (italic)
-                    inline = new Italic(inline);
+                int regionStartIdx = currentIndex;
+                int regionEndIdx = match.Index;
+                int regionLength = regionEndIdx - regionStartIdx;
+                //if (subregions == null)
+                {
+                    string substring = text.Substring(regionStartIdx, regionLength);
+                    Inline inline = new Run(substring);
+                    if (bold)
+                        inline = new Bold(inline);
+                    if (italic)
+                        inline = new Italic(inline);
 
-                collection.Add(inline);
+                    collection.Add(inline);
+                }
+                //else
+                //{
+                //    // Find subregions that overlap this one
+                //    int currentSubStartIndex = 0;
+                //    foreach (GospelParagraphSubregion subregion in subregions.OrderBy(s => s.Range.Start))
+                //    {
+                //        if (subregion.Range.End < regionStartIdx)
+                //        {
+                //            // No overlap
+                //            continue;
+                //        }
+                //        else if (subregion.Range.Start > regionEndIdx)
+                //        {
+                //            break;
+                //        }
+
+                //        // TODO: Implement
+                //        int subStartIdx = Math.Max(regionStartIdx, currentSubStartIndex);
+                //        int subEndIdx = Math.Min(regionEndIdx, subregion.Range.Start);
+                //        int subLength = subEndIdx - subStartIdx;
+                //        if (subLength > 0)
+                //        {
+                //            string substring = text.Substring(subStartIdx, subLength);
+                //            Inline inline = new Run(substring);
+                //            if (bold)
+                //                inline = new Bold(inline);
+                //            if (italic)
+                //                inline = new Italic(inline);
+
+                //            collection.Add(inline);
+                //        }
+                //    }
+                //}
+
                 currentIndex = match.Index + match.Length;
 
                 if (string.Equals("b", match.Groups[2].Value))
@@ -1334,7 +1374,7 @@ namespace ScriptureGraph.App
                 }
 
                 // TODO small caps for scripture chapter title and subtitles
-                AddFormattedInlines(paragraph.Text, uiParagraph.Inlines);
+                AddFormattedInlines(paragraph.Text, paragraph.Regions, uiParagraph.Inlines);
                 returnVal.Blocks.Add(uiParagraph);
             }
 
