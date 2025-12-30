@@ -279,45 +279,57 @@ namespace ScriptureGraph.Core.Training.Extractors
             List<Note> returnVal = new List<Note>();
             navigator.MoveToRoot();
             int noteNum = 1;
-            XPathNodeIterator iter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]/section[last()]/ol/li");
-            while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
+            XPathNodeIterator sectionIter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]/section");
+            while (sectionIter.MoveNext() && sectionIter.Current is HtmlNodeNavigator currentNavSection)
             {
-                Note note = new Note()
-                {
-                    NoteNum = noteNum++,
-                    Paragraphs = new List<NoteParagraph>()
-                };
+                string sectionTitle = LdsDotOrgCommonParsers.RemoveLinksAndAnchorText(GetSingleInnerHtml(currentNavSection, "header/h2"));
 
-                returnVal.Add(note);
-                XPathNodeIterator iter2 = currentNav.Select("p[@id]");
-                while (iter2.MoveNext() && iter2.Current is HtmlNodeNavigator currentNav2)
+                // Skip non-notes
+                if (!sectionTitle.StartsWith("Notes to Chapter"))
                 {
-                    string notePId = currentNav2.GetAttribute("id", string.Empty);
-                    KnowledgeGraphNodeId thisParaId = FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, chapter.ToString(), notePId);
-                    string noteParaContent = WebUtility.HtmlDecode(currentNav2.CurrentNode.InnerHtml);
-                    var htmlFragmentParse = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(noteParaContent, logger);
-                    HashSet<KnowledgeGraphNodeId> nodeReferenceInThisNoteParagraph = new HashSet<KnowledgeGraphNodeId>();
-                    foreach (var link in htmlFragmentParse.Links)
+                    continue;
+                }
+
+                XPathNodeIterator noteIter = currentNavSection.Select("ol/li");
+                while (noteIter.MoveNext() && noteIter.Current is HtmlNodeNavigator currentNavNote)
+                {
+                    Note note = new Note()
                     {
-                        foreach (var omniParseOutput in OmniParser.ParseHtml(link.Item2, logger, LanguageCode.ENGLISH))
+                        NoteNum = noteNum++,
+                        Paragraphs = new List<NoteParagraph>()
+                    };
+
+                    returnVal.Add(note);
+                    XPathNodeIterator paraIter = currentNavNote.Select("p[@id]");
+                    while (paraIter.MoveNext() && paraIter.Current is HtmlNodeNavigator currentNavPara)
+                    {
+                        string notePId = currentNavPara.GetAttribute("id", string.Empty);
+                        KnowledgeGraphNodeId thisParaId = FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, chapter.ToString(), notePId);
+                        string noteParaContent = WebUtility.HtmlDecode(currentNavPara.CurrentNode.InnerHtml);
+                        var htmlFragmentParse = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(noteParaContent, logger);
+                        HashSet<KnowledgeGraphNodeId> nodeReferenceInThisNoteParagraph = new HashSet<KnowledgeGraphNodeId>();
+                        foreach (var link in htmlFragmentParse.Links)
                         {
-                            if (!nodeReferenceInThisNoteParagraph.Contains(omniParseOutput.Node))
+                            foreach (var omniParseOutput in OmniParser.ParseHtml(link.Item2, logger, LanguageCode.ENGLISH))
                             {
-                                nodeReferenceInThisNoteParagraph.Add(omniParseOutput.Node);
+                                if (!nodeReferenceInThisNoteParagraph.Contains(omniParseOutput.Node))
+                                {
+                                    nodeReferenceInThisNoteParagraph.Add(omniParseOutput.Node);
+                                }
                             }
                         }
+
+
+                        note.Paragraphs.Add(new NoteParagraph()
+                        {
+                            ParaId = notePId,
+                            ParaContent = htmlFragmentParse.TextWithInlineFormatTags,
+                            EntityRefs = nodeReferenceInThisNoteParagraph,
+                            ParaEntityId = thisParaId,
+                            Subregions = EnglishWordFeatureExtractor.BreakSentences(htmlFragmentParse.TextWithInlineFormatTags, thisParaId)
+                                .Where(s => s.EntityId.HasValue).ToList()
+                        });
                     }
-
-
-                    note.Paragraphs.Add(new NoteParagraph()
-                    {
-                        ParaId = notePId,
-                        ParaContent = htmlFragmentParse.TextWithInlineFormatTags,
-                        EntityRefs = nodeReferenceInThisNoteParagraph,
-                        ParaEntityId = thisParaId,
-                        Subregions = EnglishWordFeatureExtractor.BreakSentences(htmlFragmentParse.TextWithInlineFormatTags, thisParaId)
-                            .Where(s => s.EntityId.HasValue).ToList()
-                    });
                 }
             }
 
