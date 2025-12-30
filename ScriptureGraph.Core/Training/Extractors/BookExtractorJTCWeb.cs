@@ -98,46 +98,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                 XPathNodeIterator iter;
                 HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
 
-                // Parse footnotes
-                Dictionary<string, ISet<KnowledgeGraphNodeId>> footnoteReferences = new Dictionary<string, ISet<KnowledgeGraphNodeId>>();
+                Dictionary<string, Footnote> footnoteReferences = ParseFootnotes(navigator, chapter, pageUrl.AbsolutePath, logger);
+                Dictionary<string, Note> notes = ParseNotes(navigator, chapter, logger);
 
-                HashSet<ScriptureReference> scriptureRefs = new HashSet<ScriptureReference>();
-                navigator.MoveToRoot();
-                iter = navigator.Select("//footer[@class=\"notes\"]//p[@id]");
-                while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
-                {
-                    string footnotePId = currentNav.GetAttribute("id", string.Empty);
-                    if (footnotePId.Length < 3)
-                    {
-                        logger.Log("Invalid footnote id " + footnotePId, LogLevel.Wrn);
-                        continue;
-                    }
-
-                    footnotePId = footnotePId.Substring(0, footnotePId.Length - 3); // trim the _p1 from the end
-                    Console.WriteLine($"ID {footnotePId}");
-
-                    string content = currentNav.CurrentNode.InnerHtml;
-                    content = WebUtility.HtmlDecode(content);
-
-                    // Extract all scripture references from links and text
-                    scriptureRefs.Clear();
-                    LdsDotOrgCommonParsers.ParseAllScriptureReferences(content, scriptureRefs, logger);
-                    HashSet<KnowledgeGraphNodeId> refNodeIds = new HashSet<KnowledgeGraphNodeId>();
-                    foreach (ScriptureReference scriptureRef in scriptureRefs)
-                    {
-                        KnowledgeGraphNodeId refId = scriptureRef.ToNodeId();
-                        if (!refNodeIds.Contains(refId))
-                        {
-                            refNodeIds.Add(refId);
-                        }
-                    }
-
-                    footnoteReferences[footnotePId] = refNodeIds;
-                    foreach (var node in refNodeIds)
-                    {
-                        Console.WriteLine(node);
-                    }
-                }
+                // Body paragraphs
 
                 return returnVal;
             }
@@ -146,6 +110,116 @@ namespace ScriptureGraph.Core.Training.Extractors
                 logger.Log(e);
                 return null;
             }
+        }
+
+        private static Dictionary<string, Footnote> ParseFootnotes(HtmlNodeNavigator navigator, int chapter, string currentUrl, ILogger logger)
+        {
+            Dictionary<string, Footnote> footnoteReferences = new Dictionary<string, Footnote>();
+            navigator.MoveToRoot();
+            XPathNodeIterator iter = navigator.Select("//footer[@class=\"notes\"]//p[@id]");
+            Regex matcherForThisChapterFooters = new Regex(Regex.Escape(currentUrl) + ".*?#(p\\d+)[\"$]");
+            while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
+            {
+                string footnotePId = currentNav.GetAttribute("id", string.Empty);
+                if (footnotePId.Length < 3)
+                {
+                    logger.Log("Invalid footnote id " + footnotePId, LogLevel.Wrn);
+                    continue;
+                }
+
+                if (footnotePId.Contains('_'))
+                {
+                    footnotePId = footnotePId.Substring(0, footnotePId.LastIndexOf('_')); // trim the _p1 from the end
+                }
+
+                Console.WriteLine($"ID {footnotePId}");
+
+                string content = currentNav.CurrentNode.InnerHtml;
+                content = WebUtility.HtmlDecode(content);
+
+                // Extract all scripture references from links and text in footnotes
+                HashSet<KnowledgeGraphNodeId> refNodeIds = new HashSet<KnowledgeGraphNodeId>();
+                HashSet<string> noteRefs = new HashSet<string>();
+                foreach (OmniParserOutput parseOutput in OmniParser.ParseHtml(content, logger, LanguageCode.ENGLISH))
+                {
+                    KnowledgeGraphNodeId refId = parseOutput.Node;
+                    if (!refNodeIds.Contains(refId))
+                    {
+                        refNodeIds.Add(refId);
+                    }
+                }
+
+                // And also look for references to "Note 1", etc.
+                // We replace this with an in-line text link in addition to the entity relationship
+                foreach (Match thisChapterFragmentLink in matcherForThisChapterFooters.Matches(content))
+                {
+                    string noteParagraphId = thisChapterFragmentLink.Groups[1].Value;
+                    if (!noteRefs.Contains(noteParagraphId))
+                    {
+                        Console.WriteLine($"Reference to fragment {noteParagraphId}");
+                        noteRefs.Add(noteParagraphId);
+                    }
+
+                    KnowledgeGraphNodeId refId = FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, chapter.ToString(), noteParagraphId);
+                    if (!refNodeIds.Contains(refId))
+                    {
+                        refNodeIds.Add(refId);
+                    }
+                }
+
+                footnoteReferences[footnotePId] = new Footnote()
+                {
+                    NoteId = footnotePId,
+                    NoteContent = content,
+                    EntityRefs = refNodeIds,
+                    NoteRefs = noteRefs
+                };
+
+                foreach (var node in refNodeIds)
+                {
+                    Console.WriteLine(node);
+                }
+            }
+
+            return footnoteReferences;
+        }
+
+        private static Dictionary<string, Note> ParseNotes(HtmlNodeNavigator navigator, int chapter, ILogger logger)
+        {
+            Dictionary<string, Note> returnVal = new Dictionary<string, Note>();
+            navigator.MoveToRoot();
+            XPathNodeIterator iter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]/section[2]/ol/li");
+            while (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
+            {
+                XPathNodeIterator iter2 = currentNav.Select("p[@id]");
+                while (iter2.MoveNext() && iter2.Current is HtmlNodeNavigator currentNav2)
+                {
+                    string notePId = currentNav2.GetAttribute("id", string.Empty);
+                    KnowledgeGraphNodeId thisParaId = FeatureToNodeMapping.BookChapterParagraph(BOOK_ID, chapter.ToString(), notePId);
+                    string noteParaContent = WebUtility.HtmlDecode(currentNav2.CurrentNode.InnerHtml);
+                    var htmlFragmentParse = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(noteParaContent, logger);
+                    HashSet<KnowledgeGraphNodeId> nodeReferenceInThisNoteParagraph = new HashSet<KnowledgeGraphNodeId>();
+                    foreach (var link in htmlFragmentParse.Links)
+                    {
+                        foreach (var omniParseOutput in OmniParser.ParseHtml(link.Item2, logger, LanguageCode.ENGLISH))
+                        {
+                            if (!nodeReferenceInThisNoteParagraph.Contains(omniParseOutput.Node))
+                            {
+                                nodeReferenceInThisNoteParagraph.Add(omniParseOutput.Node);
+                            }
+                        }
+                    }
+
+                    returnVal[notePId] = new Note()
+                    {
+                        NoteParaId = notePId,
+                        NoteContent = htmlFragmentParse.TextWithInlineFormatTags,
+                        EntityRefs = nodeReferenceInThisNoteParagraph
+                    };
+                }
+            }
+
+            return returnVal;
         }
 
         private static string GetSingleInnerHtml(HtmlDocument html, string xpath)
@@ -179,6 +253,21 @@ namespace ScriptureGraph.Core.Training.Extractors
             {
                 return Text;
             }
+        }
+
+        private class Footnote
+        {
+            public string NoteId;
+            public string NoteContent;
+            public ISet<KnowledgeGraphNodeId> EntityRefs;
+            public ISet<string> NoteRefs;
+        }
+
+        private class Note
+        {
+            public string NoteParaId;
+            public string NoteContent;
+            public ISet<KnowledgeGraphNodeId> EntityRefs;
         }
 
         private class FootnoteReference

@@ -280,6 +280,11 @@ namespace ScriptureGraph.Core.Training
                 return "js-m";
             }
             // ??????
+            else if (string.Equals(bookId, "jst-luke", StringComparison.OrdinalIgnoreCase))
+            {
+                canon = "nt";
+                return "luke";
+            }
             else if (string.Equals(bookId, "jst-mark", StringComparison.OrdinalIgnoreCase))
             {
                 canon = "nt";
@@ -306,6 +311,27 @@ namespace ScriptureGraph.Core.Training
             {
                 return bookId;
             }   
+        }
+
+        public static bool IsValidBook(string bookId)
+        {
+            return BOOK_TO_CANON.ContainsKey(bookId);
+        }
+
+        public static bool IsValidChapter(string bookId, int chapter)
+        {
+            return IsValidBook(bookId) &&
+                chapter > 0 &&
+                chapter <= BOOK_CHAPTER_LENGTHS[bookId].Length;
+        }
+
+        public static bool IsValidVerse(string bookId, int chapter, int verse)
+        {
+            return IsValidBook(bookId) &&
+                chapter > 0 &&
+                verse > 0 &&
+                chapter <= BOOK_CHAPTER_LENGTHS[bookId].Length &&
+                verse <= BOOK_CHAPTER_LENGTHS[bookId][chapter - 1];
         }
 
         public static string GetCanonForBook(string bookId)

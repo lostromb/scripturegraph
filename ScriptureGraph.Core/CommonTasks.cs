@@ -105,7 +105,7 @@ namespace ScriptureGraph.Core
                 //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 logger.Log("Processing documents from local sources");
                 BookExtractorATGQ.ExtractSearchIndexFeatures(
                     epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger, entitySearchGraph.Train, nameIndex);
@@ -151,13 +151,13 @@ namespace ScriptureGraph.Core
                 WebCrawler crawler = new WebCrawler(new PortableHttpClientFactory(), pageCache);
                 DocumentProcessorForDocumentParsing processor = new DocumentProcessorForDocumentParsing(documentFileSystem, threadPool);
                 logger.Log("Processing documents from webcrawler sources");
-                await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
+                //await CrawlStandardWorks(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlBibleDictionary(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlGeneralConference(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlByuSpeeches(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlHymns(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
                 //await CrawlProclamations(crawler, processor.ProcessFromWebCrawlerThreaded, logger);
-                //await CrawlJesusTheChrist(crawler, processor.ProcessFromWebCrawler, logger);
+                await CrawlJesusTheChrist(crawler, processor.ProcessFromWebCrawler, logger);
                 logger.Log("Processing documents from local sources");
                 Book_ATGQ_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Answers to Gospel Questions, Vo - Joseph Fielding Smith.epub"), logger);
                 Book_MD_ExtractDocuments(documentFileSystem, epubFileSystem, new VirtualPath(@"Mormon Doctrine (2nd Ed.) - Bruce R. McConkie.epub"), logger);
@@ -630,7 +630,7 @@ namespace ScriptureGraph.Core
             ];
 
             await crawler.Crawl(
-                new Uri("https://www.churchofjesuschrist.org/study/manual/jesus-the-christ/chapter-2?lang=eng"),
+                new Uri("https://www.churchofjesuschrist.org/study/manual/jesus-the-christ/chapter-4?lang=eng"),
                 pageAction,
                 logger.Clone("WebCrawler-JTC"),
                 allowedUrls);

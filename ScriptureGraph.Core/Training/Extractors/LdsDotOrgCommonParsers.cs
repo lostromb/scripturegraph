@@ -277,6 +277,14 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                             foreach (var scripture in scratch)
                             {
+                                // Filter out invalid verses (e.g. 3 Nephi 1:99)
+                                if (scripture.Chapter.HasValue &&
+                                    scripture.Verse.HasValue &&
+                                    !ScriptureMetadata.IsValidVerse(scripture.Book, scripture.Chapter.Value, scripture.Verse.Value))
+                                {
+                                    continue;
+                                }
+
                                 if (!dedup.Contains(scripture))
                                 {
                                     dedup.Add(scripture);
@@ -300,6 +308,13 @@ namespace ScriptureGraph.Core.Training.Extractors
 
                         foreach (var scripture in scratch)
                         {
+                            if (scripture.Chapter.HasValue &&
+                                scripture.Verse.HasValue &&
+                                !ScriptureMetadata.IsValidVerse(scripture.Book, scripture.Chapter.Value, scripture.Verse.Value))
+                            {
+                                continue;
+                            }
+
                             if (!dedup.Contains(scripture))
                             {
                                 dedup.Add(scripture);
@@ -310,10 +325,10 @@ namespace ScriptureGraph.Core.Training.Extractors
                     else
                     {
                         // Not sure if this is possible but whatever
-                        //logger.Log($"Adding reference with chapter but no verse to {refCanon} {refBook} {refChapter}");
                         toReturn = new ScriptureReference(refCanon, refBook, refChapter);
-                        if (!dedup.Contains(toReturn))
+                        if (!dedup.Contains(toReturn) && ScriptureMetadata.IsValidChapter(refBook, refChapter))
                         {
+                            //logger.Log($"Adding reference with chapter but no verse to {refCanon} {refBook} {refChapter}");
                             dedup.Add(toReturn);
                             yield return toReturn;
                         }
@@ -342,6 +357,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                 for (int verse = verseStart; verse <= verseEnd; verse++)
                 {
                     toReturn = new ScriptureReference(refCanon, refBook, refChapter, verse);
+                    if (toReturn.Chapter.HasValue &&
+                        toReturn.Verse.HasValue &&
+                        !ScriptureMetadata.IsValidVerse(toReturn.Book, toReturn.Chapter.Value, toReturn.Verse.Value))
+                    {
+                        continue;
+                    }
+
                     if (!dedup.Contains(toReturn))
                     {
                         dedup.Add(toReturn);
@@ -355,6 +377,13 @@ namespace ScriptureGraph.Core.Training.Extractors
             strippedHtml = StringUtils.RegexRemove(HtmlTagRemover, strippedHtml);
             foreach (ScriptureReference plaintextReference in ScriptureMetadataEnglish.ParseAllReferences(strippedHtml))
             {
+                if (plaintextReference.Chapter.HasValue &&
+                    plaintextReference.Verse.HasValue &&
+                    !ScriptureMetadata.IsValidVerse(plaintextReference.Book, plaintextReference.Chapter.Value, plaintextReference.Verse.Value))
+                {
+                    continue;
+                }
+
                 if (!dedup.Contains(plaintextReference))
                 {
                     dedup.Add(plaintextReference);

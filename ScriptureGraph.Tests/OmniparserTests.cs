@@ -31,6 +31,11 @@ namespace ScriptureGraph.Tests
         public void TestOmniparser_Edersheim() => TestParserOutput("Edersheim 1:422-23.");
 
         [TestMethod]
+        public void TestOmniparser_PlainScripture_InvalidVerses() => TestParserOutput(
+            "Abraham 3:25. For a fuller treatment of man’s Free Agency, see the author’s Articles of Faith, 3:52–57",
+            FeatureToNodeMapping.ScriptureVerse("abr", 3, 25));
+
+        [TestMethod]
         public void TestOmniparser_PlainScripture_SeveralVerses1() => TestParserOutput(
             "(John 4:4-6; JST John 4:2, 6-7)",
             FeatureToNodeMapping.ScriptureVerse("john", 4, 4),
