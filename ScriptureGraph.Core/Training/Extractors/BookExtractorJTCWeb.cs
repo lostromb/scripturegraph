@@ -1,4 +1,5 @@
-﻿using Durandal.Common.Logger;
+﻿using Durandal.API;
+using Durandal.Common.Logger;
 using Durandal.Common.NLP.Language;
 using Durandal.Common.Parsers;
 using Durandal.Common.Utils;
@@ -21,7 +22,75 @@ namespace ScriptureGraph.Core.Training.Extractors
         {
             try
             {
-                
+                DocumentParseModel? parseResult = ParseInternal(htmlPage, pageUrl, logger);
+                if (parseResult == null)
+                {
+                    logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
+                    return;
+                }
+
+                // High-level features
+                // Title of the chapter -> Chapter
+                foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(parseResult.ChapterName))
+                {
+                    trainingFeaturesOut(new TrainingFeature(
+                        parseResult.DocumentEntityId,
+                        ngram,
+                        TrainingFeatureType.WordDesignation));
+                }
+
+                List<TrainingFeature> scratch = new List<TrainingFeature>();
+                foreach (Paragraph para in parseResult.BodyParagraphs)
+                {
+                    // Associate this paragraph with the entire chapter
+                    trainingFeaturesOut(new TrainingFeature(
+                        parseResult.DocumentEntityId,
+                        para.ParaEntityId,
+                        TrainingFeatureType.BookAssociation));
+
+                    // And with the previous paragraph
+                    if (para.ParagraphNum.HasValue && para.ParagraphNum > 1)
+                    {
+                        trainingFeaturesOut(new TrainingFeature(
+                            para.ParaEntityId,
+                            FeatureToNodeMapping.BookChapterParagraph(parseResult.DocumentEntityId, (para.ParagraphNum.Value - 1).ToString()),
+                            TrainingFeatureType.ParagraphAssociation));
+                    }
+
+                    // Extract sentence-level features, and while we're looping over each sentence, associate
+                    // footnote references in the sentence with the sentence entity
+                    Tuple<string, List<FootnoteReference>> textAndFootnotesWithoutHtml = RemoveTextPreservingFootnotes(para.Text, LdsDotOrgCommonParsers.HtmlTagRemover, para.Footnotes);
+                    List<TrainingFeature> localTrainingFeatures = new List<TrainingFeature>();
+                    foreach (Substring sentence in EnglishWordFeatureExtractor.ExtractTrainingFeatures(textAndFootnotesWithoutHtml.Item1, localTrainingFeatures, para.ParaEntityId))
+                    {
+                        // See if there is a footnote immediately within the range of this sentence
+                        foreach (FootnoteReference footnote in textAndFootnotesWithoutHtml.Item2)
+                        {
+                            if (footnote.ReferenceSpan.Start < sentence.Range.Start || footnote.ReferenceSpan.Start > sentence.Range.End + 5)
+                            {
+                                continue;
+                            }
+
+                            foreach (var footnoteScriptureRef in footnote.Footnote.EntityRefs)
+                            {
+                                // Entity reference between this sentence and the scripture ref
+                                trainingFeaturesOut(new TrainingFeature(
+                                    sentence.EntityId ?? para.ParaEntityId,
+                                    footnoteScriptureRef,
+                                    TrainingFeatureType.EntityReference));
+
+                                // And association between all words spoken in this sentence and the scripture ref
+                                foreach (var ngram in EnglishWordFeatureExtractor.ExtractNGrams(sentence.Text))
+                                {
+                                    trainingFeaturesOut(new TrainingFeature(
+                                        ngram,
+                                        footnoteScriptureRef,
+                                        TrainingFeatureType.WordAssociation));
+                                }
+                            }
+                        }
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -36,7 +105,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                 DocumentParseModel? parseResult = ParseInternal(htmlPage, pageUrl, logger);
                 if (parseResult == null)
                 {
-                    //logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
+                    logger.Log($"Null parse result: {pageUrl}", LogLevel.Err);
                     return;
                 }
 
@@ -176,10 +245,8 @@ namespace ScriptureGraph.Core.Training.Extractors
                 HtmlDocument html = new HtmlDocument();
                 html.LoadHtml(htmlPage);
 
-                string chapterName = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(GetSingleInnerHtml(html, "//h1[@id=\"title1\"]"), logger).TextWithInlineFormatTags;
-                
-
                 HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
+                string chapterName = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(GetSingleInnerHtml(navigator, "//h1[@id=\"title1\"]"), logger).TextWithInlineFormatTags;
                 Dictionary<string, Footnote> footnoteReferences = ParseFootnotes(navigator, chapter, pageUrl.AbsolutePath, logger);
                 List<Note> notes = ParseNotes(navigator, chapter, logger);
                 List<Paragraph> paragraphs = ParseParagraphs(navigator, chapter, pageUrl.AbsolutePath, footnoteReferences, notes, logger);
@@ -310,7 +377,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         HashSet<KnowledgeGraphNodeId> nodeReferenceInThisNoteParagraph = new HashSet<KnowledgeGraphNodeId>();
                         foreach (var link in htmlFragmentParse.Links)
                         {
-                            foreach (var omniParseOutput in OmniParser.ParseHtml(link.Item2, logger, LanguageCode.ENGLISH))
+                            foreach (var omniParseOutput in OmniParser.ParseHtml(link.Text, logger, LanguageCode.ENGLISH))
                             {
                                 if (!nodeReferenceInThisNoteParagraph.Contains(omniParseOutput.Node))
                                 {
@@ -348,6 +415,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             Regex matcherForThisChapterFootnoteRefs = new Regex(Regex.Escape(currentUrl) + ".*?#(note\\d+)");
             navigator.MoveToRoot();
             int sectionNum = 1;
+            int paragraphNum = 1;
             XPathNodeIterator sectionIter = navigator.Select("//*[@id=\"main\"]/div[@class=\"body\"]/div[@class=\"body-block\"]/section");
             while (sectionIter.MoveNext() && sectionIter.Current is HtmlNodeNavigator currentNavSection)
             {
@@ -369,6 +437,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         ParaClass = GospelParagraphClass.SubHeader,
                         Footnotes = new List<FootnoteReference>(),
                         Subregions = new List<Substring>(),
+                        ParagraphNum = null
                     });
                 }
 
@@ -380,17 +449,17 @@ namespace ScriptureGraph.Core.Training.Extractors
                     string noteParaContent = WebUtility.HtmlDecode(currentNavPara.CurrentNode.InnerHtml);
                     var htmlFragmentParse = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(noteParaContent, logger);
                     List<FootnoteReference> footnoteRefsInThisParagraph = new List<FootnoteReference>();
-                    foreach (var link in htmlFragmentParse.Links.OrderByDescending(s => s.Item1.End))
+                    foreach (var link in htmlFragmentParse.Links.OrderByDescending(s => s.Range.End))
                     {
-                        int linkCharsDelta = 0 - link.Item1.Length;
-                        Match footnoteMatch = matcherForThisChapterFootnoteRefs.Match(link.Item2);
+                        int linkCharsDelta = 0 - link.Range.Length;
+                        Match footnoteMatch = matcherForThisChapterFootnoteRefs.Match(link.Text);
                         if (footnoteMatch.Success && footnotes.TryGetValue(footnoteMatch.Groups[1].Value, out Footnote? footnote))
                         {
                             Console.WriteLine(footnote.NoteId);
                             FootnoteReference thisFootnoteRef = new FootnoteReference()
                             {
                                 Footnote = footnote,
-                                ReferenceSpan = link.Item1,
+                                ReferenceSpan = link.Range,
                             };
 
                             Note? referencedNote = null;
@@ -416,19 +485,19 @@ namespace ScriptureGraph.Core.Training.Extractors
                                 string replaceText = string.Format(" [Note {0}]", referencedNote.NoteNum);
                                 linkCharsDelta += replaceText.Length;
                                 thisFootnoteRef.ReferenceSpan = new IntRange(
-                                    link.Item1.Start,
-                                    link.Item1.Start + replaceText.Length);
+                                    link.Range.Start,
+                                    link.Range.Start + replaceText.Length);
                                 htmlFragmentParse.TextWithInlineFormatTags = string.Format("{0}{1}{2}",
-                                    htmlFragmentParse.TextWithInlineFormatTags.Substring(0, link.Item1.Start),
+                                    htmlFragmentParse.TextWithInlineFormatTags.Substring(0, link.Range.Start),
                                     replaceText,
-                                    htmlFragmentParse.TextWithInlineFormatTags.Substring(link.Item1.End));
+                                    htmlFragmentParse.TextWithInlineFormatTags.Substring(link.Range.End));
                             }
                             else
                             {
                                 thisFootnoteRef.ReferenceSpan = new IntRange(
-                                    link.Item1.Start,
-                                    link.Item1.Start); // zero-length footnote ref since we're deleting its text
-                                htmlFragmentParse.TextWithInlineFormatTags = htmlFragmentParse.TextWithInlineFormatTags.Remove(link.Item1.Start, link.Item1.Length);
+                                    link.Range.Start,
+                                    link.Range.Start); // zero-length footnote ref since we're deleting its text
+                                htmlFragmentParse.TextWithInlineFormatTags = htmlFragmentParse.TextWithInlineFormatTags.Remove(link.Range.Start, link.Range.Length);
                             }
 
                             // Whenever we alter the content of the paragraph, we need to adjust the positions
@@ -441,16 +510,19 @@ namespace ScriptureGraph.Core.Training.Extractors
                                     existingRef.ReferenceSpan.End + linkCharsDelta);
                             }
 
-                            footnoteRefsInThisParagraph.Add(thisFootnoteRef);
+                            if (referencedNote == null)
+                            {
+                                footnoteRefsInThisParagraph.Add(thisFootnoteRef);
+                            }
                         }
                         else
                         {
-                            htmlFragmentParse.TextWithInlineFormatTags = htmlFragmentParse.TextWithInlineFormatTags.Remove(link.Item1.Start, link.Item1.Length);
+                            htmlFragmentParse.TextWithInlineFormatTags = htmlFragmentParse.TextWithInlineFormatTags.Remove(link.Range.Start, link.Range.Length);
                             foreach (FootnoteReference existingRef in footnoteRefsInThisParagraph)
                             {
                                 existingRef.ReferenceSpan = new IntRange(
-                                    existingRef.ReferenceSpan.Start - link.Item1.Length,
-                                    existingRef.ReferenceSpan.End - link.Item1.Length);
+                                    existingRef.ReferenceSpan.Start - link.Range.Length,
+                                    existingRef.ReferenceSpan.End - link.Range.Length);
                             }
                         }
                     }
@@ -462,6 +534,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                         ParaEntityId = thisParaId,
                         Text = htmlFragmentParse.TextWithInlineFormatTags,
                         ParaClass = GospelParagraphClass.Default,
+                        ParagraphNum = paragraphNum++,
                         Footnotes = footnoteRefsInThisParagraph.OrderBy(s => s.ReferenceSpan.Start).ToList(),
                         Subregions = EnglishWordFeatureExtractor.BreakSentences(htmlFragmentParse.TextWithInlineFormatTags, thisParaId)
                             .Where(s => s.EntityId.HasValue).ToList()
@@ -472,16 +545,56 @@ namespace ScriptureGraph.Core.Training.Extractors
             return returnVal;
         }
 
-        private static string GetSingleInnerHtml(HtmlDocument html, string xpath)
+        private static Tuple<string, List<FootnoteReference>> RemoveTextPreservingFootnotes(string inputText, Regex removalRegex, List<FootnoteReference> footnotesIn)
         {
-            HtmlNodeNavigator navigator = html.CreateNavigator() as HtmlNodeNavigator;
-            XPathNodeIterator iter = navigator.Select(xpath);
-            if (iter.MoveNext() && iter.Current is HtmlNodeNavigator currentNav)
+            string returnString = inputText;
+            List<FootnoteReference> modifiedFootnotes = new List<FootnoteReference>();
+            foreach (FootnoteReference existingRef in footnotesIn)
             {
-                return currentNav.CurrentNode.InnerHtml;
+                modifiedFootnotes.Add(new FootnoteReference()
+                {
+                    Footnote = existingRef.Footnote,
+                    ReferenceSpan = existingRef.ReferenceSpan
+                });
             }
 
-            return string.Empty;
+            foreach (Match m in removalRegex.Matches(inputText).OrderByDescending(s => s.Index))
+            {
+                returnString = returnString.Remove(m.Index, m.Length);
+                foreach (FootnoteReference existingRef in modifiedFootnotes)
+                {
+                    // Cases:
+                    // 1. Footnote is larger than removed text
+                    if (existingRef.ReferenceSpan.Start < m.Index && existingRef.ReferenceSpan.End > m.Index + m.Length)
+                    {
+                        existingRef.ReferenceSpan = new IntRange(existingRef.ReferenceSpan.Start, existingRef.ReferenceSpan.End - m.Length);
+                    }
+                    // 2. Right half of footnote is inside removed text
+                    else if (existingRef.ReferenceSpan.Start < m.Index && existingRef.ReferenceSpan.End > m.Index)
+                    {
+                        int overlap = m.Index - existingRef.ReferenceSpan.Start;
+                        existingRef.ReferenceSpan = new IntRange(existingRef.ReferenceSpan.Start, existingRef.ReferenceSpan.End - overlap);
+                    }
+                    // 3. Entire footnote is inside removed text
+                    else if (existingRef.ReferenceSpan.Start >= m.Index && existingRef.ReferenceSpan.End < m.Index)
+                    {
+                        existingRef.ReferenceSpan = new IntRange(m.Index, m.Index); // it becomes zero-length
+                    }
+                    // 4.  Left half of footnote is inside removed text
+                    else if (existingRef.ReferenceSpan.Start < m.Index + m.Length && existingRef.ReferenceSpan.End > m.Index)
+                    {
+                        int overlap = m.Index + m.Length - existingRef.ReferenceSpan.End;
+                        existingRef.ReferenceSpan = new IntRange(existingRef.ReferenceSpan.Start + overlap, existingRef.ReferenceSpan.End);
+                    }
+                    // 5. Footnote is to the right of removed text
+                    else if (existingRef.ReferenceSpan.Start > m.Index + m.Length)
+                    {
+                        existingRef.ReferenceSpan = new IntRange(existingRef.ReferenceSpan.Start - m.Length, existingRef.ReferenceSpan.End - m.Length);
+                    }
+                }
+            }
+
+            return new Tuple<string, List<FootnoteReference>>(returnString, modifiedFootnotes);
         }
 
         private static string GetSingleInnerHtml(HtmlNodeNavigator navigator, string xpath)
@@ -509,6 +622,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             public required KnowledgeGraphNodeId ParaEntityId;
             public required GospelParagraphClass ParaClass;
             public required string Text;
+            public required int? ParagraphNum;
             public required List<Substring> Subregions;
             public required List<FootnoteReference> Footnotes;
 

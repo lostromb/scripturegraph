@@ -455,7 +455,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     {
                         foreach (var link in paragraphParseModel.Links)
                         {
-                            if (!link.Item2.Contains('#'))
+                            if (!link.Text.Contains('#'))
                             {
                                 continue;
                             }
@@ -465,7 +465,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                                 footnoteRefs = new List<string>();
                             }
 
-                            footnoteRefs.Add(link.Item2.Substring(link.Item2.IndexOf('#') + 1));
+                            footnoteRefs.Add(link.Text.Substring(link.Text.IndexOf('#') + 1));
                         }
 
                         // Re-add the text for footnotes, being very careful about indexes
@@ -476,11 +476,11 @@ namespace ScriptureGraph.Core.Training.Extractors
                             foreach (var link in paragraphParseModel.Links)
                             {
                                 pooledSb.Builder.Clear();
-                                pooledSb.Builder.Append(paragraphParseModel.TextWithInlineFormatTags.Substring(0, link.Item1.Start));
+                                pooledSb.Builder.Append(paragraphParseModel.TextWithInlineFormatTags.Substring(0, link.Range.Start));
                                 pooledSb.Builder.Append("[Footnote ");
-                                pooledSb.Builder.Append(paragraphParseModel.TextWithInlineFormatTags.Substring(link.Item1.Start, link.Item1.Length));
+                                pooledSb.Builder.Append(paragraphParseModel.TextWithInlineFormatTags.Substring(link.Range.Start, link.Range.Length));
                                 pooledSb.Builder.Append("]");
-                                pooledSb.Builder.Append(paragraphParseModel.TextWithInlineFormatTags.Substring(link.Item1.Start + link.Item1.Length));
+                                pooledSb.Builder.Append(paragraphParseModel.TextWithInlineFormatTags.Substring(link.Range.Start + link.Range.Length));
                                 paragraphParseModel.TextWithInlineFormatTags = pooledSb.Builder.ToString();
                                 footnoteId--;
                                 footnoteRef++;

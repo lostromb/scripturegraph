@@ -618,7 +618,7 @@ namespace ScriptureGraph.Core.Training.Extractors
             using (PooledStringBuilder pooledSb = StringBuilderPool.Rent())
             {
                 StringBuilder sb = pooledSb.Builder;
-                List<Tuple<IntRange, string>> links = new List<Tuple<IntRange, string>>();
+                List<Substring> links = new List<Substring>();
                 HtmlDocument html = new HtmlDocument();
                 html.LoadHtml(htmlFragment);
 
@@ -667,7 +667,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                             href = WebUtility.HtmlDecode(href);
                             closingTagStack.Push(new HtmlStackOp((op) =>
                             {
-                                links.Add(new Tuple<IntRange, string>(new IntRange(op.TagBeginCharIndex, sb.Length), op.LinkHref));
+                                links.Add(new Substring(op.LinkHref, new IntRange(op.TagBeginCharIndex, sb.Length), null));
                             }, currentNav.CurrentNode.EndNode.StreamPosition, sb.Length, href));
                         }
                         else
@@ -696,7 +696,7 @@ namespace ScriptureGraph.Core.Training.Extractors
         public class HtmlFragmentParseModel
         {
             public required string TextWithInlineFormatTags;
-            public required List<Tuple<IntRange, string>> Links;
+            public required List<Substring> Links;
         }
 
         internal static IEnumerable<KnowledgeGraphNodeId> ParseAllConferenceTalkLinks(string html, ILogger logger)

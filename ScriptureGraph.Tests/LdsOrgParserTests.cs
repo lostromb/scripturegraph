@@ -251,9 +251,9 @@ namespace ScriptureGraph.Tests
             LdsDotOrgCommonParsers.HtmlFragmentParseModel parserOutput = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(html, new ConsoleLogger());
             Assert.AreEqual("His purposes fail not, neither are there any who can stay his hand.", parserOutput.TextWithInlineFormatTags);
             Assert.AreEqual(1, parserOutput.Links.Count);
-            Assert.AreEqual(4, parserOutput.Links[0].Item1.Start);
-            Assert.AreEqual(12, parserOutput.Links[0].Item1.End);
-            Assert.AreEqual("/study/scriptures/dc-testament/dc/76?lang=eng#note3a", parserOutput.Links[0].Item2);
+            Assert.AreEqual(4, parserOutput.Links[0].Range.Start);
+            Assert.AreEqual(12, parserOutput.Links[0].Range.End);
+            Assert.AreEqual("/study/scriptures/dc-testament/dc/76?lang=eng#note3a", parserOutput.Links[0].Text);
         }
 
         [TestMethod]
@@ -263,9 +263,9 @@ namespace ScriptureGraph.Tests
             LdsDotOrgCommonParsers.HtmlFragmentParseModel parserOutput = LdsDotOrgCommonParsers.ParseAndFormatHtmlFragmentNew(html, new ConsoleLogger());
             Assert.AreEqual("His purposes fail not, neither are there any who can stay his hand.", parserOutput.TextWithInlineFormatTags);
             Assert.AreEqual(1, parserOutput.Links.Count);
-            Assert.AreEqual(4, parserOutput.Links[0].Item1.Start);
-            Assert.AreEqual(12, parserOutput.Links[0].Item1.End);
-            Assert.AreEqual("/study/scriptures/nt/john/5?lang=eng&id=p29#p29", parserOutput.Links[0].Item2);
+            Assert.AreEqual(4, parserOutput.Links[0].Range.Start);
+            Assert.AreEqual(12, parserOutput.Links[0].Range.End);
+            Assert.AreEqual("/study/scriptures/nt/john/5?lang=eng&id=p29#p29", parserOutput.Links[0].Text);
         }
 
 

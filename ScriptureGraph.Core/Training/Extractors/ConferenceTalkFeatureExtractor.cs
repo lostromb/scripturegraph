@@ -374,13 +374,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                     List<FootnoteReference> footnoteRefs = new List<FootnoteReference>();
                     foreach (var inlineRef in parsedHtml.Links)
                     {
-                        foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Item2, logger, LanguageCode.ENGLISH))
+                        foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Text, logger, LanguageCode.ENGLISH))
                         {
                             //Console.WriteLine($"Links to {inlineRef.Item2}");
                             footnoteRefs.Add(new FootnoteReference()
                             {
                                 ParserMatch = scriptureRef,
-                                ReferenceSpan = inlineRef.Item1
+                                ReferenceSpan = inlineRef.Range
                             });
                         }
                     }
@@ -445,7 +445,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                     List<FootnoteReference> footnoteRefs = new List<FootnoteReference>();
                     foreach (var inlineRef in parsedHtml.Links)
                     {
-                        Uri uri = new Uri("scripture://" + inlineRef.Item2, UriKind.Absolute);
+                        Uri uri = new Uri("scripture://" + inlineRef.Text, UriKind.Absolute);
                         string footnote = uri.Fragment.TrimStart('#');
                         ISet<KnowledgeGraphNodeId>? footnoteTargets;
                         if (footnote.StartsWith("note"))
@@ -458,7 +458,7 @@ namespace ScriptureGraph.Core.Training.Extractors
                                     footnoteRefs.Add(new FootnoteReference()
                                     {
                                         ParserMatch = new OmniParserOutput(nodeId),
-                                        ReferenceSpan = inlineRef.Item1
+                                        ReferenceSpan = inlineRef.Range
                                     });
                                 }
                             }
@@ -471,13 +471,13 @@ namespace ScriptureGraph.Core.Training.Extractors
                         {
                             // This could be an href that links directly to another scripture verse
                             // example D&C 76:15
-                            foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Item2, logger, LanguageCode.ENGLISH))
+                            foreach (OmniParserOutput scriptureRef in OmniParser.ParseHtml(inlineRef.Text, logger, LanguageCode.ENGLISH))
                             {
                                 //Console.WriteLine($"Links to {scriptureRef}");
                                 footnoteRefs.Add(new FootnoteReference()
                                 {
                                     ParserMatch = scriptureRef,
-                                    ReferenceSpan = inlineRef.Item1
+                                    ReferenceSpan = inlineRef.Range
                                 });
                             }
                         }
