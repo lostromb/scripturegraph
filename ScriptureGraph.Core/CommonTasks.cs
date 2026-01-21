@@ -638,6 +638,39 @@ namespace ScriptureGraph.Core
                 allowedUrls);
         }
 
+        private static async Task CrawlSCI_GC(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        {
+            // Get all GC index
+            WebCrawler.CrawledPage? conferencesIndexPage = await crawler.DirectDownload(new Uri("https://scriptures.byu.edu/citation_index/gc_ajax"), logger);
+
+            // Get a single conference
+            // https://scriptures.byu.edu/citation_index/gc_ajax/2025/O
+
+            // Get a single talk
+            // https://scriptures.byu.edu/content/talks_ajax/8805/
+        }
+
+        private static async Task CrawlSCI_JOD(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        {
+            // Get all JOD index
+            WebCrawler.CrawledPage? jodIndexPage = await crawler.DirectDownload(new Uri("https://scriptures.byu.edu/citation_index/jod_ajax"), logger);
+
+            // Get a single journal
+            // https://scriptures.byu.edu/citation_index/jod_ajax/01
+
+            // Get a single talk
+            // https://scriptures.byu.edu/content/talks_ajax/10020/
+        }
+
+        private static async Task CrawlSCI_STOJS(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
+        {
+            // Get all scriptural teachings index
+            WebCrawler.CrawledPage? jodIndexPage = await crawler.DirectDownload(new Uri("https://scriptures.byu.edu/citation_index/stpjs_ajax"), logger);
+
+            // Get a single page
+            // https://scriptures.byu.edu/content/talks_ajax/270007/
+        }
+
         private static async Task CrawlBookOfMormon(WebCrawler crawler, Func<WebCrawler.CrawledPage, ILogger, Task<bool>> pageAction, ILogger logger)
         {
             HashSet<Regex> allowedUrls =
