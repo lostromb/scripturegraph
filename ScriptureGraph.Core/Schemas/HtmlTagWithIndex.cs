@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ScriptureGraph.Core.Schemas
 {
-    public class HtmlTagWithIndex : IComparable<HtmlTagWithIndex>
+    public class HtmlTagWithIndex : IComparable<HtmlTagWithIndex>, IEquatable<HtmlTagWithIndex>
     {
         public required HtmlTag Tag { get; init; }
         public required int Index { get; init; }
@@ -19,6 +19,22 @@ namespace ScriptureGraph.Core.Schemas
             }
 
             return Index.CompareTo(other.Index);
+        }
+
+        public bool Equals(HtmlTagWithIndex? other)
+        {
+            if (other is null)
+            {
+                return false;
+            }
+
+            return Index == other.Index &&
+                Tag.Equals(other.Tag);
+        }
+
+        public override string ToString()
+        {
+            return $"{Index}: {Tag}";
         }
     }
 }

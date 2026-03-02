@@ -90,5 +90,19 @@ namespace ScriptureGraph.Tests
             Assert.AreEqual("4 That thine alms may be in secret: and thy Father which seeth in secret himself shall reward thee openly.", parsedVal.Text);
             Assert.AreEqual(10, parsedVal.Tags.Count);
         }
+
+        [TestMethod]
+        [DataRow("<div>This is a <a href=\"link\">test.</a></div>", 0, 15, "<div>This is a <a href=\"link\">test.</a></div>")]
+        [DataRow("<div>This is a <a href=\"link\">test.</a></div>", 8, 6, "<div>a <a href=\"link\">test</a></div>")]
+        [DataRow("<div>This is a <a href=\"link\">test.</a></div>", 0, 1, "<div>T</div>")]
+        [DataRow("<div>This is a <a href=\"link\">test.</a></div>", 0, 9, "<div>This is a</div>")]
+        [DataRow("<div>This is a <a href=\"link\">test.</a></div>", 1, 8, "<div>his is a</div>")]
+        public void Test_HtmlTaggedString_Substring(string inputHtml, int start, int length, string expectedHtml)
+        {
+            HtmlTaggedString parsedVal = HtmlTaggedString.Parse(inputHtml);
+            HtmlTaggedString substring = parsedVal.Substring(start, length);
+            HtmlTaggedString expectedSubstring = HtmlTaggedString.Parse(expectedHtml);
+            Assert.AreEqual(expectedSubstring, substring);
+        }
     }
 }
